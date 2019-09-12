@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package gossip;
+
+service GossipRPC {
+	rpc GetPredecessorIdCaller(RemoteNodeMsg) returns (IdReplyMsg);
+	rpc GetSuccessorIdCaller(RemoteNodeMsg) returns (IdReplyMsg);
+	rpc SetPredecessorIdCaller(UpdateReqMsg) returns (RpcOkayMsg);
+	rpc SetSuccessorIdCaller(UpdateReqMsg) returns (RpcOkayMsg);
+	rpc NotifyCaller(NotifyReqMsg) returns (RpcOkayMsg);
+	rpc FindSuccessorCaller(RemoteQueryMsg) returns (IdReplyMsg);
+	rpc ClosestPrecedingFingerCaller(RemoteQueryMsg) returns (IdReplyMsg);
+	rpc GetCaller(KeyValueReqMsg) returns (KeyValueReplyMsg);
+	rpc PutCaller(KeyValueReqMsg) returns (KeyValueReplyMsg);
+	rpc TransferKeysCaller(TransferReqMsg) returns (RpcOkayMsg);
+}
+
+message Empty {
+
+}
+
+message KeyValueReqMsg {
+	bytes NodeId = 1;
+	string Key = 2;
+	string Value = 3;
+}
+
+message TransferReqMsg {
+	bytes NodeId = 1;
+	bytes FromId = 2;
+	string FromAddr = 3;
+	bytes PredId = 4;
+}
+
+message KeyValueReplyMsg {
+	string Key = 1;
+	string Value = 2;
+}
+
+message RemoteNodeMsg {
+	bytes Id = 1;
+	string Addr = 2;
+}
+
+message IdReplyMsg {
+	bytes Id = 1;
+	string Addr = 2;
+	bool Valid = 3;
+}
+
+message UpdateReqMsg {
+	bytes FromId = 1;
+	bytes UpdateId = 2;
+	string UpdateAddr = 3;
+}
+
+message NotifyReqMsg {
+	bytes NodeId = 1;
+	string NodeAddr = 2;
+	bytes UpdateId = 3;
+	string UpdateAddr = 4;
+}
+
+message RemoteQueryMsg {
+	bytes FromId = 1;
+	bytes Id = 2;
+}
+
+message RpcOkayMsg {
+	bool Ok = 1;
+}
