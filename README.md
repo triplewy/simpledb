@@ -1,3 +1,3 @@
-# Gossip Protocol Implementation
+# SimpleDb
 
-Simple Key-Value store using gossip protocol written in Go
+Simple Key-Value store using Raft Consensus Protocol written in Go

@@ -40,6 +40,11 @@ type Node struct {
 
 	receiveChan chan string
 	wg          sync.WaitGroup /* WaitGroup of concurrent goroutines to sync before exiting */
+
+	isElection bool
+	raft       *Election
+
+	nodes []RemoteNode
 }
 
 // KeyLength is number of bits (i.e. m value). Assumes <= 128 and divisible by 8
@@ -57,6 +62,8 @@ func CreateNode() (*Node, error) {
 
 // Initailize a Chord node, start listener, RPC server, and go routines.
 func (node *Node) init() error {
+	node.grpcPort = 50051
+
 	listener, err := net.Listen("tcp", "127.0.0.1:"+strconv.Itoa(node.grpcPort))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)

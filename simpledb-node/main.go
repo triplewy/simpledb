@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"log"
 
-	gossip "github.com/triplewy/gossip/gossip-node/src"
+	simpledb "github.com/triplewy/simpledb/simpledb-node/src"
 )
 
 func main() {
 	// addrPtr := flag.String("addr", "", "Address of a node in the Chord ring you wish to join")
 	flag.Parse()
 
-	node, err := gossip.CreateNode()
+	node, err := simpledb.CreateNode()
 
 	if err != nil {
 		fmt.Println("Unable to create new node!")
