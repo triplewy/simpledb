@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package simpledb;
+
+service SimpleDb { rpc GetHostInfoCaller(Empty) returns (HostStatsReplyMsg); }
+
+message Empty {}
+
+message HostStatsReplyMsg {
+    string totalMemory = 1;
+    string usedMemory = 2;
+    string totalSpace = 3;
+    string usedSpace = 4;
+    string numCores = 5;
+    string cpuPercent = 6;
+    string os = 7;
+    string hostname = 8;
+    string uptime = 9;
+}
+
+message RpcOkayMsg { bool Ok = 1; }

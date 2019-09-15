@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/triplewy/gossip/gossip"
+	gossip "github.com/triplewy/gossip/gossip-node/src"
 )
 
 func main() {
@@ -21,5 +21,9 @@ func main() {
 
 	fmt.Printf("Created Node: %v @ %v\n", node.ID, node.Addr)
 
-	select {}
+	err = node.Server.Serve(node.Listener)
+
+	if err != nil {
+		log.Fatalf("failed to serve: %v", err)
+	}
 }
