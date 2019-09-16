@@ -3,7 +3,6 @@ package simpledb
 import (
 	"log"
 	"net"
-	"strconv"
 	"sync"
 	"time"
 
@@ -12,6 +11,12 @@ import (
 
 	pb "github.com/triplewy/simpledb/grpc"
 )
+
+// GrpcPort is port used for gRPC
+var GrpcPort = ":50051"
+
+// KeyLength is number of bits (i.e. m value). Assumes <= 128 and divisible by 8
+const KeyLength = 16
 
 // RemoteNode represents a Non-local node.
 type RemoteNode struct {
@@ -27,8 +32,9 @@ type Node struct {
 
 	Listener net.Listener /* Node listener socket */
 	Server   *grpc.Server /* RPC Server */
-	creds    credentials.TransportCredentials
-	grpcPort int
+
+	serverCreds credentials.TransportCredentials
+	clientCreds credentials.TransportCredentials
 
 	stats *Stats
 
@@ -44,36 +50,41 @@ type Node struct {
 	isElection bool
 	raft       *Election
 
-	nodes []RemoteNode
+	Ring *Ring
 }
 
-// KeyLength is number of bits (i.e. m value). Assumes <= 128 and divisible by 8
-const KeyLength = 16
-
 // CreateNode creates a Gossip node with random ID based on listener address.
-func CreateNode() (*Node, error) {
+func CreateNode(joinAddr string) (*Node, error) {
 	node := new(Node)
 	err := node.init()
 	if err != nil {
 		return nil, err
 	}
+
+	if joinAddr != "" {
+		reply, err := node.GetNodesRPC(&RemoteNode{Addr: joinAddr, ID: HashKey(joinAddr)})
+		if err != nil {
+			log.Fatalf("failed to join node %v", err)
+		}
+		ring := new(Ring)
+		for _, node := range reply.RemoteNodes {
+			ring.AddNode(&RemoteNode{Addr: node.Addr, ID: node.Id})
+		}
+		node.Ring = ring
+	}
 	return node, err
 }
 
-// Initailize a Chord node, start listener, RPC server, and go routines.
 func (node *Node) init() error {
-	node.grpcPort = 50051
-
-	listener, err := net.Listen("tcp", "127.0.0.1:"+strconv.Itoa(node.grpcPort))
+	listener, err := net.Listen("tcp", GrpcPort)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 		return err
 	}
 
-	node.ID = HashKey(listener.Addr().String())
-
 	node.Listener = listener
-	node.Addr = listener.Addr().String()
+	node.Addr = GetOutboundIP().String() + GrpcPort
+	node.ID = HashKey(node.Addr)
 	node.IsShutdown = false
 	node.dataStore = make(map[string]string)
 
@@ -82,13 +93,21 @@ func (node *Node) init() error {
 	node.RemoteSelf.ID = node.ID
 	node.RemoteSelf.Addr = node.Addr
 
-	creds, err := credentials.NewServerTLSFromFile("../ssl/cert.pem", "../ssl/key.pem")
+	node.Ring = NewRing()
+	node.Ring.AddNode(node.RemoteSelf)
+
+	serverCreds, err := credentials.NewServerTLSFromFile("../ssl/cert.pem", "../ssl/key.pem")
+	if err != nil {
+		log.Fatalf("could not create credentials: %v", err)
+	}
+	clientCreds, err := credentials.NewClientTLSFromFile("../ssl/cert.pem", "")
 	if err != nil {
 		log.Fatalf("could not create credentials: %v", err)
 	}
 
-	node.creds = creds
-	node.Server = grpc.NewServer(grpc.Creds(node.creds))
+	node.serverCreds = serverCreds
+	node.clientCreds = clientCreds
+	node.Server = grpc.NewServer(grpc.Creds(node.serverCreds))
 
 	pb.RegisterSimpleDbServer(node.Server, node)
 

@@ -19,70 +19,67 @@ const (
 )
 
 type command struct {
-	Nodes []RemoteNode `json:"nodes,omitempty"`
+	Op    string `json:"op,omitempty"`
+	Key   string `json:"key,omitempty"`
+	Value string `json:"value,omitempty"`
 }
 
-// Election is struct for Raft Protocol and cluster membership
+// Election is a simple key-value store, where all changes are made via Raft consensus.
 type Election struct {
-	raft     *raft.Raft
 	RaftDir  string
 	RaftBind string
 
-	nLock sync.Mutex
-	nodes []RemoteNode
+	mu sync.Mutex
+	m  map[string]string // The key-value store for the system.
+
+	raft *raft.Raft // The consensus mechanism
 
 	logger *log.Logger
 }
 
 // New returns a new Store.
-func New(raftDir, raftBind string) *Election {
+func New() *Election {
 	return &Election{
-		nodes:    []RemoteNode{},
-		RaftDir:  raftDir,
-		RaftBind: raftBind,
-		logger:   log.New(os.Stderr, "[election] ", log.LstdFlags),
+		m:      make(map[string]string),
+		logger: log.New(os.Stderr, "[store] ", log.LstdFlags),
 	}
 }
 
 // Open opens the store. If enableSingle is set, and there are no existing peers,
 // then this node becomes the first node, and therefore leader, of the cluster.
 // localID should be the server identifier for this node.
-func (node *Election) Open(joinAddr string) error {
+func (s *Election) Open(enableSingle bool, localID string) error {
 	// Setup Raft configuration.
 	config := raft.DefaultConfig()
-	localID := HashKey(joinAddr)
 	config.LocalID = raft.ServerID(localID)
 
 	// Setup Raft communication.
-	addr, err := net.ResolveTCPAddr("tcp", node.RaftBind)
+	addr, err := net.ResolveTCPAddr("tcp", s.RaftBind)
 	if err != nil {
 		return err
 	}
-	transport, err := raft.NewTCPTransport(node.RaftBind, addr, 3, 10*time.Second, os.Stderr)
+	transport, err := raft.NewTCPTransport(s.RaftBind, addr, 3, 10*time.Second, os.Stderr)
 	if err != nil {
 		return err
 	}
 
 	// Create the snapshot store. This allows the Raft to truncate the log.
-	snapshots, err := raft.NewFileSnapshotStore(node.RaftDir, 1, os.Stderr)
+	snapshots, err := raft.NewFileSnapshotStore(s.RaftDir, retainSnapshotCount, os.Stderr)
 	if err != nil {
 		return fmt.Errorf("file snapshot store: %s", err)
 	}
 
-	// Create the log store and stable store.
 	logStore := raft.NewInmemStore()
 	stableStore := raft.NewInmemStore()
 
-	// Instantiate the Raft systemnode.
-	fsm := &fsm{nodes: node.nodes}
-
-	ra, err := raft.NewRaft(config, fsm, logStore, stableStore, snapshots, transport)
+	// Instantiate the Raft systems.
+	ra, err := raft.NewRaft(config, (*fsm)(s), logStore, stableStore, snapshots, transport)
 	if err != nil {
 		return fmt.Errorf("new raft: %s", err)
 	}
-	node.raft = ra
+	s.raft = ra
 
-	if joinAddr == "" {
+	if enableSingle {
 		configuration := raft.Configuration{
 			Servers: []raft.Server{
 				{
@@ -92,24 +89,65 @@ func (node *Election) Open(joinAddr string) error {
 			},
 		}
 		ra.BootstrapCluster(configuration)
-		node.Set([]RemoteNode{RemoteNode{ID: localID, Addr: node.RaftBind}})
-	} else {
-		node.Join(joinAddr)
 	}
 
 	return nil
 }
 
+// Get returns the value for the given key.
+func (s *Election) Get(key string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.m[key], nil
+}
+
+// Set sets the value for the given key.
+func (s *Election) Set(key, value string) error {
+	if s.raft.State() != raft.Leader {
+		return fmt.Errorf("not leader")
+	}
+
+	c := &command{
+		Op:    "set",
+		Key:   key,
+		Value: value,
+	}
+	b, err := json.Marshal(c)
+	if err != nil {
+		return err
+	}
+
+	f := s.raft.Apply(b, raftTimeout)
+	return f.Error()
+}
+
+// Delete deletes the given key.
+func (s *Election) Delete(key string) error {
+	if s.raft.State() != raft.Leader {
+		return fmt.Errorf("not leader")
+	}
+
+	c := &command{
+		Op:  "delete",
+		Key: key,
+	}
+	b, err := json.Marshal(c)
+	if err != nil {
+		return err
+	}
+
+	f := s.raft.Apply(b, raftTimeout)
+	return f.Error()
+}
+
 // Join joins a node, identified by nodeID and located at addr, to this store.
 // The node must be ready to respond to Raft communications at that address.
-func (node *Election) Join(addr string) error {
-	nodeID := HashKey(addr)
+func (s *Election) Join(nodeID, addr string) error {
+	s.logger.Printf("received join request for remote node %s at %s", nodeID, addr)
 
-	Out.Printf("received join request for remote node %s at %s", nodeID, addr)
-
-	configFuture := node.raft.GetConfiguration()
+	configFuture := s.raft.GetConfiguration()
 	if err := configFuture.Error(); err != nil {
-		Out.Printf("failed to get raft configuration: %v", err)
+		s.logger.Printf("failed to get raft configuration: %v", err)
 		return err
 	}
 
@@ -120,58 +158,26 @@ func (node *Election) Join(addr string) error {
 			// However if *both* the ID and the address are the same, then nothing -- not even
 			// a join operation -- is needed.
 			if srv.Address == raft.ServerAddress(addr) && srv.ID == raft.ServerID(nodeID) {
-				Out.Printf("node %s at %s already member of cluster, ignoring join request", nodeID, addr)
+				s.logger.Printf("node %s at %s already member of cluster, ignoring join request", nodeID, addr)
 				return nil
 			}
 
-			future := node.raft.RemoveServer(srv.ID, 0, 0)
+			future := s.raft.RemoveServer(srv.ID, 0, 0)
 			if err := future.Error(); err != nil {
 				return fmt.Errorf("error removing existing node %s at %s: %s", nodeID, addr, err)
 			}
-			// TODO: Remove node from remotenNodes
 		}
 	}
 
-	f := node.raft.AddVoter(raft.ServerID(nodeID), raft.ServerAddress(addr), 0, 0)
+	f := s.raft.AddVoter(raft.ServerID(nodeID), raft.ServerAddress(addr), 0, 0)
 	if f.Error() != nil {
 		return f.Error()
 	}
-	Out.Printf("node %s at %s joined successfully", nodeID, addr)
-	node.nodes = append(node.nodes, RemoteNode{ID: nodeID, Addr: addr})
-	node.Set(node.nodes)
+	s.logger.Printf("node %s at %s joined successfully", nodeID, addr)
 	return nil
 }
 
-type fsm struct {
-	nLock sync.Mutex
-	nodes []RemoteNode
-}
-
-// Get returns the value for the given key.
-func (node *Election) Get() ([]RemoteNode, error) {
-	node.nLock.Lock()
-	defer node.nLock.Unlock()
-	return node.nodes, nil
-}
-
-// Set sets the value for the given key.
-func (node *Election) Set(nodes []RemoteNode) error {
-	if node.raft.State() != raft.Leader {
-		return fmt.Errorf("not leader")
-	}
-
-	c := &command{
-		Nodes: nodes,
-	}
-
-	b, err := json.Marshal(c)
-	if err != nil {
-		return err
-	}
-
-	f := node.raft.Apply(b, raftTimeout)
-	return f.Error()
-}
+type fsm Election
 
 // Apply applies a Raft log entry to the key-value store.
 func (f *fsm) Apply(l *raft.Log) interface{} {
@@ -180,42 +186,64 @@ func (f *fsm) Apply(l *raft.Log) interface{} {
 		panic(fmt.Sprintf("failed to unmarshal command: %s", err.Error()))
 	}
 
-	f.nLock.Lock()
-	defer f.nLock.Unlock()
-	f.nodes = c.Nodes
-	return nil
+	switch c.Op {
+	case "set":
+		return f.applySet(c.Key, c.Value)
+	case "delete":
+		return f.applyDelete(c.Key)
+	default:
+		panic(fmt.Sprintf("unrecognized command op: %s", c.Op))
+	}
 }
 
 // Snapshot returns a snapshot of the key-value store.
 func (f *fsm) Snapshot() (raft.FSMSnapshot, error) {
-	f.nLock.Lock()
-	defer f.nLock.Unlock()
+	f.mu.Lock()
+	defer f.mu.Unlock()
 
-	copy := []RemoteNode{}
-	copy = append(f.nodes[:0:0], f.nodes...)
-
-	return &fsmSnapshot{nodes: copy}, nil
+	// Clone the map.
+	o := make(map[string]string)
+	for k, v := range f.m {
+		o[k] = v
+	}
+	return &fsmSnapshot{store: o}, nil
 }
 
 // Restore stores the key-value store to a previous state.
 func (f *fsm) Restore(rc io.ReadCloser) error {
-	nodes := []RemoteNode{}
-	if err := json.NewDecoder(rc).Decode(&nodes); err != nil {
+	o := make(map[string]string)
+	if err := json.NewDecoder(rc).Decode(&o); err != nil {
 		return err
 	}
 
-	f.nodes = nodes
+	// Set the state from the snapshot, no lock required according to
+	// Hashicorp docs.
+	f.m = o
+	return nil
+}
+
+func (f *fsm) applySet(key, value string) interface{} {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.m[key] = value
+	return nil
+}
+
+func (f *fsm) applyDelete(key string) interface{} {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.m, key)
 	return nil
 }
 
 type fsmSnapshot struct {
-	nodes []RemoteNode
+	store map[string]string
 }
 
 func (f *fsmSnapshot) Persist(sink raft.SnapshotSink) error {
 	err := func() error {
 		// Encode data.
-		b, err := json.Marshal(f.nodes)
+		b, err := json.Marshal(f.store)
 		if err != nil {
 			return err
 		}

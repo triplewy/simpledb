@@ -14,6 +14,34 @@ import (
 var connByAddress = make(map[string]*grpc.ClientConn)
 var connByAddressMutex = &sync.Mutex{}
 
+func (node *Node) GetNodesRPC(remote *RemoteNode) (*pb.RemoteNodesReplyMsg, error) {
+	if remote == nil {
+		return &pb.RemoteNodesReplyMsg{}, errors.New("remoteNode is empty")
+	}
+
+	cc, err := node.ClientConnection(remote)
+	if err != nil {
+		return &pb.RemoteNodesReplyMsg{}, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	return cc.GetNodesCaller(ctx, &pb.RemoteNodeMsg{Addr: remote.Addr, Id: remote.ID})
+}
+
+func (node *Node) GetNodesCaller(ctx context.Context, remote *pb.RemoteNodeMsg) (*pb.RemoteNodesReplyMsg, error) {
+	node.Ring.AddNode(&RemoteNode{Addr: remote.Addr, ID: remote.Id})
+
+	remoteNodes := []*pb.RemoteNodeMsg{}
+
+	for _, node := range node.Ring.Nodes {
+		remoteNodes = append(remoteNodes, &pb.RemoteNodeMsg{Addr: node.Addr, Id: node.ID})
+	}
+
+	return &pb.RemoteNodesReplyMsg{RemoteNodes: remoteNodes}, nil
+}
+
 func (node *Node) GetHostInfoRPC(remote *RemoteNode) (*pb.HostStatsReplyMsg, error) {
 	if remote == nil {
 		return &pb.HostStatsReplyMsg{}, errors.New("remoteNode is empty")
@@ -55,12 +83,9 @@ func (node *Node) ClientConnection(remote *RemoteNode) (pb.SimpleDbClient, error
 		return pb.NewSimpleDbClient(cc), nil
 	}
 
-	cc, err := grpc.Dial(remote.Addr, grpc.WithTransportCredentials(node.creds))
+	cc, err := grpc.Dial(remote.Addr, grpc.WithTransportCredentials(node.clientCreds))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
-	}
-
-	if err != nil {
 		return nil, err
 	}
 

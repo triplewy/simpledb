@@ -4,26 +4,45 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
 
 	simpledb "github.com/triplewy/simpledb/simpledb-node/src"
 )
 
+var joinAddr string
+var grpcPort string
+
+func init() {
+	flag.StringVar(&joinAddr, "join", "", "Set join address, if any")
+	flag.StringVar(&grpcPort, "port", "", "Set grpc port, default is 55001")
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s [options] <raft-data-path> \n", os.Args[0])
+		flag.PrintDefaults()
+	}
+}
+
 func main() {
-	// addrPtr := flag.String("addr", "", "Address of a node in the Chord ring you wish to join")
 	flag.Parse()
 
-	node, err := simpledb.CreateNode()
-
-	if err != nil {
-		fmt.Println("Unable to create new node!")
-		log.Fatal(err)
+	if grpcPort != "" {
+		simpledb.GrpcPort = ":" + grpcPort
 	}
 
-	fmt.Printf("Created Node: %v @ %v\n", node.ID, node.Addr)
+	node, err := simpledb.CreateNode(joinAddr)
+	if err != nil {
+		log.Fatalf("unable to create new node: %v", err)
+	}
+
+	fmt.Printf("Created Node: %x @ %s\n", node.ID, node.Addr)
 
 	err = node.Server.Serve(node.Listener)
-
 	if err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
+
+	terminate := make(chan os.Signal, 1)
+	signal.Notify(terminate, os.Interrupt)
+	<-terminate
+	log.Println("hraftd exiting")
 }

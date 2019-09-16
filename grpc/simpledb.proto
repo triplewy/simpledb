@@ -2,9 +2,19 @@ syntax = "proto3";
 
 package simpledb;
 
-service SimpleDb { rpc GetHostInfoCaller(Empty) returns (HostStatsReplyMsg); }
+service SimpleDb {
+    rpc GetHostInfoCaller(Empty) returns (HostStatsReplyMsg);
+    rpc GetNodesCaller(RemoteNodeMsg) returns (RemoteNodesReplyMsg);
+}
 
 message Empty {}
+
+message RemoteNodeMsg {
+    string addr = 1;
+    bytes id = 2;
+}
+
+message RemoteNodesReplyMsg { repeated RemoteNodeMsg remoteNodes = 1; }
 
 message HostStatsReplyMsg {
     string totalMemory = 1;
