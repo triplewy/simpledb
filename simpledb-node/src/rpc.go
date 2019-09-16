@@ -14,7 +14,7 @@ import (
 var connByAddress = make(map[string]*grpc.ClientConn)
 var connByAddressMutex = &sync.Mutex{}
 
-func (node *Node) GetNodesRPC(remote *RemoteNode) (*pb.RemoteNodesReplyMsg, error) {
+func (node *Node) JoinNodesRPC(remote *RemoteNode) (*pb.RemoteNodesReplyMsg, error) {
 	if remote == nil {
 		return &pb.RemoteNodesReplyMsg{}, errors.New("remoteNode is empty")
 	}
@@ -27,10 +27,10 @@ func (node *Node) GetNodesRPC(remote *RemoteNode) (*pb.RemoteNodesReplyMsg, erro
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	return cc.GetNodesCaller(ctx, &pb.RemoteNodeMsg{Addr: remote.Addr, Id: remote.ID})
+	return cc.JoinNodesCaller(ctx, &pb.RemoteNodeMsg{Addr: node.RemoteSelf.Addr, Id: node.RemoteSelf.ID})
 }
 
-func (node *Node) GetNodesCaller(ctx context.Context, remote *pb.RemoteNodeMsg) (*pb.RemoteNodesReplyMsg, error) {
+func (node *Node) JoinNodesCaller(ctx context.Context, remote *pb.RemoteNodeMsg) (*pb.RemoteNodesReplyMsg, error) {
 	node.Ring.AddNode(&RemoteNode{Addr: remote.Addr, ID: remote.Id})
 
 	remoteNodes := []*pb.RemoteNodeMsg{}
@@ -73,6 +73,16 @@ func (node *Node) GetHostInfoCaller(ctx context.Context, in *pb.Empty) (*pb.Host
 		Hostname:    node.stats.hostname,
 		Uptime:      node.stats.uptime,
 	}, nil
+}
+
+func (node *Node) GetNodesCaller(ctx context.Context, in *pb.Empty) (*pb.RemoteNodesReplyMsg, error) {
+	remoteNodes := []*pb.RemoteNodeMsg{}
+
+	for _, node := range node.Ring.Nodes {
+		remoteNodes = append(remoteNodes, &pb.RemoteNodeMsg{Addr: node.Addr, Id: node.ID})
+	}
+
+	return &pb.RemoteNodesReplyMsg{RemoteNodes: remoteNodes}, nil
 }
 
 func (node *Node) ClientConnection(remote *RemoteNode) (pb.SimpleDbClient, error) {

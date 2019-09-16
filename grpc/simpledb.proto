@@ -4,7 +4,8 @@ package simpledb;
 
 service SimpleDb {
     rpc GetHostInfoCaller(Empty) returns (HostStatsReplyMsg);
-    rpc GetNodesCaller(RemoteNodeMsg) returns (RemoteNodesReplyMsg);
+    rpc GetNodesCaller(Empty) returns (RemoteNodesReplyMsg);
+    rpc JoinNodesCaller(RemoteNodeMsg) returns (RemoteNodesReplyMsg);
 }
 
 message Empty {}

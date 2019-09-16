@@ -62,7 +62,7 @@ func CreateNode(joinAddr string) (*Node, error) {
 	}
 
 	if joinAddr != "" {
-		reply, err := node.GetNodesRPC(&RemoteNode{Addr: joinAddr, ID: HashKey(joinAddr)})
+		reply, err := node.JoinNodesRPC(&RemoteNode{Addr: joinAddr, ID: HashKey(joinAddr)})
 		if err != nil {
 			log.Fatalf("failed to join node %v", err)
 		}
