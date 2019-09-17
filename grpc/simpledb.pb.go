@@ -55,108 +55,6 @@ func (m *Empty) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Empty proto.InternalMessageInfo
 
-type RemoteNodeMsg struct {
-	Addr                 string   `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
-	Id                   []byte   `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
-	IsLeader             bool     `protobuf:"varint,3,opt,name=isLeader,proto3" json:"isLeader,omitempty"`
-	IsElection           bool     `protobuf:"varint,4,opt,name=isElection,proto3" json:"isElection,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *RemoteNodeMsg) Reset()         { *m = RemoteNodeMsg{} }
-func (m *RemoteNodeMsg) String() string { return proto.CompactTextString(m) }
-func (*RemoteNodeMsg) ProtoMessage()    {}
-func (*RemoteNodeMsg) Descriptor() ([]byte, []int) {
-	return fileDescriptor_748391160b9263c4, []int{1}
-}
-
-func (m *RemoteNodeMsg) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_RemoteNodeMsg.Unmarshal(m, b)
-}
-func (m *RemoteNodeMsg) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_RemoteNodeMsg.Marshal(b, m, deterministic)
-}
-func (m *RemoteNodeMsg) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_RemoteNodeMsg.Merge(m, src)
-}
-func (m *RemoteNodeMsg) XXX_Size() int {
-	return xxx_messageInfo_RemoteNodeMsg.Size(m)
-}
-func (m *RemoteNodeMsg) XXX_DiscardUnknown() {
-	xxx_messageInfo_RemoteNodeMsg.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_RemoteNodeMsg proto.InternalMessageInfo
-
-func (m *RemoteNodeMsg) GetAddr() string {
-	if m != nil {
-		return m.Addr
-	}
-	return ""
-}
-
-func (m *RemoteNodeMsg) GetId() []byte {
-	if m != nil {
-		return m.Id
-	}
-	return nil
-}
-
-func (m *RemoteNodeMsg) GetIsLeader() bool {
-	if m != nil {
-		return m.IsLeader
-	}
-	return false
-}
-
-func (m *RemoteNodeMsg) GetIsElection() bool {
-	if m != nil {
-		return m.IsElection
-	}
-	return false
-}
-
-type RemoteNodesMsg struct {
-	RemoteNodes          []*RemoteNodeMsg `protobuf:"bytes,1,rep,name=remoteNodes,proto3" json:"remoteNodes,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
-	XXX_unrecognized     []byte           `json:"-"`
-	XXX_sizecache        int32            `json:"-"`
-}
-
-func (m *RemoteNodesMsg) Reset()         { *m = RemoteNodesMsg{} }
-func (m *RemoteNodesMsg) String() string { return proto.CompactTextString(m) }
-func (*RemoteNodesMsg) ProtoMessage()    {}
-func (*RemoteNodesMsg) Descriptor() ([]byte, []int) {
-	return fileDescriptor_748391160b9263c4, []int{2}
-}
-
-func (m *RemoteNodesMsg) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_RemoteNodesMsg.Unmarshal(m, b)
-}
-func (m *RemoteNodesMsg) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_RemoteNodesMsg.Marshal(b, m, deterministic)
-}
-func (m *RemoteNodesMsg) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_RemoteNodesMsg.Merge(m, src)
-}
-func (m *RemoteNodesMsg) XXX_Size() int {
-	return xxx_messageInfo_RemoteNodesMsg.Size(m)
-}
-func (m *RemoteNodesMsg) XXX_DiscardUnknown() {
-	xxx_messageInfo_RemoteNodesMsg.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_RemoteNodesMsg proto.InternalMessageInfo
-
-func (m *RemoteNodesMsg) GetRemoteNodes() []*RemoteNodeMsg {
-	if m != nil {
-		return m.RemoteNodes
-	}
-	return nil
-}
-
 type HostStatsReplyMsg struct {
 	TotalMemory          string   `protobuf:"bytes,1,opt,name=totalMemory,proto3" json:"totalMemory,omitempty"`
 	UsedMemory           string   `protobuf:"bytes,2,opt,name=usedMemory,proto3" json:"usedMemory,omitempty"`
@@ -176,7 +74,7 @@ func (m *HostStatsReplyMsg) Reset()         { *m = HostStatsReplyMsg{} }
 func (m *HostStatsReplyMsg) String() string { return proto.CompactTextString(m) }
 func (*HostStatsReplyMsg) ProtoMessage()    {}
 func (*HostStatsReplyMsg) Descriptor() ([]byte, []int) {
-	return fileDescriptor_748391160b9263c4, []int{3}
+	return fileDescriptor_748391160b9263c4, []int{1}
 }
 
 func (m *HostStatsReplyMsg) XXX_Unmarshal(b []byte) error {
@@ -260,6 +158,92 @@ func (m *HostStatsReplyMsg) GetUptime() string {
 	return ""
 }
 
+type KeyMsg struct {
+	Key                  string   `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *KeyMsg) Reset()         { *m = KeyMsg{} }
+func (m *KeyMsg) String() string { return proto.CompactTextString(m) }
+func (*KeyMsg) ProtoMessage()    {}
+func (*KeyMsg) Descriptor() ([]byte, []int) {
+	return fileDescriptor_748391160b9263c4, []int{2}
+}
+
+func (m *KeyMsg) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_KeyMsg.Unmarshal(m, b)
+}
+func (m *KeyMsg) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_KeyMsg.Marshal(b, m, deterministic)
+}
+func (m *KeyMsg) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_KeyMsg.Merge(m, src)
+}
+func (m *KeyMsg) XXX_Size() int {
+	return xxx_messageInfo_KeyMsg.Size(m)
+}
+func (m *KeyMsg) XXX_DiscardUnknown() {
+	xxx_messageInfo_KeyMsg.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_KeyMsg proto.InternalMessageInfo
+
+func (m *KeyMsg) GetKey() string {
+	if m != nil {
+		return m.Key
+	}
+	return ""
+}
+
+type KeyValueMsg struct {
+	Key                  string   `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Value                string   `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *KeyValueMsg) Reset()         { *m = KeyValueMsg{} }
+func (m *KeyValueMsg) String() string { return proto.CompactTextString(m) }
+func (*KeyValueMsg) ProtoMessage()    {}
+func (*KeyValueMsg) Descriptor() ([]byte, []int) {
+	return fileDescriptor_748391160b9263c4, []int{3}
+}
+
+func (m *KeyValueMsg) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_KeyValueMsg.Unmarshal(m, b)
+}
+func (m *KeyValueMsg) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_KeyValueMsg.Marshal(b, m, deterministic)
+}
+func (m *KeyValueMsg) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_KeyValueMsg.Merge(m, src)
+}
+func (m *KeyValueMsg) XXX_Size() int {
+	return xxx_messageInfo_KeyValueMsg.Size(m)
+}
+func (m *KeyValueMsg) XXX_DiscardUnknown() {
+	xxx_messageInfo_KeyValueMsg.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_KeyValueMsg proto.InternalMessageInfo
+
+func (m *KeyValueMsg) GetKey() string {
+	if m != nil {
+		return m.Key
+	}
+	return ""
+}
+
+func (m *KeyValueMsg) GetValue() string {
+	if m != nil {
+		return m.Value
+	}
+	return ""
+}
+
 type OkMsg struct {
 	Ok                   bool     `protobuf:"varint,1,opt,name=Ok,proto3" json:"Ok,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -299,44 +283,153 @@ func (m *OkMsg) GetOk() bool {
 	return false
 }
 
+type RemoteNodeMsg struct {
+	Addr                 string   `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
+	Id                   []byte   `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	IsLeader             bool     `protobuf:"varint,3,opt,name=isLeader,proto3" json:"isLeader,omitempty"`
+	IsElection           bool     `protobuf:"varint,4,opt,name=isElection,proto3" json:"isElection,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *RemoteNodeMsg) Reset()         { *m = RemoteNodeMsg{} }
+func (m *RemoteNodeMsg) String() string { return proto.CompactTextString(m) }
+func (*RemoteNodeMsg) ProtoMessage()    {}
+func (*RemoteNodeMsg) Descriptor() ([]byte, []int) {
+	return fileDescriptor_748391160b9263c4, []int{5}
+}
+
+func (m *RemoteNodeMsg) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_RemoteNodeMsg.Unmarshal(m, b)
+}
+func (m *RemoteNodeMsg) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_RemoteNodeMsg.Marshal(b, m, deterministic)
+}
+func (m *RemoteNodeMsg) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RemoteNodeMsg.Merge(m, src)
+}
+func (m *RemoteNodeMsg) XXX_Size() int {
+	return xxx_messageInfo_RemoteNodeMsg.Size(m)
+}
+func (m *RemoteNodeMsg) XXX_DiscardUnknown() {
+	xxx_messageInfo_RemoteNodeMsg.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RemoteNodeMsg proto.InternalMessageInfo
+
+func (m *RemoteNodeMsg) GetAddr() string {
+	if m != nil {
+		return m.Addr
+	}
+	return ""
+}
+
+func (m *RemoteNodeMsg) GetId() []byte {
+	if m != nil {
+		return m.Id
+	}
+	return nil
+}
+
+func (m *RemoteNodeMsg) GetIsLeader() bool {
+	if m != nil {
+		return m.IsLeader
+	}
+	return false
+}
+
+func (m *RemoteNodeMsg) GetIsElection() bool {
+	if m != nil {
+		return m.IsElection
+	}
+	return false
+}
+
+type RemoteNodesMsg struct {
+	RemoteNodes          []*RemoteNodeMsg `protobuf:"bytes,1,rep,name=remoteNodes,proto3" json:"remoteNodes,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
+	XXX_unrecognized     []byte           `json:"-"`
+	XXX_sizecache        int32            `json:"-"`
+}
+
+func (m *RemoteNodesMsg) Reset()         { *m = RemoteNodesMsg{} }
+func (m *RemoteNodesMsg) String() string { return proto.CompactTextString(m) }
+func (*RemoteNodesMsg) ProtoMessage()    {}
+func (*RemoteNodesMsg) Descriptor() ([]byte, []int) {
+	return fileDescriptor_748391160b9263c4, []int{6}
+}
+
+func (m *RemoteNodesMsg) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_RemoteNodesMsg.Unmarshal(m, b)
+}
+func (m *RemoteNodesMsg) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_RemoteNodesMsg.Marshal(b, m, deterministic)
+}
+func (m *RemoteNodesMsg) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RemoteNodesMsg.Merge(m, src)
+}
+func (m *RemoteNodesMsg) XXX_Size() int {
+	return xxx_messageInfo_RemoteNodesMsg.Size(m)
+}
+func (m *RemoteNodesMsg) XXX_DiscardUnknown() {
+	xxx_messageInfo_RemoteNodesMsg.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RemoteNodesMsg proto.InternalMessageInfo
+
+func (m *RemoteNodesMsg) GetRemoteNodes() []*RemoteNodeMsg {
+	if m != nil {
+		return m.RemoteNodes
+	}
+	return nil
+}
+
 func init() {
 	proto.RegisterType((*Empty)(nil), "simpledb.Empty")
+	proto.RegisterType((*HostStatsReplyMsg)(nil), "simpledb.HostStatsReplyMsg")
+	proto.RegisterType((*KeyMsg)(nil), "simpledb.KeyMsg")
+	proto.RegisterType((*KeyValueMsg)(nil), "simpledb.KeyValueMsg")
+	proto.RegisterType((*OkMsg)(nil), "simpledb.OkMsg")
 	proto.RegisterType((*RemoteNodeMsg)(nil), "simpledb.RemoteNodeMsg")
 	proto.RegisterType((*RemoteNodesMsg)(nil), "simpledb.RemoteNodesMsg")
-	proto.RegisterType((*HostStatsReplyMsg)(nil), "simpledb.HostStatsReplyMsg")
-	proto.RegisterType((*OkMsg)(nil), "simpledb.OkMsg")
 }
 
 func init() { proto.RegisterFile("simpledb.proto", fileDescriptor_748391160b9263c4) }
 
 var fileDescriptor_748391160b9263c4 = []byte{
-	// 416 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x53, 0x4d, 0x6f, 0xd3, 0x40,
-	0x10, 0x95, 0xb7, 0x49, 0xea, 0x4c, 0xc0, 0x51, 0xf7, 0x40, 0x57, 0x01, 0x21, 0xcb, 0xa7, 0x9c,
-	0x7a, 0x28, 0x27, 0x04, 0x17, 0xd4, 0x56, 0x2d, 0x1f, 0x25, 0xc8, 0xf9, 0x05, 0x9b, 0x78, 0x80,
-	0x55, 0x6c, 0xaf, 0xb5, 0x3b, 0x39, 0xe4, 0x4f, 0x70, 0xe1, 0x0f, 0xa3, 0x9d, 0x38, 0xb1, 0x11,
-	0xa4, 0x37, 0xcf, 0x7b, 0x6f, 0xdf, 0xce, 0xbc, 0xf1, 0x42, 0xe2, 0x4d, 0xd5, 0x94, 0x58, 0xac,
-	0xae, 0x1a, 0x67, 0xc9, 0xca, 0xf8, 0x50, 0x67, 0xe7, 0x30, 0xbc, 0xab, 0x1a, 0xda, 0x65, 0x16,
-	0x9e, 0xe7, 0x58, 0x59, 0xc2, 0xaf, 0xb6, 0xc0, 0x47, 0xff, 0x43, 0x4a, 0x18, 0xe8, 0xa2, 0x70,
-	0x2a, 0x4a, 0xa3, 0xf9, 0x38, 0xe7, 0x6f, 0x99, 0x80, 0x30, 0x85, 0x12, 0x69, 0x34, 0x7f, 0x96,
-	0x0b, 0x53, 0xc8, 0x19, 0xc4, 0xc6, 0x7f, 0x41, 0x5d, 0xa0, 0x53, 0x67, 0x69, 0x34, 0x8f, 0xf3,
-	0x63, 0x2d, 0x5f, 0x03, 0x18, 0x7f, 0x57, 0xe2, 0x9a, 0x8c, 0xad, 0xd5, 0x80, 0xd9, 0x1e, 0x92,
-	0x7d, 0x86, 0xa4, 0xbb, 0xd0, 0x87, 0x1b, 0xdf, 0xc2, 0xc4, 0x75, 0x88, 0x8a, 0xd2, 0xb3, 0xf9,
-	0xe4, 0xfa, 0xf2, 0xea, 0xd8, 0xfb, 0x5f, 0xfd, 0xe5, 0x7d, 0x6d, 0xf6, 0x5b, 0xc0, 0xc5, 0x83,
-	0xf5, 0xb4, 0x24, 0x4d, 0x3e, 0xc7, 0xa6, 0xdc, 0x05, 0xc3, 0x14, 0x26, 0x64, 0x49, 0x97, 0x8f,
-	0x58, 0x59, 0xb7, 0x6b, 0x27, 0xe9, 0x43, 0xa1, 0xc9, 0xad, 0xc7, 0xa2, 0x15, 0x08, 0x16, 0xf4,
-	0x90, 0xc0, 0xb3, 0x7c, 0xd9, 0xe8, 0x35, 0xf2, 0x88, 0xe3, 0xbc, 0x87, 0xc8, 0x57, 0x30, 0x0e,
-	0xea, 0x3d, 0x3d, 0x60, 0xba, 0x03, 0x42, 0x3c, 0xf5, 0xb6, 0xba, 0xb1, 0x0e, 0xbd, 0x1a, 0x32,
-	0x79, 0xac, 0x83, 0xf3, 0xba, 0xd9, 0x7e, 0x43, 0xb7, 0xc6, 0x9a, 0xd4, 0x68, 0xef, 0xdc, 0x21,
-	0x21, 0x6a, 0xeb, 0xd5, 0x39, 0xe3, 0xc2, 0xfa, 0xe0, 0xf5, 0xd3, 0x7a, 0xaa, 0x75, 0x85, 0x2a,
-	0xde, 0x7b, 0x1d, 0x6a, 0xf9, 0x02, 0x46, 0xdb, 0x86, 0x4c, 0x85, 0x6a, 0xcc, 0x4c, 0x5b, 0x65,
-	0x97, 0x30, 0x5c, 0x6c, 0x42, 0x10, 0x09, 0x88, 0xc5, 0x86, 0xe7, 0x8f, 0x73, 0xb1, 0xd8, 0x5c,
-	0xff, 0x12, 0x10, 0x2f, 0x39, 0xd6, 0xdb, 0x95, 0xfc, 0x00, 0x17, 0xf7, 0x48, 0x21, 0xbd, 0x8f,
-	0xf5, 0x77, 0x7b, 0xa3, 0xcb, 0x12, 0x9d, 0x9c, 0x76, 0xb1, 0xf3, 0xff, 0x31, 0x7b, 0xd9, 0x01,
-	0xff, 0x06, 0xfd, 0x0e, 0x92, 0x7b, 0x24, 0x5e, 0xc5, 0xa9, 0xf3, 0xea, 0x7f, 0x7b, 0xe4, 0xb5,
-	0xdf, 0xc2, 0xf4, 0x93, 0x35, 0x75, 0xff, 0xf4, 0xa9, 0xa5, 0x3f, 0xe1, 0xf2, 0x1e, 0xa6, 0x0f,
-	0xa8, 0x1d, 0xad, 0x50, 0x53, 0xeb, 0x72, 0x52, 0x3c, 0xeb, 0x75, 0xc7, 0x01, 0xad, 0x46, 0xfc,
-	0x2e, 0xde, 0xfc, 0x09, 0x00, 0x00, 0xff, 0xff, 0x75, 0xc8, 0xe8, 0x3b, 0x29, 0x03, 0x00, 0x00,
+	// 485 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x54, 0xc1, 0x6e, 0xd3, 0x40,
+	0x10, 0x55, 0x9c, 0x26, 0x75, 0xc6, 0xe0, 0xb4, 0x2b, 0xa0, 0xab, 0x80, 0x50, 0xe4, 0x53, 0x4f,
+	0x15, 0x2a, 0x2a, 0x12, 0x82, 0x0b, 0x6a, 0xaa, 0x14, 0x42, 0x09, 0x72, 0xa4, 0xde, 0x37, 0xf1,
+	0x00, 0x56, 0x6c, 0xaf, 0xb5, 0xbb, 0x46, 0xca, 0x77, 0xf0, 0x21, 0xfc, 0x62, 0xb5, 0x63, 0xc7,
+	0x76, 0x95, 0xa4, 0x37, 0xcf, 0x7b, 0x6f, 0xde, 0xec, 0xbc, 0x8c, 0x02, 0xbe, 0x8e, 0xd3, 0x3c,
+	0xc1, 0x68, 0x79, 0x91, 0x2b, 0x69, 0x24, 0x73, 0xb7, 0x75, 0x70, 0x0c, 0xbd, 0x9b, 0x34, 0x37,
+	0x9b, 0xe0, 0x9f, 0x03, 0xa7, 0xb7, 0x52, 0x9b, 0x85, 0x11, 0x46, 0x87, 0x98, 0x27, 0x9b, 0x3b,
+	0xfd, 0x9b, 0x8d, 0xc1, 0x33, 0xd2, 0x88, 0xe4, 0x0e, 0x53, 0xa9, 0x36, 0xbc, 0x33, 0xee, 0x9c,
+	0x0f, 0xc2, 0x36, 0xc4, 0xde, 0x02, 0x14, 0x1a, 0xa3, 0x4a, 0xe0, 0x90, 0xa0, 0x85, 0x58, 0x9e,
+	0xe4, 0x8b, 0x5c, 0xac, 0x90, 0x77, 0x4b, 0xbe, 0x41, 0xd8, 0x1b, 0x18, 0x58, 0x75, 0x49, 0x1f,
+	0x11, 0xdd, 0x00, 0x6c, 0x04, 0x6e, 0x56, 0xa4, 0xd7, 0x52, 0xa1, 0xe6, 0x3d, 0x22, 0xeb, 0xda,
+	0x3a, 0xaf, 0xf2, 0xe2, 0x27, 0xaa, 0x15, 0x66, 0x86, 0xf7, 0x4b, 0xe7, 0x06, 0x61, 0x3e, 0x38,
+	0x52, 0xf3, 0x63, 0xc2, 0x1d, 0xa9, 0xad, 0xd7, 0x1f, 0xa9, 0x4d, 0x26, 0x52, 0xe4, 0x6e, 0xe9,
+	0xb5, 0xad, 0xd9, 0x2b, 0xe8, 0x17, 0xb9, 0x89, 0x53, 0xe4, 0x03, 0x62, 0xaa, 0x2a, 0x18, 0x41,
+	0x7f, 0x86, 0x94, 0xc4, 0x09, 0x74, 0xd7, 0xb8, 0x4d, 0xc0, 0x7e, 0x06, 0x57, 0xe0, 0xcd, 0x70,
+	0x73, 0x2f, 0x92, 0x02, 0xf7, 0x0a, 0xd8, 0x0b, 0xe8, 0xfd, 0xb5, 0x6c, 0x95, 0x4a, 0x59, 0x04,
+	0x67, 0xd0, 0x9b, 0xaf, 0x6d, 0x83, 0x0f, 0xce, 0x7c, 0x4d, 0x7a, 0x37, 0x74, 0xe6, 0xeb, 0x40,
+	0xc2, 0xf3, 0x10, 0x53, 0x69, 0xf0, 0x87, 0x8c, 0xc8, 0x91, 0xc1, 0x91, 0x88, 0x22, 0x55, 0x59,
+	0xd2, 0xb7, 0x6d, 0x8a, 0x23, 0x32, 0x7c, 0x16, 0x3a, 0x71, 0x64, 0x97, 0x8a, 0xf5, 0x77, 0x14,
+	0x11, 0x2a, 0x0a, 0xd7, 0x0d, 0xeb, 0xda, 0x06, 0x14, 0xeb, 0x9b, 0x04, 0x57, 0x26, 0x96, 0x19,
+	0x65, 0xeb, 0x86, 0x2d, 0x24, 0x98, 0x81, 0xdf, 0x0c, 0xd4, 0x76, 0xe2, 0x47, 0xf0, 0x54, 0x83,
+	0xf0, 0xce, 0xb8, 0x7b, 0xee, 0x5d, 0x9e, 0x5d, 0xd4, 0xd7, 0xf3, 0xe8, 0x7d, 0x61, 0x5b, 0x7b,
+	0xf9, 0xbf, 0x0b, 0xee, 0x82, 0x74, 0x93, 0x25, 0x7b, 0x07, 0xde, 0x04, 0x93, 0xd9, 0xfd, 0xb5,
+	0x48, 0x12, 0x54, 0xec, 0xa4, 0x71, 0x28, 0xd3, 0x1c, 0x0d, 0x1b, 0xa4, 0x0c, 0xe3, 0x0b, 0x9c,
+	0x4e, 0xd1, 0xd8, 0x03, 0xfc, 0x9a, 0xfd, 0x92, 0x55, 0x5f, 0x4b, 0x45, 0x47, 0x3a, 0x7a, 0xdd,
+	0x00, 0xbb, 0xb7, 0xfa, 0x01, 0xbc, 0x29, 0x9a, 0x27, 0x86, 0xbe, 0x7c, 0x84, 0xd4, 0x3f, 0xdc,
+	0x27, 0xf0, 0xa7, 0x68, 0x68, 0x8b, 0x43, 0x73, 0xf9, 0xbe, 0x08, 0x28, 0xb1, 0xcf, 0x30, 0xbc,
+	0x45, 0xa1, 0xcc, 0x12, 0x85, 0xa9, 0xba, 0x0f, 0x8a, 0x77, 0xb7, 0x9e, 0xc0, 0xf0, 0x9b, 0x8c,
+	0xb3, 0xf6, 0xec, 0x43, 0x69, 0x3f, 0xf1, 0x86, 0x2b, 0xf0, 0x16, 0xad, 0xc5, 0xf7, 0xaf, 0xb9,
+	0x33, 0x7c, 0xd9, 0xa7, 0xff, 0x82, 0xf7, 0x0f, 0x01, 0x00, 0x00, 0xff, 0xff, 0x74, 0xa7, 0xa8,
+	0xa5, 0x1d, 0x04, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -351,10 +444,13 @@ const _ = grpc.SupportPackageIsVersion4
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type SimpleDbClient interface {
+	DelKVCaller(ctx context.Context, in *KeyMsg, opts ...grpc.CallOption) (*OkMsg, error)
 	GetHostInfoCaller(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*HostStatsReplyMsg, error)
+	GetKVCaller(ctx context.Context, in *KeyMsg, opts ...grpc.CallOption) (*KeyValueMsg, error)
 	GetNodesCaller(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*RemoteNodesMsg, error)
-	JoinNodesCaller(ctx context.Context, in *RemoteNodeMsg, opts ...grpc.CallOption) (*RemoteNodesMsg, error)
 	HeartbeatCaller(ctx context.Context, in *RemoteNodesMsg, opts ...grpc.CallOption) (*OkMsg, error)
+	JoinNodesCaller(ctx context.Context, in *RemoteNodeMsg, opts ...grpc.CallOption) (*RemoteNodesMsg, error)
+	SetKVCaller(ctx context.Context, in *KeyValueMsg, opts ...grpc.CallOption) (*OkMsg, error)
 }
 
 type simpleDbClient struct {
@@ -365,9 +461,27 @@ func NewSimpleDbClient(cc *grpc.ClientConn) SimpleDbClient {
 	return &simpleDbClient{cc}
 }
 
+func (c *simpleDbClient) DelKVCaller(ctx context.Context, in *KeyMsg, opts ...grpc.CallOption) (*OkMsg, error) {
+	out := new(OkMsg)
+	err := c.cc.Invoke(ctx, "/simpledb.SimpleDb/DelKVCaller", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *simpleDbClient) GetHostInfoCaller(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*HostStatsReplyMsg, error) {
 	out := new(HostStatsReplyMsg)
 	err := c.cc.Invoke(ctx, "/simpledb.SimpleDb/GetHostInfoCaller", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *simpleDbClient) GetKVCaller(ctx context.Context, in *KeyMsg, opts ...grpc.CallOption) (*KeyValueMsg, error) {
+	out := new(KeyValueMsg)
+	err := c.cc.Invoke(ctx, "/simpledb.SimpleDb/GetKVCaller", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -383,15 +497,6 @@ func (c *simpleDbClient) GetNodesCaller(ctx context.Context, in *Empty, opts ...
 	return out, nil
 }
 
-func (c *simpleDbClient) JoinNodesCaller(ctx context.Context, in *RemoteNodeMsg, opts ...grpc.CallOption) (*RemoteNodesMsg, error) {
-	out := new(RemoteNodesMsg)
-	err := c.cc.Invoke(ctx, "/simpledb.SimpleDb/JoinNodesCaller", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *simpleDbClient) HeartbeatCaller(ctx context.Context, in *RemoteNodesMsg, opts ...grpc.CallOption) (*OkMsg, error) {
 	out := new(OkMsg)
 	err := c.cc.Invoke(ctx, "/simpledb.SimpleDb/HeartbeatCaller", in, out, opts...)
@@ -401,33 +506,81 @@ func (c *simpleDbClient) HeartbeatCaller(ctx context.Context, in *RemoteNodesMsg
 	return out, nil
 }
 
+func (c *simpleDbClient) JoinNodesCaller(ctx context.Context, in *RemoteNodeMsg, opts ...grpc.CallOption) (*RemoteNodesMsg, error) {
+	out := new(RemoteNodesMsg)
+	err := c.cc.Invoke(ctx, "/simpledb.SimpleDb/JoinNodesCaller", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *simpleDbClient) SetKVCaller(ctx context.Context, in *KeyValueMsg, opts ...grpc.CallOption) (*OkMsg, error) {
+	out := new(OkMsg)
+	err := c.cc.Invoke(ctx, "/simpledb.SimpleDb/SetKVCaller", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SimpleDbServer is the server API for SimpleDb service.
 type SimpleDbServer interface {
+	DelKVCaller(context.Context, *KeyMsg) (*OkMsg, error)
 	GetHostInfoCaller(context.Context, *Empty) (*HostStatsReplyMsg, error)
+	GetKVCaller(context.Context, *KeyMsg) (*KeyValueMsg, error)
 	GetNodesCaller(context.Context, *Empty) (*RemoteNodesMsg, error)
-	JoinNodesCaller(context.Context, *RemoteNodeMsg) (*RemoteNodesMsg, error)
 	HeartbeatCaller(context.Context, *RemoteNodesMsg) (*OkMsg, error)
+	JoinNodesCaller(context.Context, *RemoteNodeMsg) (*RemoteNodesMsg, error)
+	SetKVCaller(context.Context, *KeyValueMsg) (*OkMsg, error)
 }
 
 // UnimplementedSimpleDbServer can be embedded to have forward compatible implementations.
 type UnimplementedSimpleDbServer struct {
 }
 
+func (*UnimplementedSimpleDbServer) DelKVCaller(ctx context.Context, req *KeyMsg) (*OkMsg, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DelKVCaller not implemented")
+}
 func (*UnimplementedSimpleDbServer) GetHostInfoCaller(ctx context.Context, req *Empty) (*HostStatsReplyMsg, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetHostInfoCaller not implemented")
+}
+func (*UnimplementedSimpleDbServer) GetKVCaller(ctx context.Context, req *KeyMsg) (*KeyValueMsg, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetKVCaller not implemented")
 }
 func (*UnimplementedSimpleDbServer) GetNodesCaller(ctx context.Context, req *Empty) (*RemoteNodesMsg, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetNodesCaller not implemented")
 }
+func (*UnimplementedSimpleDbServer) HeartbeatCaller(ctx context.Context, req *RemoteNodesMsg) (*OkMsg, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method HeartbeatCaller not implemented")
+}
 func (*UnimplementedSimpleDbServer) JoinNodesCaller(ctx context.Context, req *RemoteNodeMsg) (*RemoteNodesMsg, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method JoinNodesCaller not implemented")
 }
-func (*UnimplementedSimpleDbServer) HeartbeatCaller(ctx context.Context, req *RemoteNodesMsg) (*OkMsg, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method HeartbeatCaller not implemented")
+func (*UnimplementedSimpleDbServer) SetKVCaller(ctx context.Context, req *KeyValueMsg) (*OkMsg, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetKVCaller not implemented")
 }
 
 func RegisterSimpleDbServer(s *grpc.Server, srv SimpleDbServer) {
 	s.RegisterService(&_SimpleDb_serviceDesc, srv)
+}
+
+func _SimpleDb_DelKVCaller_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(KeyMsg)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SimpleDbServer).DelKVCaller(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/simpledb.SimpleDb/DelKVCaller",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SimpleDbServer).DelKVCaller(ctx, req.(*KeyMsg))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _SimpleDb_GetHostInfoCaller_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -444,6 +597,24 @@ func _SimpleDb_GetHostInfoCaller_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(SimpleDbServer).GetHostInfoCaller(ctx, req.(*Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SimpleDb_GetKVCaller_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(KeyMsg)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SimpleDbServer).GetKVCaller(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/simpledb.SimpleDb/GetKVCaller",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SimpleDbServer).GetKVCaller(ctx, req.(*KeyMsg))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -466,24 +637,6 @@ func _SimpleDb_GetNodesCaller_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SimpleDb_JoinNodesCaller_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RemoteNodeMsg)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(SimpleDbServer).JoinNodesCaller(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/simpledb.SimpleDb/JoinNodesCaller",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SimpleDbServer).JoinNodesCaller(ctx, req.(*RemoteNodeMsg))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _SimpleDb_HeartbeatCaller_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RemoteNodesMsg)
 	if err := dec(in); err != nil {
@@ -502,25 +655,73 @@ func _SimpleDb_HeartbeatCaller_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SimpleDb_JoinNodesCaller_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoteNodeMsg)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SimpleDbServer).JoinNodesCaller(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/simpledb.SimpleDb/JoinNodesCaller",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SimpleDbServer).JoinNodesCaller(ctx, req.(*RemoteNodeMsg))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SimpleDb_SetKVCaller_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(KeyValueMsg)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SimpleDbServer).SetKVCaller(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/simpledb.SimpleDb/SetKVCaller",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SimpleDbServer).SetKVCaller(ctx, req.(*KeyValueMsg))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _SimpleDb_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "simpledb.SimpleDb",
 	HandlerType: (*SimpleDbServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
+			MethodName: "DelKVCaller",
+			Handler:    _SimpleDb_DelKVCaller_Handler,
+		},
+		{
 			MethodName: "GetHostInfoCaller",
 			Handler:    _SimpleDb_GetHostInfoCaller_Handler,
+		},
+		{
+			MethodName: "GetKVCaller",
+			Handler:    _SimpleDb_GetKVCaller_Handler,
 		},
 		{
 			MethodName: "GetNodesCaller",
 			Handler:    _SimpleDb_GetNodesCaller_Handler,
 		},
 		{
+			MethodName: "HeartbeatCaller",
+			Handler:    _SimpleDb_HeartbeatCaller_Handler,
+		},
+		{
 			MethodName: "JoinNodesCaller",
 			Handler:    _SimpleDb_JoinNodesCaller_Handler,
 		},
 		{
-			MethodName: "HeartbeatCaller",
-			Handler:    _SimpleDb_HeartbeatCaller_Handler,
+			MethodName: "SetKVCaller",
+			Handler:    _SimpleDb_SetKVCaller_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

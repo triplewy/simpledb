@@ -32,6 +32,9 @@ func printHelp(shell *ishell.Shell) {
 	shell.Println(" - connect                 Connect to a node")
 	shell.Println(" - nodes                   Prints all remote nodes")
 	shell.Println(" - stats                   Display node's stats")
+	shell.Println(" - get <key>               Get k,v")
+	shell.Println(" - set <key> <value>       Set k,v")
+	shell.Println(" - del <key>               Del k,v")
 	shell.Println(" - quit                    Shutdown node(s), then quit this CLI")
 }
 

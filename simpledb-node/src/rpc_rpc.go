@@ -14,6 +14,73 @@ import (
 var connByAddress = make(map[string]*grpc.ClientConn)
 var connByAddressMutex = &sync.Mutex{}
 
+func (node *Node) DelKVRPC(remote *RemoteNode, key string) (*pb.OkMsg, error) {
+	if remote == nil {
+		return &pb.OkMsg{}, errors.New("remoteNode is empty")
+	}
+
+	cc, err := node.ClientConnection(remote)
+	if err != nil {
+		return &pb.OkMsg{}, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	return cc.DelKVCaller(ctx, &pb.KeyMsg{Key: key})
+}
+
+// GetHostInfoRPC is RPC for getting remote machine's stats
+func (node *Node) GetHostInfoRPC(remote *RemoteNode) (*pb.HostStatsReplyMsg, error) {
+	if remote == nil {
+		return &pb.HostStatsReplyMsg{}, errors.New("remoteNode is empty")
+	}
+
+	cc, err := node.ClientConnection(remote)
+	if err != nil {
+		return &pb.HostStatsReplyMsg{}, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	return cc.GetHostInfoCaller(ctx, &pb.Empty{})
+}
+
+func (node *Node) GetKVRPC(remote *RemoteNode, key string) (*pb.KeyValueMsg, error) {
+	if remote == nil {
+		return &pb.KeyValueMsg{}, errors.New("remoteNode is empty")
+	}
+
+	cc, err := node.ClientConnection(remote)
+	if err != nil {
+		return &pb.KeyValueMsg{}, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	return cc.GetKVCaller(ctx, &pb.KeyMsg{Key: key})
+}
+
+func (node *Node) HeartbeatRPC(remote *RemoteNode) (*pb.OkMsg, error) {
+	if remote == nil {
+		return &pb.OkMsg{}, errors.New("remoteNode is empty")
+	}
+
+	cc, err := node.ClientConnection(remote)
+	if err != nil {
+		return &pb.OkMsg{}, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	msg := remoteNodesToMsg(node.Ring.Nodes)
+
+	return cc.HeartbeatCaller(ctx, msg)
+}
+
 // JoinNodesRPC is RPC for joining simpledb cluster
 func (node *Node) JoinNodesRPC(remote *RemoteNode) (*pb.RemoteNodesMsg, error) {
 	if remote == nil {
@@ -36,63 +103,7 @@ func (node *Node) JoinNodesRPC(remote *RemoteNode) (*pb.RemoteNodesMsg, error) {
 	})
 }
 
-// JoinNodesCaller adds joining node to local consistent hash ring and replies with new ring
-func (node *Node) JoinNodesCaller(ctx context.Context, remote *pb.RemoteNodeMsg) (*pb.RemoteNodesMsg, error) {
-	node.Ring.AddNode(&RemoteNode{
-		Addr:       remote.Addr,
-		ID:         remote.Id,
-		isLeader:   remote.IsLeader,
-		isElection: remote.IsElection,
-	})
-
-	remoteNodes := remoteNodesToMsg(node.Ring.Nodes)
-
-	return remoteNodes, nil
-}
-
-// GetHostInfoRPC is RPC for getting remote machine's stats
-func (node *Node) GetHostInfoRPC(remote *RemoteNode) (*pb.HostStatsReplyMsg, error) {
-	if remote == nil {
-		return &pb.HostStatsReplyMsg{}, errors.New("remoteNode is empty")
-	}
-
-	cc, err := node.ClientConnection(remote)
-	if err != nil {
-		return &pb.HostStatsReplyMsg{}, err
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	return cc.GetHostInfoCaller(ctx, &pb.Empty{})
-}
-
-// GetHostInfoCaller returns it's current machine stats
-func (node *Node) GetHostInfoCaller(ctx context.Context, in *pb.Empty) (*pb.HostStatsReplyMsg, error) {
-	if node.stats.err != nil {
-		return nil, node.stats.err
-	}
-	return &pb.HostStatsReplyMsg{
-		TotalMemory: node.stats.totalMemory,
-		UsedMemory:  node.stats.usedMemory,
-		TotalSpace:  node.stats.totalSpace,
-		UsedSpace:   node.stats.usedSpace,
-		NumCores:    node.stats.numCores,
-		CpuPercent:  node.stats.cpuPercent,
-		Os:          node.stats.os,
-		Hostname:    node.stats.hostname,
-		Uptime:      node.stats.uptime,
-	}, nil
-}
-
-// GetNodesCaller is for client use to get current ring of servers
-func (node *Node) GetNodesCaller(ctx context.Context, in *pb.Empty) (*pb.RemoteNodesMsg, error) {
-	remoteNodesMsg := remoteNodesToMsg(node.Ring.Nodes)
-
-	return remoteNodesMsg, nil
-}
-
-func (node *Node) HeartbeatRPC(remote *RemoteNode) (*pb.OkMsg, error) {
+func (node *Node) SetKVRPC(remote *RemoteNode, key, value string) (*pb.OkMsg, error) {
 	if remote == nil {
 		return &pb.OkMsg{}, errors.New("remoteNode is empty")
 	}
@@ -105,17 +116,10 @@ func (node *Node) HeartbeatRPC(remote *RemoteNode) (*pb.OkMsg, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	msg := remoteNodesToMsg(node.Ring.Nodes)
-
-	return cc.HeartbeatCaller(ctx, msg)
-}
-
-func (node *Node) HeartbeatCaller(ctx context.Context, nodes *pb.RemoteNodesMsg) (*pb.OkMsg, error) {
-	remoteNodes := msgToRemoteNodes(nodes)
-
-	node.Ring.Nodes = remoteNodes
-
-	return &pb.OkMsg{Ok: true}, nil
+	return cc.SetKVCaller(ctx, &pb.KeyValueMsg{
+		Key:   key,
+		Value: value,
+	})
 }
 
 func (node *Node) ClientConnection(remote *RemoteNode) (pb.SimpleDbClient, error) {

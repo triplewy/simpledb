@@ -65,6 +65,7 @@ func (r *Ring) search(id []byte) int {
 	return sort.Search(r.Nodes.Len(), searchfn)
 }
 
+// RemoteNodes is slice of type RemoteNode
 type RemoteNodes []*RemoteNode
 
 func (n RemoteNodes) Len() int           { return len(n) }

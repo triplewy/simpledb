@@ -10,6 +10,7 @@ type Leader struct {
 	failChan  chan *RemoteNode
 }
 
+// NewLeader creates channels required for leader struct
 func NewLeader() *Leader {
 	return &Leader{
 		replyChan: make(chan bool),
@@ -26,8 +27,10 @@ func (node *Node) leader() {
 			node.sendHeartbeats()
 		case reply := <-node.Leader.replyChan:
 			fmt.Println(reply)
-		case node := <-node.Leader.failChan:
-			fmt.Println(node)
+		case remote := <-node.Leader.failChan:
+			fmt.Printf("%v\n", remote)
+			node.Ring.RemoveNode(remote)
+			fmt.Println(len(node.Ring.Nodes))
 		}
 	}
 }
