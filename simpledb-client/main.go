@@ -97,7 +97,7 @@ func connect(addr string) pb.SimpleDbClient {
 		log.Fatalf("could not create credentials: %v", err)
 	}
 
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(creds))
+	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(creds), grpc.WithBlock(), grpc.WithTimeout(3*time.Second))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}

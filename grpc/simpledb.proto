@@ -4,8 +4,9 @@ package simpledb;
 
 service SimpleDb {
     rpc GetHostInfoCaller(Empty) returns (HostStatsReplyMsg);
-    rpc GetNodesCaller(Empty) returns (RemoteNodesReplyMsg);
-    rpc JoinNodesCaller(RemoteNodeMsg) returns (RemoteNodesReplyMsg);
+    rpc GetNodesCaller(Empty) returns (RemoteNodesMsg);
+    rpc JoinNodesCaller(RemoteNodeMsg) returns (RemoteNodesMsg);
+    rpc HeartbeatCaller(RemoteNodesMsg) returns (OkMsg);
 }
 
 message Empty {}
@@ -13,9 +14,11 @@ message Empty {}
 message RemoteNodeMsg {
     string addr = 1;
     bytes id = 2;
+    bool isLeader = 3;
+    bool isElection = 4;
 }
 
-message RemoteNodesReplyMsg { repeated RemoteNodeMsg remoteNodes = 1; }
+message RemoteNodesMsg { repeated RemoteNodeMsg remoteNodes = 1; }
 
 message HostStatsReplyMsg {
     string totalMemory = 1;
@@ -29,4 +32,4 @@ message HostStatsReplyMsg {
     string uptime = 9;
 }
 
-message RpcOkayMsg { bool Ok = 1; }
+message OkMsg { bool Ok = 1; }

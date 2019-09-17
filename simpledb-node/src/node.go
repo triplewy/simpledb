@@ -1,10 +1,10 @@
 package simpledb
 
 import (
+	"fmt"
 	"log"
 	"net"
 	"sync"
-	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -20,8 +20,10 @@ const KeyLength = 16
 
 // RemoteNode represents a Non-local node.
 type RemoteNode struct {
-	ID   []byte
-	Addr string
+	ID         []byte
+	Addr       string
+	isLeader   bool
+	isElection bool
 }
 
 // Node represents data structures stored in a gossip node.
@@ -47,10 +49,11 @@ type Node struct {
 	receiveChan chan string
 	wg          sync.WaitGroup /* WaitGroup of concurrent goroutines to sync before exiting */
 
-	isElection bool
-	raft       *Election
+	raft *Election
 
 	Ring *Ring
+
+	Leader *Leader
 }
 
 // CreateNode creates a Gossip node with random ID based on listener address.
@@ -61,6 +64,8 @@ func CreateNode(joinAddr string) (*Node, error) {
 		return nil, err
 	}
 
+	var leader *RemoteNode
+	numElection := 0
 	if joinAddr != "" {
 		reply, err := node.JoinNodesRPC(&RemoteNode{Addr: joinAddr, ID: HashKey(joinAddr)})
 		if err != nil {
@@ -68,10 +73,44 @@ func CreateNode(joinAddr string) (*Node, error) {
 		}
 		ring := new(Ring)
 		for _, node := range reply.RemoteNodes {
-			ring.AddNode(&RemoteNode{Addr: node.Addr, ID: node.Id})
+			fmt.Println(node.IsLeader)
+			remoteNode := &RemoteNode{
+				Addr:       node.Addr,
+				ID:         node.Id,
+				isLeader:   node.IsLeader,
+				isElection: node.IsElection,
+			}
+
+			if remoteNode.isLeader {
+				leader = remoteNode
+			}
+			if node.IsElection {
+				numElection++
+			}
+			ring.AddNode(remoteNode)
 		}
 		node.Ring = ring
 	}
+
+	if leader == nil {
+		fmt.Println("I am leader")
+		node.RemoteSelf.isLeader = true
+		node.RemoteSelf.isElection = true
+		node.Ring.RemoveNode(node.RemoteSelf)
+		node.Ring.AddNode(node.RemoteSelf)
+		// node.raft.Open(true, string(node.RemoteSelf.ID[:]))
+		node.Leader = NewLeader()
+		go node.leader()
+	} else {
+		if numElection < 5 {
+			node.RemoteSelf.isElection = true
+			// node.raft.Open(false, string(node.RemoteSelf.ID[:]))
+			// node.raft.Join(string(leader.ID[:]), leader.Addr)
+			go node.follower()
+		}
+	}
+	go node.runGetStats()
+
 	return node, err
 }
 
@@ -83,15 +122,21 @@ func (node *Node) init() error {
 	}
 
 	node.Listener = listener
-	node.Addr = GetOutboundIP().String() + GrpcPort
+	// If on Brown network
+	// node.Addr = GetOutboundIP().String
+	// If on local computer
+	node.Addr = "localhost" + GrpcPort
 	node.ID = HashKey(node.Addr)
 	node.IsShutdown = false
 	node.dataStore = make(map[string]string)
 
 	// Populate RemoteNode that points to self
-	node.RemoteSelf = new(RemoteNode)
-	node.RemoteSelf.ID = node.ID
-	node.RemoteSelf.Addr = node.Addr
+	node.RemoteSelf = &RemoteNode{
+		Addr:       node.Addr,
+		ID:         node.ID,
+		isLeader:   false,
+		isElection: false,
+	}
 
 	node.Ring = NewRing()
 	node.Ring.AddNode(node.RemoteSelf)
@@ -113,7 +158,9 @@ func (node *Node) init() error {
 
 	node.stats = new(Stats)
 
-	go node.run()
+	// node.raft = Election.New()
+	// node.raft.RaftBind =
+	// node.raft.RaftDir =
 
 	return err
 }
@@ -127,18 +174,4 @@ func ShutdownNode(node *Node) {
 	node.wg.Wait()
 	node.Server.GracefulStop()
 	node.Listener.Close()
-}
-
-func (node *Node) run() {
-	ticker := time.NewTicker(5 * time.Second)
-	heartbeat := time.NewTicker(5 * time.Second)
-
-	for {
-		select {
-		case <-ticker.C:
-			go node.getStats()
-		case <-heartbeat.C:
-
-		}
-	}
 }

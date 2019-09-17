@@ -76,18 +76,25 @@ func (node *Node) getStats() {
 
 	stats.totalMemory = strconv.FormatUint(vmStat.Total, 10)
 	stats.usedMemory = strconv.FormatFloat(vmStat.UsedPercent, 'f', 2, 64)
-
 	stats.totalSpace = strconv.FormatUint(diskStat.Total, 10)
 	stats.usedSpace = strconv.FormatFloat(diskStat.UsedPercent, 'f', 2, 64)
-
 	stats.numCores = strconv.FormatInt(int64(cpuStat[0].Cores), 10)
 	stats.cpuPercent = strconv.FormatFloat(cpuPercent[0], 'f', 2, 64)
-
 	stats.hostname = hostStat.Hostname
 	stats.uptime = strconv.FormatUint(hostStat.Uptime, 10)
-
 	stats.lastUpdated = time.Now()
 	stats.err = nil
 
 	node.stats = stats
+}
+
+func (node *Node) runGetStats() {
+	ticker := time.NewTicker(5 * time.Second)
+
+	for {
+		select {
+		case <-ticker.C:
+			go node.getStats()
+		}
+	}
 }
