@@ -6,6 +6,8 @@ import (
 	"net"
 	"sync"
 
+	"github.com/triplewy/simpledb/simpledb-node/src/raft"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -32,28 +34,22 @@ type Node struct {
 	Addr       string      /* String of listener address */
 	RemoteSelf *RemoteNode /* Remote node of our self */
 
-	Listener net.Listener /* Node listener socket */
-	Server   *grpc.Server /* RPC Server */
-
+	Listener    net.Listener /* Node listener socket */
+	Server      *grpc.Server /* RPC Server */
 	serverCreds credentials.TransportCredentials
 	clientCreds credentials.TransportCredentials
 
-	stats *Stats
+	IsShutdown bool           /* Is node in process of shutting down? */
+	sdLock     sync.RWMutex   /* RWLock for shutdown flag */
+	wg         sync.WaitGroup /* WaitGroup of concurrent goroutines to sync before exiting */
 
-	IsShutdown bool         /* Is node in process of shutting down? */
-	sdLock     sync.RWMutex /* RWLock for shutdown flag */
-
-	dataStore map[string]string /* Local datastore for this node */
-	DsLock    sync.RWMutex      /* RWLock for datastore */
-
-	receiveChan chan string
-	wg          sync.WaitGroup /* WaitGroup of concurrent goroutines to sync before exiting */
-
-	raft *Election
-
-	Ring *Ring
-
+	stats  *Stats
+	store  *Store
+	raft   *raft.Election
+	Ring   *Ring
 	Leader *Leader
+
+	transferChan chan *RemoteNode
 }
 
 // CreateNode creates a Gossip node with random ID based on listener address.
@@ -73,7 +69,6 @@ func CreateNode(joinAddr string) (*Node, error) {
 		}
 		ring := new(Ring)
 		for _, node := range reply.RemoteNodes {
-			fmt.Println(node.IsLeader)
 			remoteNode := &RemoteNode{
 				Addr:       node.Addr,
 				ID:         node.Id,
@@ -96,7 +91,6 @@ func CreateNode(joinAddr string) (*Node, error) {
 		fmt.Println("I am leader")
 		node.RemoteSelf.isLeader = true
 		node.RemoteSelf.isElection = true
-		node.Ring.RemoveNode(node.RemoteSelf)
 		node.Ring.AddNode(node.RemoteSelf)
 		// node.raft.Open(true, string(node.RemoteSelf.ID[:]))
 		node.Leader = NewLeader()
@@ -106,10 +100,10 @@ func CreateNode(joinAddr string) (*Node, error) {
 			node.RemoteSelf.isElection = true
 			// node.raft.Open(false, string(node.RemoteSelf.ID[:]))
 			// node.raft.Join(string(leader.ID[:]), leader.Addr)
-			go node.follower()
 		}
 	}
 	go node.runGetStats()
+	go node.run()
 
 	return node, err
 }
@@ -128,7 +122,7 @@ func (node *Node) init() error {
 	node.Addr = "localhost" + GrpcPort
 	node.ID = HashKey(node.Addr)
 	node.IsShutdown = false
-	node.dataStore = make(map[string]string)
+	node.store = NewStore()
 
 	// Populate RemoteNode that points to self
 	node.RemoteSelf = &RemoteNode{
@@ -139,7 +133,6 @@ func (node *Node) init() error {
 	}
 
 	node.Ring = NewRing()
-	node.Ring.AddNode(node.RemoteSelf)
 
 	serverCreds, err := credentials.NewServerTLSFromFile("../ssl/cert.pem", "../ssl/key.pem")
 	if err != nil {
@@ -157,6 +150,7 @@ func (node *Node) init() error {
 	pb.RegisterSimpleDbServer(node.Server, node)
 
 	node.stats = new(Stats)
+	node.transferChan = make(chan *RemoteNode)
 
 	// node.raft = Election.New()
 	// node.raft.RaftBind =

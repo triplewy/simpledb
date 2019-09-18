@@ -57,6 +57,15 @@ func (r *Ring) Get(id string) *RemoteNode {
 	return r.Nodes[i]
 }
 
+// Prev gets prev node in the ring
+func (r *Ring) Prev(node *RemoteNode) *RemoteNode {
+	i := r.search(node.ID)
+	if i == 0 {
+		return r.Nodes[len(r.Nodes)-1]
+	}
+	return r.Nodes[i-1]
+}
+
 func (r *Ring) search(id []byte) int {
 	searchfn := func(i int) bool {
 		return bytes.Compare(r.Nodes[i].ID, id) >= 0

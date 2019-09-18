@@ -81,6 +81,57 @@ func main() {
 		return string(out), nil
 	})
 
+	shell.Register("get", func(args ...string) (string, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+		defer cancel()
+
+		reply, err := c.GetKVCaller(ctx, &pb.KeyMsg{Key: args[0]})
+		if err != nil {
+			return "", err
+		}
+
+		out, err := json.Marshal(reply)
+		if err != nil {
+			panic(err)
+		}
+
+		return string(out), nil
+	})
+
+	shell.Register("set", func(args ...string) (string, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+		defer cancel()
+
+		reply, err := c.SetKVCaller(ctx, &pb.KeyValueMsg{Key: args[0], Value: args[1]})
+		if err != nil {
+			return "", err
+		}
+
+		out, err := json.Marshal(reply)
+		if err != nil {
+			panic(err)
+		}
+
+		return string(out), nil
+	})
+
+	shell.Register("del", func(args ...string) (string, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+		defer cancel()
+
+		reply, err := c.DelKVCaller(ctx, &pb.KeyMsg{Key: args[0]})
+		if err != nil {
+			return "", err
+		}
+
+		out, err := json.Marshal(reply)
+		if err != nil {
+			panic(err)
+		}
+
+		return string(out), nil
+	})
+
 	shell.Register("help", func(args ...string) (string, error) {
 		printHelp(shell)
 		return "", nil

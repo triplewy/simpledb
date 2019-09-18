@@ -3,16 +3,10 @@ package simpledb
 import (
 	"context"
 	"errors"
-	"log"
-	"sync"
 	"time"
 
 	pb "github.com/triplewy/simpledb/grpc"
-	"google.golang.org/grpc"
 )
-
-var connByAddress = make(map[string]*grpc.ClientConn)
-var connByAddressMutex = &sync.Mutex{}
 
 func (node *Node) DelKVRPC(remote *RemoteNode, key string) (*pb.OkMsg, error) {
 	if remote == nil {
@@ -122,50 +116,30 @@ func (node *Node) SetKVRPC(remote *RemoteNode, key, value string) (*pb.OkMsg, er
 	})
 }
 
-func (node *Node) ClientConnection(remote *RemoteNode) (pb.SimpleDbClient, error) {
-	connByAddressMutex.Lock()
-	defer connByAddressMutex.Unlock()
-
-	if cc, ok := connByAddress[remote.Addr]; ok && cc != nil {
-		return pb.NewSimpleDbClient(cc), nil
+func (node *Node) TransferKVRPC(remote *RemoteNode) (*pb.OkMsg, error) {
+	if remote == nil {
+		return &pb.OkMsg{}, errors.New("remoteNode is empty")
 	}
 
-	cc, err := grpc.Dial(remote.Addr, grpc.WithTransportCredentials(node.clientCreds), grpc.WithBlock(), grpc.WithTimeout(3*time.Second))
+	cc, err := node.ClientConnection(remote)
 	if err != nil {
-		log.Fatalf("did not connect: %v", err)
-		return nil, err
+		return &pb.OkMsg{}, err
 	}
 
-	connByAddress[remote.Addr] = cc
-	return pb.NewSimpleDbClient(cc), err
-}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-func remoteNodesToMsg(nodes []*RemoteNode) *pb.RemoteNodesMsg {
-	remoteNodesMsg := []*pb.RemoteNodeMsg{}
+	pairs := node.store.transfer(remote.ID)
+	msg := pairsToMsg(pairs)
 
-	for _, node := range nodes {
-		remoteNodesMsg = append(remoteNodesMsg, &pb.RemoteNodeMsg{
-			Addr:       node.Addr,
-			Id:         node.ID,
-			IsLeader:   node.isLeader,
-			IsElection: node.isElection,
-		})
+	reply, err := cc.TransferKVCaller(ctx, msg)
+	if err != nil {
+		return &pb.OkMsg{}, err
 	}
 
-	return &pb.RemoteNodesMsg{RemoteNodes: remoteNodesMsg}
-}
-
-func msgToRemoteNodes(nodes *pb.RemoteNodesMsg) []*RemoteNode {
-	remoteNodes := []*RemoteNode{}
-
-	for _, node := range nodes.RemoteNodes {
-		remoteNodes = append(remoteNodes, &RemoteNode{
-			Addr:       node.Addr,
-			ID:         node.Id,
-			isLeader:   node.IsLeader,
-			isElection: node.IsElection,
-		})
+	for _, pair := range pairs {
+		node.store.del(pair.key)
 	}
 
-	return remoteNodes
+	return reply, nil
 }

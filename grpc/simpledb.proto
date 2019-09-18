@@ -10,6 +10,7 @@ service SimpleDb {
     rpc HeartbeatCaller(RemoteNodesMsg) returns (OkMsg);
     rpc JoinNodesCaller(RemoteNodeMsg) returns (RemoteNodesMsg);
     rpc SetKVCaller(KeyValueMsg) returns (OkMsg);
+    rpc TransferKVCaller(KeyValuesMsg) returns (OkMsg);
 }
 
 message Empty {}
@@ -32,6 +33,8 @@ message KeyValueMsg {
     string key = 1;
     string value = 2;
 }
+
+message KeyValuesMsg { repeated KeyValueMsg pairs = 1; }
 
 message OkMsg { bool Ok = 1; }
 
