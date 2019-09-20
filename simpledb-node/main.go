@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/signal"
 
+	_ "github.com/joho/godotenv/autoload"
+
 	simpledb "github.com/triplewy/simpledb/simpledb-node/src"
 )
 

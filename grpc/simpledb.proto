@@ -4,6 +4,7 @@ package simpledb;
 
 service SimpleDb {
     rpc DelKVCaller(KeyMsg) returns (OkMsg);
+    rpc DiscoverNodesCaller(RemoteNodesMsg) returns (RemoteNodesMsg);
     rpc GetHostInfoCaller(Empty) returns (HostStatsReplyMsg);
     rpc GetKVCaller(KeyMsg) returns (KeyValueMsg);
     rpc GetNodesCaller(Empty) returns (RemoteNodesMsg);

@@ -17,6 +17,14 @@ func (node *Node) DelKVCaller(ctx context.Context, msg *pb.KeyMsg) (*pb.OkMsg, e
 	return node.DelKVRPC(remote, key)
 }
 
+func (node *Node) DiscoverNodesCaller(ctx context.Context, msg *pb.RemoteNodesMsg) (*pb.RemoteNodesMsg, error) {
+	remoteNodes := msgToRemoteNodes(msg)
+	node.Ring.Union(remoteNodes)
+	remoteNodesMsg := remoteNodesToMsg(node.Ring.Nodes)
+
+	return remoteNodesMsg, nil
+}
+
 // GetHostInfoCaller returns it's current machine stats
 func (node *Node) GetHostInfoCaller(ctx context.Context, in *pb.Empty) (*pb.HostStatsReplyMsg, error) {
 	if node.stats.err != nil {

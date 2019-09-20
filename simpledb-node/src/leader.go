@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// Leader is struct for channels handleing heartbeat fanout
 type Leader struct {
 	replyChan chan bool
 	failChan  chan *RemoteNode

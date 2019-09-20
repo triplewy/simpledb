@@ -24,6 +24,23 @@ func (node *Node) DelKVRPC(remote *RemoteNode, key string) (*pb.OkMsg, error) {
 	return cc.DelKVCaller(ctx, &pb.KeyMsg{Key: key})
 }
 
+func (node *Node) DiscoverNodesRPC(remote *RemoteNode) (*pb.RemoteNodesMsg, error) {
+	if remote == nil {
+		return &pb.RemoteNodesMsg{}, errors.New("remoteNode is empty")
+	}
+
+	cc, err := node.ClientConnection(remote)
+	if err != nil {
+		return &pb.RemoteNodesMsg{}, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	msg := remoteNodesToMsg(node.Ring.Nodes)
+	return cc.DiscoverNodesCaller(ctx, msg)
+}
+
 // GetHostInfoRPC is RPC for getting remote machine's stats
 func (node *Node) GetHostInfoRPC(remote *RemoteNode) (*pb.HostStatsReplyMsg, error) {
 	if remote == nil {

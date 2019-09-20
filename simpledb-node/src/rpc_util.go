@@ -22,7 +22,7 @@ func (node *Node) ClientConnection(remote *RemoteNode) (pb.SimpleDbClient, error
 
 	cc, err := grpc.Dial(remote.Addr, grpc.WithTransportCredentials(node.clientCreds), grpc.WithBlock(), grpc.WithTimeout(3*time.Second))
 	if err != nil {
-		log.Fatalf("did not connect: %v", err)
+		log.Printf("did not connect: %v", err)
 		return nil, err
 	}
 

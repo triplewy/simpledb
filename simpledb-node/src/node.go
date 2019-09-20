@@ -43,11 +43,13 @@ type Node struct {
 	sdLock     sync.RWMutex   /* RWLock for shutdown flag */
 	wg         sync.WaitGroup /* WaitGroup of concurrent goroutines to sync before exiting */
 
-	stats  *Stats
-	store  *Store
-	raft   *raft.Election
-	Ring   *Ring
-	Leader *Leader
+	stats     *Stats
+	store     *Store
+	raft      *raft.Election
+	Ring      *Ring
+	Leader    *Leader
+	Config    *Config
+	Discovery *Discovery
 
 	transferChan chan *RemoteNode
 }
@@ -59,9 +61,11 @@ func CreateNode(joinAddr string) (*Node, error) {
 	if err != nil {
 		return nil, err
 	}
+	node.runDiscovery()
 
 	var leader *RemoteNode
 	numElection := 0
+
 	if joinAddr != "" {
 		reply, err := node.JoinNodesRPC(&RemoteNode{Addr: joinAddr, ID: HashKey(joinAddr)})
 		if err != nil {
@@ -152,9 +156,9 @@ func (node *Node) init() error {
 	node.stats = new(Stats)
 	node.transferChan = make(chan *RemoteNode)
 
-	// node.raft = Election.New()
-	// node.raft.RaftBind =
-	// node.raft.RaftDir =
+	node.raft = raft.New()
+	node.Config = NewConfig()
+	node.Discovery = NewDiscovery()
 
 	return err
 }

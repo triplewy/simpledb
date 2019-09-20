@@ -14,11 +14,15 @@ var ErrNodeNotFound = errors.New("node not found")
 type Ring struct {
 	sync.Mutex
 	Nodes RemoteNodes
+	set   map[string]*RemoteNode
 }
 
 // NewRing creates new ring
 func NewRing() *Ring {
-	return &Ring{Nodes: []*RemoteNode{}}
+	return &Ring{
+		Nodes: []*RemoteNode{},
+		set:   make(map[string]*RemoteNode),
+	}
 }
 
 // AddNode adds node to ring
@@ -26,8 +30,24 @@ func (r *Ring) AddNode(node *RemoteNode) {
 	r.Lock()
 	defer r.Unlock()
 
-	r.Nodes = append(r.Nodes, node)
+	if _, ok := r.set[node.Addr]; !ok {
+		r.set[node.Addr] = node
+		r.Nodes = append(r.Nodes, node)
+		sort.Sort(r.Nodes)
+	}
+}
 
+// Union joins a slice of RemoteNodes to the ring
+func (r *Ring) Union(nodes []*RemoteNode) {
+	r.Lock()
+	defer r.Unlock()
+
+	for _, node := range nodes {
+		if _, ok := r.set[node.Addr]; !ok {
+			r.set[node.Addr] = node
+			r.Nodes = append(r.Nodes, node)
+		}
+	}
 	sort.Sort(r.Nodes)
 }
 
@@ -36,12 +56,16 @@ func (r *Ring) RemoveNode(node *RemoteNode) error {
 	r.Lock()
 	defer r.Unlock()
 
-	i := r.search(node.ID)
-	if i >= r.Nodes.Len() || bytes.Compare(r.Nodes[i].ID, node.ID) != 0 {
+	if _, ok := r.set[node.Addr]; ok {
+		delete(r.set, node.Addr)
+		i := r.search(node.ID)
+		if i >= r.Nodes.Len() || bytes.Compare(r.Nodes[i].ID, node.ID) != 0 {
+			return ErrNodeNotFound
+		}
+		r.Nodes = append(r.Nodes[:i], r.Nodes[i+1:]...)
+	} else {
 		return ErrNodeNotFound
 	}
-
-	r.Nodes = append(r.Nodes[:i], r.Nodes[i+1:]...)
 
 	return nil
 }

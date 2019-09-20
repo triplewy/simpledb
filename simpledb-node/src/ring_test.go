@@ -22,6 +22,11 @@ func TestAddNode(t *testing.T) {
 	if ring.Nodes.Len() != 2 {
 		t.Fatalf("failed to add node")
 	}
+
+	ring.AddNode(self)
+	if ring.Nodes.Len() != 2 {
+		t.Fatalf("got %d nodes expected %d nodes", ring.Nodes.Len(), 2)
+	}
 }
 
 // TestRemoveNode tests removing node from ring
@@ -104,5 +109,29 @@ func TestPrev(t *testing.T) {
 	if node.Addr != "localhost:50052" {
 		fmt.Printf("Addr: %s, ID: %x\n", node.Addr, node.ID)
 		t.Fatalf("failed to get correct prev node")
+	}
+}
+
+// TestUnion tests Ring Union
+func TestUnion(t *testing.T) {
+	ring := NewRing()
+
+	self := new(RemoteNode)
+	self.Addr = GetOutboundIP().String()
+	self.ID = HashKey(self.Addr)
+
+	ring.AddNode(self)
+	if ring.Nodes.Len() != 1 {
+		t.Fatalf("failed to add node")
+	}
+
+	ring.AddNode(&RemoteNode{Addr: "127.0.0.1:55001", ID: HashKey("127.0.0.1:55001")})
+	if ring.Nodes.Len() != 2 {
+		t.Fatalf("failed to add node")
+	}
+
+	ring.Union([]*RemoteNode{self, &RemoteNode{Addr: "127.0.0.1:55002", ID: HashKey("127.0.0.1:55002")}})
+	if ring.Nodes.Len() != 3 {
+		t.Fatalf("got %d nodes expected %d nodes", ring.Nodes.Len(), 2)
 	}
 }
