@@ -21,15 +21,15 @@ func NewDiscovery() *Discovery {
 func (node *Node) runDiscovery() {
 	Out.Println("Entering Discovery Phase!")
 
-	timeoutTimer := time.NewTimer(time.Duration(node.Config.discoveryTimeout) * time.Second)
+	timeoutTimer := time.NewTimer(time.Duration(node.Config.DiscoveryTimeout) * time.Second)
 	discoveryTicker := time.NewTicker(4 * time.Second)
 
-	if len(node.Config.discoveryAddrs) == 1 && node.Config.discoveryAddrs[0] == "" {
+	if len(node.Config.DiscoveryAddrs) == 1 && node.Config.DiscoveryAddrs[0] == "" {
 		return
 	}
 
 	nodes := []*RemoteNode{}
-	for _, addr := range node.Config.discoveryAddrs {
+	for _, addr := range node.Config.DiscoveryAddrs {
 		remote := &RemoteNode{
 			Addr: addr,
 			ID:   HashKey(addr),

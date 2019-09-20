@@ -6,13 +6,13 @@ import (
 )
 
 type Config struct {
-	rpcPort          int
-	httpPort         int
-	raftPort         int
-	raftDir          string
-	dbDir            string
-	discoveryTimeout int
-	discoveryAddrs   []string
+	RpcPort          string
+	HttpPort         string
+	RaftPort         string
+	RaftDir          string
+	DbDir            string
+	DiscoveryTimeout int
+	DiscoveryAddrs   []string
 }
 
 func NewConfig() *Config {
@@ -20,12 +20,12 @@ func NewConfig() *Config {
 	addrArr := strings.Split(addrString, ",")
 
 	return &Config{
-		rpcPort:          50051,
-		httpPort:         11000,
-		raftPort:         12000,
-		raftDir:          "./data/raft",
-		dbDir:            "./data/simpledb",
-		discoveryTimeout: 20,
-		discoveryAddrs:   addrArr,
+		RpcPort:          "7000",
+		HttpPort:         "8000",
+		RaftPort:         "9000",
+		RaftDir:          "./data/raft",
+		DbDir:            "./data/simpledb",
+		DiscoveryTimeout: 20,
+		DiscoveryAddrs:   addrArr,
 	}
 }
