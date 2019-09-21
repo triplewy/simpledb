@@ -40,10 +40,12 @@ message KeyValuesMsg { repeated KeyValueMsg pairs = 1; }
 message OkMsg { bool Ok = 1; }
 
 message RemoteNodeMsg {
-    string addr = 1;
-    bytes id = 2;
-    bool isLeader = 3;
-    bool isElection = 4;
+    bytes id = 1;
+    string addr = 2;
+    string raftAddr = 3;
+    string httpAddr = 4;
+    bool isLeader = 5;
+    bool isElection = 6;
 }
 
 message RemoteNodesMsg { repeated RemoteNodeMsg remoteNodes = 1; }

@@ -46,6 +46,8 @@ func (r *Ring) Union(nodes []*RemoteNode) {
 		if _, ok := r.set[node.Addr]; !ok {
 			r.set[node.Addr] = node
 			r.Nodes = append(r.Nodes, node)
+		} else {
+			r.set[node.Addr] = node
 		}
 	}
 	sort.Sort(r.Nodes)

@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"net"
 	"os"
 	"os/signal"
 
@@ -42,54 +41,25 @@ func main() {
 		log.Fatalf("unable to start server: %v", err)
 	}
 
-	fmt.Printf("Created Node: %x @ %s\n", node.ID, node.Addr)
+	fmt.Printf("Created Node: %x @ %s\n", node.RemoteSelf.ID, node.RemoteSelf.Addr)
 
-	fmt.Printf("gRPC server now running @ %s\n", node.Addr)
+	fmt.Printf("gRPC server now running @ %s\n", node.RemoteSelf.Addr)
 
 	node.RunDiscovery()
-
-	httpSvc, err := node.RunElection()
+	err = node.RunElection()
 	if err != nil {
-		log.Fatalf("unable to start raft: %v", err)
+		log.Fatalf("unable to run election: %v", err)
 	}
+
+	// httpSvc, err := node.RunElection()
+	// if err != nil {
+	// 	log.Fatalf("unable to start raft: %v", err)
+	// }
 
 	node.RunNormal()
-
-	rpcErrorChan := make(chan error)
-	httpErrorChan := make(chan error)
-
-	go runRpc(node.Server.Serve, node.Listener, rpcErrorChan)
-	go runHttp(httpSvc.Start, httpErrorChan)
-
-	for {
-		select {
-		case err := <-rpcErrorChan:
-			log.Printf("failed to serve rpc: %v", err)
-		case err := <-httpErrorChan:
-			log.Printf("failed to serve http: %v", err)
-		}
-	}
 
 	terminate := make(chan os.Signal, 1)
 	signal.Notify(terminate, os.Interrupt)
 	<-terminate
 	log.Println("simpledb exiting")
-}
-
-type serveRpc func(net.Listener) error
-
-func runRpc(fn serveRpc, listener net.Listener, errChan chan error) {
-	err := fn(listener)
-	if err != nil {
-		errChan <- err
-	}
-}
-
-type serveHttp func() error
-
-func runHttp(fn serveHttp, errChan chan error) {
-	err := fn()
-	if err != nil {
-		errChan <- err
-	}
 }

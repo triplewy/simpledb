@@ -106,12 +106,7 @@ func (node *Node) JoinNodesRPC(remote *RemoteNode) (*pb.RemoteNodesMsg, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	return cc.JoinNodesCaller(ctx, &pb.RemoteNodeMsg{
-		Addr:       node.RemoteSelf.Addr,
-		Id:         node.RemoteSelf.ID,
-		IsLeader:   node.RemoteSelf.isLeader,
-		IsElection: node.RemoteSelf.isElection,
-	})
+	return cc.JoinNodesCaller(ctx, remoteNodeToMsg(node.RemoteSelf))
 }
 
 func (node *Node) SetKVRPC(remote *RemoteNode, key, value string) (*pb.OkMsg, error) {

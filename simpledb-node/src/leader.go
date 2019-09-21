@@ -29,7 +29,6 @@ func (node *Node) leader() {
 		case reply := <-node.Leader.replyChan:
 			fmt.Println(reply)
 		case remote := <-node.Leader.failChan:
-			fmt.Printf("%v\n", remote)
 			node.Ring.RemoveNode(remote)
 			fmt.Println(len(node.Ring.Nodes))
 		}

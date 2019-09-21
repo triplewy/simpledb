@@ -43,16 +43,22 @@ func pairsToMsg(pairs []*KV) *pb.KeyValuesMsg {
 	return &pb.KeyValuesMsg{Pairs: keyValuesMsg}
 }
 
+func remoteNodeToMsg(node *RemoteNode) *pb.RemoteNodeMsg {
+	return &pb.RemoteNodeMsg{
+		Id:         node.ID,
+		Addr:       node.Addr,
+		RaftAddr:   node.RaftAddr,
+		HttpAddr:   node.HTTPAddr,
+		IsLeader:   node.isLeader,
+		IsElection: node.isElection,
+	}
+}
+
 func remoteNodesToMsg(nodes []*RemoteNode) *pb.RemoteNodesMsg {
 	remoteNodesMsg := []*pb.RemoteNodeMsg{}
 
 	for _, node := range nodes {
-		remoteNodesMsg = append(remoteNodesMsg, &pb.RemoteNodeMsg{
-			Addr:       node.Addr,
-			Id:         node.ID,
-			IsLeader:   node.isLeader,
-			IsElection: node.isElection,
-		})
+		remoteNodesMsg = append(remoteNodesMsg, remoteNodeToMsg(node))
 	}
 
 	return &pb.RemoteNodesMsg{RemoteNodes: remoteNodesMsg}
@@ -71,16 +77,22 @@ func msgToPairs(msg *pb.KeyValuesMsg) []*KV {
 	return keyValues
 }
 
-func msgToRemoteNodes(nodes *pb.RemoteNodesMsg) []*RemoteNode {
+func msgToRemoteNode(msg *pb.RemoteNodeMsg) *RemoteNode {
+	return &RemoteNode{
+		ID:         msg.Id,
+		Addr:       msg.Addr,
+		RaftAddr:   msg.RaftAddr,
+		HTTPAddr:   msg.HttpAddr,
+		isLeader:   msg.IsLeader,
+		isElection: msg.IsElection,
+	}
+}
+
+func msgToRemoteNodes(msg *pb.RemoteNodesMsg) []*RemoteNode {
 	remoteNodes := []*RemoteNode{}
 
-	for _, node := range nodes.RemoteNodes {
-		remoteNodes = append(remoteNodes, &RemoteNode{
-			Addr:       node.Addr,
-			ID:         node.Id,
-			isLeader:   node.IsLeader,
-			isElection: node.IsElection,
-		})
+	for _, node := range msg.RemoteNodes {
+		remoteNodes = append(remoteNodes, msgToRemoteNode(node))
 	}
 
 	return remoteNodes

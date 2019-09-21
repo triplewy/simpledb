@@ -68,9 +68,28 @@ func (node *Node) GetNodesCaller(ctx context.Context, in *pb.Empty) (*pb.RemoteN
 
 func (node *Node) HeartbeatCaller(ctx context.Context, nodes *pb.RemoteNodesMsg) (*pb.OkMsg, error) {
 	prev := node.Ring.Prev(node.RemoteSelf)
+
 	remoteNodes := msgToRemoteNodes(nodes)
-	node.Ring.Nodes = remoteNodes
+	node.Ring.Union(remoteNodes)
+
+	var leader *RemoteNode
+	var self *RemoteNode
+
+	for _, remote := range node.Ring.set {
+		if remote.isLeader {
+			leader = remote
+		}
+		if remote.Addr == node.RemoteSelf.Addr {
+			self = remote
+		}
+	}
+
 	newPrev := node.Ring.Prev(node.RemoteSelf)
+
+	if self.isElection && !node.RemoteSelf.isElection {
+		node.RemoteSelf.isElection = true
+		node.electionChan <- leader
+	}
 
 	if prev.Addr != newPrev.Addr {
 		node.transferChan <- newPrev
@@ -82,12 +101,7 @@ func (node *Node) HeartbeatCaller(ctx context.Context, nodes *pb.RemoteNodesMsg)
 // JoinNodesCaller adds joining node to local consistent hash ring and replies with new ring
 func (node *Node) JoinNodesCaller(ctx context.Context, remote *pb.RemoteNodeMsg) (*pb.RemoteNodesMsg, error) {
 	prev := node.Ring.Prev(node.RemoteSelf)
-	node.Ring.AddNode(&RemoteNode{
-		Addr:       remote.Addr,
-		ID:         remote.Id,
-		isLeader:   remote.IsLeader,
-		isElection: remote.IsElection,
-	})
+	node.Ring.AddNode(msgToRemoteNode(remote))
 	newPrev := node.Ring.Prev(node.RemoteSelf)
 	if prev.Addr != newPrev.Addr {
 		node.transferChan <- newPrev

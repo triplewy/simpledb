@@ -25,14 +25,14 @@ const KeyLength = 16
 type RemoteNode struct {
 	ID         []byte
 	Addr       string
+	RaftAddr   string
+	HTTPAddr   string
 	isLeader   bool
 	isElection bool
 }
 
 // Node represents data structures stored in a gossip node.
 type Node struct {
-	ID         []byte      /* Unique Node Id */
-	Addr       string      /* String of listener address */
 	RemoteSelf *RemoteNode /* Remote node of our self */
 
 	Listener    net.Listener /* Node listener socket */
@@ -44,16 +44,20 @@ type Node struct {
 	sdLock     sync.RWMutex   /* RWLock for shutdown flag */
 	wg         sync.WaitGroup /* WaitGroup of concurrent goroutines to sync before exiting */
 
-	stats     *Stats
-	store     *Store
-	raft      *raft.Election
-	Ring      *Ring
-	Leader    *Leader
-	Config    *Config
-	Discovery *Discovery
-	state     uint64
+	stats       *Stats
+	store       *Store
+	raft        *raft.Election
+	Ring        *Ring
+	Leader      *Leader
+	Config      *Config
+	Discovery   *Discovery
+	HTTPService *raft.Service
+	state       uint64
 
-	transferChan chan *RemoteNode
+	transferChan  chan *RemoteNode
+	electionChan  chan *RemoteNode
+	rpcErrorChan  chan error
+	httpErrorChan chan error
 }
 
 // CreateNode creates a Gossip node with random ID based on listener address.
@@ -68,30 +72,31 @@ func CreateNode() *Node {
 func (node *Node) CreateServer() error {
 	// If on Brown network
 	// node.Addr = GetOutboundIP().String
-	// If on local computer
-	node.Addr = "localhost:" + node.Config.RpcPort
-	node.ID = HashKey(node.Addr)
+	host := "localhost:"
+	addr := host + node.Config.RpcPort
+
 	node.RemoteSelf = &RemoteNode{
-		Addr: node.Addr,
-		ID:   node.ID,
+		ID:         HashKey(addr),
+		Addr:       host + node.Config.RpcPort,
+		HTTPAddr:   host + node.Config.HttpPort,
+		RaftAddr:   host + node.Config.RaftPort,
+		isLeader:   false,
+		isElection: false,
 	}
 	node.Ring.AddNode(node.RemoteSelf)
 
 	listener, err := net.Listen("tcp", ":"+node.Config.RpcPort)
 	if err != nil {
-		Error.Printf("failed to listen: %v", err)
 		return err
 	}
 	node.Listener = listener
 
 	serverCreds, err := credentials.NewServerTLSFromFile("../ssl/cert.pem", "../ssl/key.pem")
 	if err != nil {
-		Error.Printf("could not create credentials: %v", err)
 		return err
 	}
 	clientCreds, err := credentials.NewClientTLSFromFile("../ssl/cert.pem", "")
 	if err != nil {
-		Error.Printf("could not create credentials: %v", err)
 		return err
 	}
 
@@ -100,6 +105,9 @@ func (node *Node) CreateServer() error {
 	node.Server = grpc.NewServer(grpc.Creds(node.serverCreds))
 
 	pb.RegisterSimpleDbServer(node.Server, node)
+
+	go node.runRPC(node.Server.Serve)
+
 	return nil
 }
 
@@ -110,90 +118,98 @@ func (node *Node) RunDiscovery() {
 }
 
 // RunElection commences election phase of node
-func (node *Node) RunElection() (*raft.Service, error) {
+func (node *Node) RunElection() error {
 	node.state = ElectionState
 
-	if node.Ring.Nodes.Len() > 1 {
+	var leader *RemoteNode
+	for _, remote := range node.Ring.Nodes {
+		if remote.isLeader {
+			leader = remote
+		}
+	}
 
-	} else {
+	if leader == nil {
+		node.Ring.Nodes[0].isElection = true
+		node.Ring.Nodes[0].isLeader = true
+		leader = node.Ring.Nodes[0]
+	}
+
+	if leader.Addr == node.RemoteSelf.Addr {
 		node.RemoteSelf.isLeader = true
 		node.RemoteSelf.isElection = true
-		err := node.Ring.RemoveNode(node.RemoteSelf)
-		if err != nil {
-			return nil, err
+
+		if node.Ring.Nodes.Len() > 5 {
+			for i := 0; i < 5; i++ {
+				node.Ring.Nodes[i].isElection = true
+			}
+		} else {
+			if node.Ring.Nodes.Len()%2 == 1 {
+				for i := 0; i < node.Ring.Nodes.Len(); i++ {
+					node.Ring.Nodes[i].isElection = true
+				}
+			} else {
+				for i := 0; i < node.Ring.Nodes.Len()-1; i++ {
+					node.Ring.Nodes[i].isElection = true
+				}
+			}
 		}
-		node.Ring.AddNode(node.RemoteSelf)
 
 		os.MkdirAll(node.Config.RaftDir, 0700)
-
 		node.raft.RaftDir = node.Config.RaftDir
 		node.raft.RaftBind = ":" + node.Config.RaftPort
 
-		err = node.raft.Open(true, string(node.RemoteSelf.ID[:]))
+		err := node.raft.Open(true, string(node.RemoteSelf.ID[:]))
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		h := raft.NewSvc(":"+node.Config.HttpPort, node.raft)
+		node.HTTPService = h
 
 		Out.Println("hraftd started successfully")
-		return h, nil
-		// If join was specified, make the join request.
-		// if joinAddr != "" {
-		// 	if err := join(joinAddr, raftAddr, nodeID); err != nil {
-		// 		log.Fatalf("failed to join node at %s: %s", joinAddr, err.Error())
-		// 	}
-		// }
+
+		go node.runHTTP(node.HTTPService.Start)
+
+		type electionReply struct {
+			node *RemoteNode
+			err  error
+		}
+
+		electionRPC := make(chan *electionReply)
+
+		for _, remote := range node.Ring.Nodes {
+			if remote.Addr != node.RemoteSelf.Addr {
+				go func(remote *RemoteNode) {
+					_, err := node.HeartbeatRPC(remote)
+					if err != nil {
+						electionRPC <- &electionReply{
+							node: remote,
+							err:  err,
+						}
+					} else {
+						electionRPC <- &electionReply{
+							node: remote,
+							err:  nil,
+						}
+					}
+				}(remote)
+			}
+		}
+
+		for i := 0; i < node.Ring.Nodes.Len()-1; i++ {
+			reply := <-electionRPC
+			if reply.err != nil {
+				Error.Printf("could not send HeartbeatRPC %v\n", err)
+				node.Ring.RemoveNode(reply.node)
+			}
+		}
+
+		close(electionRPC)
+
+		return nil
 	}
 
-	return nil, nil
-
-	// var leader *RemoteNode
-	// numElection := 0
-
-	// if joinAddr != "" {
-	// 	reply, err := node.JoinNodesRPC(&RemoteNode{Addr: joinAddr, ID: HashKey(joinAddr)})
-	// 	if err != nil {
-	// 		log.Fatalf("failed to join node %v", err)
-	// 	}
-	// 	ring := new(Ring)
-	// 	for _, node := range reply.RemoteNodes {
-	// 		remoteNode := &RemoteNode{
-	// 			Addr:       node.Addr,
-	// 			ID:         node.Id,
-	// 			isLeader:   node.IsLeader,
-	// 			isElection: node.IsElection,
-	// 		}
-
-	// 		if remoteNode.isLeader {
-	// 			leader = remoteNode
-	// 		}
-	// 		if node.IsElection {
-	// 			numElection++
-	// 		}
-	// 		ring.AddNode(remoteNode)
-	// 	}
-	// 	node.Ring = ring
-	// }
-
-	// if leader == nil {
-	// 	fmt.Println("I am leader")
-	// 	node.RemoteSelf.isLeader = true
-	// 	node.RemoteSelf.isElection = true
-	// 	node.Ring.AddNode(node.RemoteSelf)
-	// 	// node.raft.Open(true, string(node.RemoteSelf.ID[:]))
-	// 	node.Leader = NewLeader()
-	// 	go node.leader()
-	// } else {
-	// 	if numElection < 5 {
-	// 		node.RemoteSelf.isElection = true
-	// 		// node.raft.Open(false, string(node.RemoteSelf.ID[:]))
-	// 		// node.raft.Join(string(leader.ID[:]), leader.Addr)
-	// 	}
-	// }
-	// go node.run()
-
-	// return node, err
+	return nil
 }
 
 func (node *Node) RunNormal() {
@@ -216,6 +232,9 @@ func (node *Node) init() {
 	node.Ring = NewRing()
 
 	node.transferChan = make(chan *RemoteNode)
+	node.electionChan = make(chan *RemoteNode)
+	node.rpcErrorChan = make(chan error)
+	node.httpErrorChan = make(chan error)
 }
 
 // ShutdownNode gracefully shutsdown a specified Gossip node.
@@ -227,4 +246,22 @@ func ShutdownNode(node *Node) {
 	node.wg.Wait()
 	node.Server.GracefulStop()
 	node.Listener.Close()
+}
+
+type serveRPC func(net.Listener) error
+
+func (node *Node) runRPC(fn serveRPC) {
+	err := fn(node.Listener)
+	if err != nil {
+		node.rpcErrorChan <- err
+	}
+}
+
+type serveHTTP func() error
+
+func (node *Node) runHTTP(fn serveHTTP) {
+	err := fn()
+	if err != nil {
+		node.httpErrorChan <- err
+	}
 }

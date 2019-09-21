@@ -76,7 +76,7 @@ func (node *Node) sendDiscovery(remote *RemoteNode) {
 
 	reply, err := node.DiscoverNodesRPC(remote)
 	if err != nil {
-		Error.Printf("sendDiscovery error %v\n", err)
+		Error.Printf("sendDiscovery to %s error %v\n", remote.Addr, err)
 		return
 	}
 	nodes := msgToRemoteNodes(reply)
