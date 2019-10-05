@@ -22,7 +22,7 @@ func (node *Node) runDiscovery() {
 	Out.Println("Entering Discovery Phase!")
 
 	timeoutTimer := time.NewTimer(time.Duration(node.Config.DiscoveryTimeout) * time.Second)
-	discoveryTicker := time.NewTicker(4 * time.Second)
+	discoveryTicker := time.NewTicker(2 * time.Second)
 
 	if len(node.Config.DiscoveryAddrs) == 1 && node.Config.DiscoveryAddrs[0] == "" {
 		return
@@ -47,6 +47,7 @@ func (node *Node) runDiscovery() {
 			return
 		case <-discoveryTicker.C:
 			Out.Println("Sending discovery")
+			node.Discovery.Wait()
 			node.sendDiscoveries()
 		}
 	}
@@ -55,14 +56,6 @@ func (node *Node) runDiscovery() {
 
 func (node *Node) sendDiscoveries() {
 	for _, remote := range node.Discovery.nodes {
-		if remote.Addr != node.RemoteSelf.Addr {
-			Out.Printf("%s\n", remote.Addr)
-			node.Discovery.Add(1)
-			go node.sendDiscovery(remote)
-		}
-	}
-
-	for _, remote := range node.Ring.Nodes {
 		if remote.Addr != node.RemoteSelf.Addr {
 			Out.Printf("%s\n", remote.Addr)
 			node.Discovery.Add(1)

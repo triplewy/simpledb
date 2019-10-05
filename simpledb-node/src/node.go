@@ -115,6 +115,9 @@ func (node *Node) CreateServer() error {
 func (node *Node) RunDiscovery() {
 	node.state = DiscoveryState
 	node.runDiscovery()
+	if node.Ring.Nodes.Len() < node.Config.MinNumberNodes {
+		Error.Fatalf("Did not discover enough nodes")
+	}
 }
 
 // RunElection commences election phase of node
@@ -165,9 +168,7 @@ func (node *Node) RunElection() error {
 
 		h := raft.NewSvc(":"+node.Config.HttpPort, node.raft)
 		node.HTTPService = h
-
 		Out.Println("hraftd started successfully")
-
 		go node.runHTTP(node.HTTPService.Start)
 
 		type electionReply struct {

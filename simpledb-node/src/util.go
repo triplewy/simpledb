@@ -1,6 +1,7 @@
 package simpledb
 
 import (
+	"bytes"
 	"crypto/sha1"
 	"log"
 	"net"
@@ -25,4 +26,24 @@ func GetOutboundIP() net.IP {
 	localAddr := conn.LocalAddr().(*net.UDPAddr)
 
 	return localAddr.IP
+}
+
+// Max returns the larger of x or y.
+func Max(x, y int) int {
+	if x < y {
+		return y
+	}
+	return x
+}
+
+func bytesCompareLess(a, b []byte) bool {
+	return bytes.Compare(a, b) == -1
+}
+
+func bytesCompareGreater(a, b []byte) bool {
+	return bytes.Compare(a, b) == 1
+}
+
+func bytesCompareEqual(a, b []byte) bool {
+	return bytes.Compare(a, b) == 0
 }
