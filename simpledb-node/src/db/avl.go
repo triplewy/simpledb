@@ -1,4 +1,4 @@
-package simpledb
+package db
 
 import (
 	"errors"
@@ -6,52 +6,62 @@ import (
 )
 
 type AVLNode struct {
-	key      []byte
-	numBytes int
-	offset   int
-	left     *AVLNode
-	right    *AVLNode
-	height   int
+	key   string
+	value string
+
+	left   *AVLNode
+	right  *AVLNode
+	height int
 }
 
 type AVLTree struct {
-	root *AVLNode
+	root     *AVLNode
+	capacity int
+	size     int
 	sync.RWMutex
 }
 
-func newAVLNode(key []byte, numBytes, offset int) *AVLNode {
+type kvPair struct {
+	key   string
+	value string
+}
+
+func newAVLNode(key, value string) *AVLNode {
 	return &AVLNode{
-		key:      key,
-		numBytes: numBytes,
-		offset:   offset,
-		left:     nil,
-		right:    nil,
-		height:   1,
+		key:    key,
+		value:  value,
+		left:   nil,
+		right:  nil,
+		height: 1,
 	}
 }
 
 func NewAVLTree() *AVLTree {
 	return &AVLTree{
-		root: nil,
+		root:     nil,
+		capacity: blockSize,
+		size:     0,
 	}
 }
 
 // Insert inserts a new node into an AVL-Tree
-func (tree *AVLTree) Insert(key []byte, numBytes, offset int) error {
+func (tree *AVLTree) Put(key, value string) error {
 	tree.Lock()
 	defer tree.Unlock()
 
-	newNode := newAVLNode(key, numBytes, offset)
-	root, err := insert(tree.root, newNode)
+	newNode := newAVLNode(key, value)
+	root, err := put(tree.root, newNode)
 	if err != nil {
 		return err
 	}
 	tree.root = root
+	tree.size += 13 + len(key)
+
 	return nil
 }
 
 // Find finds the node in an AVL-Tree given a key. Returns error if key not found
-func (tree *AVLTree) Find(key []byte) (*AVLNode, error) {
+func (tree *AVLTree) Find(key string) (*AVLNode, error) {
 	tree.RLock()
 	defer tree.RUnlock()
 
@@ -63,7 +73,7 @@ func (tree *AVLTree) Find(key []byte) (*AVLNode, error) {
 }
 
 //Inorder prints inorder traversal of AVL-Tree
-func (tree *AVLTree) Inorder() []string {
+func (tree *AVLTree) Inorder() []*kvPair {
 	tree.RLock()
 	defer tree.RUnlock()
 
@@ -75,22 +85,29 @@ func (tree *AVLTree) Preorder() []string {
 	tree.RLock()
 	defer tree.RUnlock()
 
-	return preorder(tree.root)
+	pairs := preorder(tree.root)
+	result := make([]string, len(pairs))
+
+	for i, pair := range pairs {
+		result[i] = pair.String()
+	}
+
+	return result
 }
 
-func insert(root, newNode *AVLNode) (*AVLNode, error) {
+func put(root, newNode *AVLNode) (*AVLNode, error) {
 	if root == nil {
 		return newNode, nil
-	} else if bytesCompareEqual(newNode.key, root.key) {
+	} else if newNode.key == root.key {
 		return nil, errors.New("Key already exists")
-	} else if bytesCompareLess(newNode.key, root.key) {
-		node, err := insert(root.left, newNode)
+	} else if newNode.key < root.key {
+		node, err := put(root.left, newNode)
 		if err != nil {
 			return nil, err
 		}
 		root.left = node
 	} else {
-		node, err := insert(root.right, newNode)
+		node, err := put(root.right, newNode)
 		if err != nil {
 			return nil, err
 		}
@@ -101,20 +118,20 @@ func insert(root, newNode *AVLNode) (*AVLNode, error) {
 	balance := getBalance(root)
 
 	// Case 1 - Left Left
-	if balance > 1 && bytesCompareLess(newNode.key, root.left.key) {
+	if balance > 1 && newNode.key < root.left.key {
 		return rightRotate(root), nil
 	}
 	// Case 2 - Right Right
-	if balance < -1 && bytesCompareGreater(newNode.key, root.right.key) {
+	if balance < -1 && newNode.key > root.right.key {
 		return leftRotate(root), nil
 	}
 	// Case 3 - Left Right
-	if balance > 1 && bytesCompareGreater(newNode.key, root.left.key) {
+	if balance > 1 && newNode.key > root.left.key {
 		root.left = leftRotate(root.left)
 		return rightRotate(root), nil
 	}
 	// Case 4 - Right Left
-	if balance < -1 && bytesCompareLess(newNode.key, root.right.key) {
+	if balance < -1 && newNode.key < root.right.key {
 		root.right = rightRotate(root.right)
 		return leftRotate(root), nil
 	}
@@ -162,29 +179,33 @@ func rightRotate(z *AVLNode) *AVLNode {
 	return y
 }
 
-func find(root *AVLNode, key []byte) (*AVLNode, error) {
+func find(root *AVLNode, key string) (*AVLNode, error) {
 	if root == nil {
 		return nil, errors.New("Key not found")
 	}
-	if bytesCompareEqual(root.key, key) {
+	if root.key == key {
 		return root, nil
 	}
-	if bytesCompareLess(key, root.key) {
+	if key < root.key {
 		return find(root.left, key)
 	}
 	return find(root.right, key)
 }
 
-func inorder(root *AVLNode) []string {
+func inorder(root *AVLNode) []*kvPair {
 	if root == nil {
-		return []string{}
+		return []*kvPair{}
 	}
-	return append(append(inorder(root.left), string(root.key)), inorder(root.right)...)
+	return append(append(inorder(root.left), &kvPair{key: root.key, value: root.value}), inorder(root.right)...)
 }
 
-func preorder(root *AVLNode) []string {
+func preorder(root *AVLNode) []*kvPair {
 	if root == nil {
-		return []string{}
+		return []*kvPair{}
 	}
-	return append(append([]string{string(root.key)}, preorder(root.left)...), preorder(root.right)...)
+	return append(append([]*kvPair{&kvPair{key: root.key, value: root.value}}, preorder(root.left)...), preorder(root.right)...)
+}
+
+func (pair *kvPair) String() string {
+	return pair.key
 }

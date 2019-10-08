@@ -1,58 +1,58 @@
-package simpledb
+package db
 
 import (
 	"strings"
 	"testing"
 )
 
-func TestAVLInsertLeftLeft(t *testing.T) {
+func TestAVLPutLeftLeft(t *testing.T) {
 	tree := NewAVLTree()
-	tree.Insert([]byte("5"), 0, 0)
-	tree.Insert([]byte("4"), 0, 0)
-	tree.Insert([]byte("3"), 0, 0)
+	tree.Put("5", "5")
+	tree.Put("4", "4")
+	tree.Put("3", "3")
 	preorder := strings.Join(tree.Preorder(), ",")
 	if preorder != "4,3,5" {
 		t.Fatalf("Expected: 4,3,5 Got: %s\n", preorder)
 	}
 }
 
-func TestAVLInsertLeftRight(t *testing.T) {
+func TestAVLPutLeftRight(t *testing.T) {
 	tree := NewAVLTree()
-	tree.Insert([]byte("5"), 0, 0)
-	tree.Insert([]byte("3"), 0, 0)
-	tree.Insert([]byte("4"), 0, 0)
+	tree.Put("5", "5")
+	tree.Put("3", "3")
+	tree.Put("4", "4")
 	preorder := strings.Join(tree.Preorder(), ",")
 	if preorder != "4,3,5" {
 		t.Fatalf("Expected: 4,3,5 Got: %s\n", preorder)
 	}
 }
 
-func TestAVLInsertRightRight(t *testing.T) {
+func TestAVLPutRightRight(t *testing.T) {
 	tree := NewAVLTree()
-	tree.Insert([]byte("3"), 0, 0)
-	tree.Insert([]byte("4"), 0, 0)
-	tree.Insert([]byte("5"), 0, 0)
+	tree.Put("3", "3")
+	tree.Put("4", "4")
+	tree.Put("5", "5")
 	preorder := strings.Join(tree.Preorder(), ",")
 	if preorder != "4,3,5" {
 		t.Fatalf("Expected: 4,3,5 Got: %s\n", preorder)
 	}
 }
 
-func TestAVLInsertRightLeft(t *testing.T) {
+func TestAVLPutRightLeft(t *testing.T) {
 	tree := NewAVLTree()
-	tree.Insert([]byte("3"), 0, 0)
-	tree.Insert([]byte("5"), 0, 0)
-	tree.Insert([]byte("4"), 0, 0)
+	tree.Put("3", "3")
+	tree.Put("5", "5")
+	tree.Put("4", "4")
 	preorder := strings.Join(tree.Preorder(), ",")
 	if preorder != "4,3,5" {
 		t.Fatalf("Expected: 4,3,5 Got: %s\n", preorder)
 	}
 }
 
-func TestAVLInsertError(t *testing.T) {
+func TestAVLPutError(t *testing.T) {
 	tree := NewAVLTree()
-	tree.Insert([]byte("3"), 0, 0)
-	err := tree.Insert([]byte("3"), 0, 0)
+	tree.Put("3", "3")
+	err := tree.Put("3", "3")
 	if err == nil || err.Error() != "Key already exists" {
 		t.Fatalf("Expected: Key already exists, Got: %s\n", err)
 	}
