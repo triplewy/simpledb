@@ -2,7 +2,6 @@ package db
 
 import (
 	"errors"
-	"fmt"
 	"os"
 )
 
@@ -118,7 +117,6 @@ func (vlog *VLog) Read(offset uint64, numBytes uint32) ([]byte, error) {
 		return nil, errors.New("Did not read correct amount of bytes")
 	}
 
-	fmt.Println("Vlog result:", result)
 	keySize := uint8(result[0])
 	value := result[3+keySize:]
 
