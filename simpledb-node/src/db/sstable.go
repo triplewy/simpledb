@@ -18,8 +18,8 @@ type LSMFind struct {
 }
 
 func NewSSTable() (*SSTable, error) {
-	l0 := NewLevel(0)
-	l1 := NewLevel(1)
+	l0 := NewLevel(0, l0IndexSize)
+	l1 := NewLevel(1, l1IndexSize)
 
 	l0.below = l1
 	l1.above = l0
@@ -43,10 +43,10 @@ func (table *SSTable) Append(blocks, index []byte, startKey, endKey string) erro
 		return err
 	}
 
-	filler := make([]byte, indexBlockSize-len(index))
+	filler := make([]byte, l0IndexSize-len(index))
 	index = append(index, filler...)
 
-	if len(index) != indexBlockSize {
+	if len(index) != l0IndexSize {
 		return errors.New("LSM index block does not match 16 KB")
 	}
 
@@ -108,8 +108,8 @@ func (table *SSTable) find(filename, key string, replyChan chan *LSMFind) {
 		return
 	}
 
-	index := make([]byte, indexBlockSize)
-	numBytes, err := f.ReadAt(index, int64(128*blockSize))
+	index := make([]byte, l0IndexSize)
+	numBytes, err := f.ReadAt(index, int64(l0Size*blockSize))
 
 	if err != nil {
 		replyChan <- &LSMFind{
@@ -120,7 +120,7 @@ func (table *SSTable) find(filename, key string, replyChan chan *LSMFind) {
 		return
 	}
 
-	if numBytes != indexBlockSize {
+	if numBytes != l0IndexSize {
 		replyChan <- &LSMFind{
 			offset: 0,
 			size:   0,

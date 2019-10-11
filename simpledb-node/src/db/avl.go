@@ -44,7 +44,7 @@ func NewAVLTree() *AVLTree {
 	}
 }
 
-// Insert inserts a new node into an AVL-Tree
+// Put inserts a new node into an AVL-Tree
 func (tree *AVLTree) Put(key, value string) error {
 	tree.Lock()
 	defer tree.Unlock()

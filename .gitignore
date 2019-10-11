@@ -4,3 +4,4 @@ ssl
 *.sst
 manifest*
 simpledb-node/src/db/data
+simpledb-node/data

@@ -43,7 +43,7 @@ func DeleteData() error {
 }
 
 func PopulateSSTFile(keys []string, filename string) error {
-	indexBlock := make([]byte, indexBlockSize)
+	indexBlock := make([]byte, l0IndexSize)
 
 	f, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
 	defer f.Close()

@@ -9,10 +9,16 @@ import (
 )
 
 const blockSize = 32
+
 const keySize = 19
 const valueSize = 65535
-const indexBlockSize = 16 * 1024
-const l0Size = 128
+
+const l0Size = 2 * 1024 / blockSize
+const l1Size = 10 * 1024 / blockSize
+
+const l0IndexSize = l0Size * (3 + keySize)
+const l1IndexSize = l1Size * (3 + keySize)
+
 const filenameLength = 8
 const compactThreshold = 4
 
@@ -28,13 +34,13 @@ type LSM struct {
 
 	ssTable *SSTable
 
-	flushChan chan struct{}
+	flushChan chan []*kvPair
 
 	vLog *VLog
 }
 
 func NewLSM() (*LSM, error) {
-	vLog, err := NewVLog("vlog.log")
+	vLog, err := NewVLog("data/VLog/vlog.log")
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +52,7 @@ func NewLSM() (*LSM, error) {
 	lsm := &LSM{
 		mutable:   NewAVLTree(),
 		immutable: NewAVLTree(),
-		flushChan: make(chan struct{}),
+		flushChan: make(chan []*kvPair),
 		ssTable:   ssTable,
 		vLog:      vLog,
 	}
@@ -68,7 +74,8 @@ func (lsm *LSM) Put(key, value string) error {
 	if lsm.mutable.size+13+len(key) > lsm.mutable.capacity {
 		lsm.immutable = lsm.mutable
 		lsm.mutable = NewAVLTree()
-		lsm.flushChan <- struct{}{}
+		pairs := lsm.immutable.Inorder()
+		lsm.flushChan <- pairs
 	}
 
 	err := lsm.mutable.Put(key, value)
@@ -115,11 +122,10 @@ func (lsm *LSM) Get(key string) (string, error) {
 	return result[0].value, nil
 }
 
-func (lsm *LSM) Flush() error {
+func (lsm *LSM) Flush(kvPairs []*kvPair) error {
 	lsm.immLock.Lock()
 	defer lsm.immLock.Unlock()
 
-	kvPairs := lsm.immutable.Inorder()
 	startKey := kvPairs[0].key
 	endKey := kvPairs[len(kvPairs)-1].key
 
@@ -190,19 +196,6 @@ func (lsm *LSM) Flush() error {
 	return nil
 }
 
-func (lsm *LSM) run() {
-	for {
-		select {
-		case <-lsm.flushChan:
-			err := lsm.Flush()
-			if err != nil {
-				fmt.Printf("error flushing data from immutable table: %v\n", err)
-			}
-			fmt.Println("Done flushing")
-		}
-	}
-}
-
 func createVlogEntry(key, value string) ([]byte, error) {
 	keySize := uint8(len(key))
 	valueSize := uint16(len(value))
@@ -253,4 +246,17 @@ func createLsmIndex(key string, block uint16) []byte {
 	copy(indexEntry[1+len(key):], blockBytes)
 
 	return indexEntry
+}
+
+func (lsm *LSM) run() {
+	for {
+		select {
+		case kvPairs := <-lsm.flushChan:
+			err := lsm.Flush(kvPairs)
+			if err != nil {
+				fmt.Printf("error flushing data from immutable table: %v\n", err)
+			}
+			fmt.Println("Done flushing")
+		}
+	}
 }
