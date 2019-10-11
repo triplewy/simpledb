@@ -98,7 +98,7 @@ func (vlog *VLog) append(data []byte) (numBytes int, err error) {
 	return numBytes, nil
 }
 
-func (vlog *VLog) Read(offset uint64, numBytes uint32) ([]byte, error) {
+func (vlog *VLog) Read(queries []*LSMFind) ([]*kvPair, error) {
 	f, err := os.OpenFile(vlog.fileName, os.O_RDONLY, 0644)
 	defer f.Close()
 
@@ -106,19 +106,25 @@ func (vlog *VLog) Read(offset uint64, numBytes uint32) ([]byte, error) {
 		return nil, err
 	}
 
-	result := make([]byte, numBytes)
+	result := []*kvPair{}
 
-	bytesRead, err := f.ReadAt(result, int64(offset))
-	if err != nil {
-		return nil, err
+	for _, item := range queries {
+		data := make([]byte, item.size)
+
+		bytesRead, err := f.ReadAt(data, int64(item.offset))
+		if err != nil {
+			return nil, err
+		}
+
+		if bytesRead != int(item.size) {
+			return nil, errors.New("Did not read correct amount of bytes")
+		}
+
+		keySize := uint8(data[0])
+		key := data[1 : 1+keySize]
+		value := data[3+keySize:]
+		result = append(result, &kvPair{key: string(key), value: string(value)})
 	}
 
-	if bytesRead != int(numBytes) {
-		return nil, errors.New("Did not read correct amount of bytes")
-	}
-
-	keySize := uint8(result[0])
-	value := result[3+keySize:]
-
-	return value, nil
+	return result, nil
 }

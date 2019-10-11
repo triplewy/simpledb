@@ -11,26 +11,22 @@ type SSTable struct {
 	level1 *Level
 }
 
-type FindReply struct {
+type LSMFind struct {
 	offset uint64
 	size   uint32
 	err    error
 }
 
 func NewSSTable() (*SSTable, error) {
-	level0, err := NewLevel(0)
-	if err != nil {
-		return nil, err
-	}
+	l0 := NewLevel(0)
+	l1 := NewLevel(1)
 
-	level1, err := NewLevel(1)
-	if err != nil {
-		return nil, err
-	}
+	l0.below = l1
+	l1.above = l0
 
 	return &SSTable{
-		level0: level0,
-		level1: level1,
+		level0: l0,
+		level1: l1,
 	}, nil
 }
 
@@ -40,7 +36,7 @@ func (table *SSTable) Append(blocks, index []byte, startKey, endKey string) erro
 
 	filename := table.level0.getUniqueId()
 
-	f, err = os.OpenFile(filename, os.O_CREATE|os.O_TRUNC, 0644)
+	f, err = os.OpenFile(table.level0.directory+filename+".sst", os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
 	defer f.Close()
 
 	if err != nil {
@@ -72,13 +68,13 @@ func (table *SSTable) Append(blocks, index []byte, startKey, endKey string) erro
 	return nil
 }
 
-func (table *SSTable) Find(key string) ([]*FindReply, error) {
+func (table *SSTable) Find(key string) ([]*LSMFind, error) {
 	filenames := table.level0.FindSSTFile(key)
 	if len(filenames) == 0 {
 		return nil, errors.New("No SSTables in Level 0 contain key")
 	}
 
-	replyChan := make(chan *FindReply, len(filenames))
+	replyChan := make(chan *LSMFind, len(filenames))
 
 	for _, filename := range filenames {
 		go func(filename, key string) {
@@ -86,9 +82,10 @@ func (table *SSTable) Find(key string) ([]*FindReply, error) {
 		}(filename, key)
 	}
 
-	replies := []*FindReply{}
+	replies := []*LSMFind{}
 
-	for reply := range replyChan {
+	for i := 0; i < len(filenames); i++ {
+		reply := <-replyChan
 		if reply.err != nil {
 			return nil, reply.err
 		}
@@ -98,12 +95,12 @@ func (table *SSTable) Find(key string) ([]*FindReply, error) {
 	return replies, nil
 }
 
-func (table *SSTable) find(filename, key string, replyChan chan *FindReply) {
+func (table *SSTable) find(filename, key string, replyChan chan *LSMFind) {
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	defer f.Close()
 
 	if err != nil {
-		replyChan <- &FindReply{
+		replyChan <- &LSMFind{
 			offset: 0,
 			size:   0,
 			err:    err,
@@ -115,7 +112,7 @@ func (table *SSTable) find(filename, key string, replyChan chan *FindReply) {
 	numBytes, err := f.ReadAt(index, int64(128*blockSize))
 
 	if err != nil {
-		replyChan <- &FindReply{
+		replyChan <- &LSMFind{
 			offset: 0,
 			size:   0,
 			err:    err,
@@ -124,7 +121,7 @@ func (table *SSTable) find(filename, key string, replyChan chan *FindReply) {
 	}
 
 	if numBytes != indexBlockSize {
-		replyChan <- &FindReply{
+		replyChan <- &LSMFind{
 			offset: 0,
 			size:   0,
 			err:    errors.New("Did not read correct amount of bytes for index"),
@@ -137,7 +134,7 @@ func (table *SSTable) find(filename, key string, replyChan chan *FindReply) {
 	block := make([]byte, blockSize)
 	numBytes, err = f.ReadAt(block, int64(blockSize*blockIndex))
 	if err != nil {
-		replyChan <- &FindReply{
+		replyChan <- &LSMFind{
 			offset: 0,
 			size:   0,
 			err:    err,
@@ -145,7 +142,7 @@ func (table *SSTable) find(filename, key string, replyChan chan *FindReply) {
 		return
 	}
 	if numBytes != blockSize {
-		replyChan <- &FindReply{
+		replyChan <- &LSMFind{
 			offset: 0,
 			size:   0,
 			err:    errors.New("Did not read correct amount of bytes for data block"),
@@ -154,7 +151,7 @@ func (table *SSTable) find(filename, key string, replyChan chan *FindReply) {
 	}
 
 	offset, size, err := findKeyInBlock(key, block)
-	replyChan <- &FindReply{
+	replyChan <- &LSMFind{
 		offset: offset,
 		size:   size,
 		err:    err,

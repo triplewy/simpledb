@@ -2,3 +2,4 @@ ssl
 .env
 *.log
 *.sst
+manifest*

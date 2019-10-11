@@ -14,6 +14,7 @@ const valueSize = 65535
 const indexBlockSize = 16 * 1024
 const l0Size = 128
 const filenameLength = 8
+const compactThreshold = 4
 
 type lsmEntry struct {
 	key    string
@@ -106,12 +107,12 @@ func (lsm *LSM) Get(key string) (string, error) {
 		return "", err
 	}
 
-	result, err := lsm.vLog.Read(offset, size)
+	result, err := lsm.vLog.Read(replies)
 	if err != nil {
 		return "", err
 	}
 
-	return string(result), nil
+	return result[0].value, nil
 }
 
 func (lsm *LSM) Flush() error {
