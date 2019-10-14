@@ -26,7 +26,7 @@ func Floor(x float64) (int64, error) {
 }
 
 func DeleteData() error {
-	dirs := []string{"data/L0", "data/L1"}
+	dirs := []string{"data/L0", "data/L1", "data/L2", "data/L3", "data/L4", "data/L5", "data/L6"}
 
 	for _, dir := range dirs {
 		d, err := ioutil.ReadDir(dir)
@@ -43,7 +43,7 @@ func DeleteData() error {
 }
 
 func PopulateSSTFile(keys []string, filename string) error {
-	indexBlock := make([]byte, l0IndexSize)
+	indexBlock := make([]byte, 2*1024/blockSize*(3+keySize))
 
 	f, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
 	defer f.Close()

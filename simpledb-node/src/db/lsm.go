@@ -13,12 +13,6 @@ const blockSize = 32
 const keySize = 19
 const valueSize = 65535
 
-const l0Size = 2 * 1024 / blockSize
-const l1Size = 10 * 1024 / blockSize
-
-const l0IndexSize = l0Size * (3 + keySize)
-const l1IndexSize = l1Size * (3 + keySize)
-
 const filenameLength = 8
 const compactThreshold = 4
 
@@ -109,7 +103,7 @@ func (lsm *LSM) Get(key string) (string, error) {
 		return "", err
 	}
 
-	replies, err := lsm.ssTable.Find(key)
+	replies, err := lsm.ssTable.Find(key, 0)
 	if err != nil {
 		return "", err
 	}

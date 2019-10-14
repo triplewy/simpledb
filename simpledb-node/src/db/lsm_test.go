@@ -18,8 +18,10 @@ func TestLSMPut(t *testing.T) {
 		t.Errorf("Error creating LSM: %v\n", err)
 	}
 
+	numItems := 4000
+
 	startInsertTime := time.Now()
-	for i := 0; i < 257; i++ {
+	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(1000000000000000000 + i)
 		err = lsm.Put(key, key)
 		if err != nil {
@@ -27,9 +29,9 @@ func TestLSMPut(t *testing.T) {
 		}
 	}
 	duration := time.Since(startInsertTime)
-	fmt.Println("Duration inserting 1000 items:", duration)
+	fmt.Printf("Duration inserting %d items: %v\n", numItems, duration)
 
-	for i := 0; i < 257; i++ {
+	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(1000000000000000000 + i)
 		result, err := lsm.Get(key)
 		if err != nil {

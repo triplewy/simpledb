@@ -5,3 +5,4 @@ ssl
 manifest*
 simpledb-node/src/db/data
 simpledb-node/data
+!manifest.go

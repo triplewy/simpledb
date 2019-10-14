@@ -39,7 +39,7 @@ func newAVLNode(key, value string) *AVLNode {
 func NewAVLTree() *AVLTree {
 	return &AVLTree{
 		root:     nil,
-		capacity: l0Size * blockSize,
+		capacity: l0Size,
 		size:     0,
 	}
 }

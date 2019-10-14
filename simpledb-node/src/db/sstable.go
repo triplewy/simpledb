@@ -3,12 +3,19 @@ package db
 import (
 	"encoding/binary"
 	"errors"
+	"math"
 	"os"
 )
 
+const l0Size = 2 * 1024
+
+// const l1Size = 10 * 1024 / blockSize
+
+// const l0IndexSize = l0Size * (3 + keySize)
+// const l1IndexSize = l1Size * (3 + keySize)
+
 type SSTable struct {
-	level0 *Level
-	level1 *Level
+	levels []*Level
 }
 
 type LSMFind struct {
@@ -18,35 +25,48 @@ type LSMFind struct {
 }
 
 func NewSSTable() (*SSTable, error) {
-	l0 := NewLevel(0, l0IndexSize)
-	l1 := NewLevel(1, l1IndexSize)
+	levels := []*Level{}
 
-	l0.below = l1
-	l1.above = l0
+	for i := 0; i < 7; i++ {
+		var blockCapacity int
+		if i == 0 {
+			blockCapacity = 2 * 1024 / blockSize
+		} else {
+			blockCapacity = int(math.Pow10(i)) * 1024 / blockSize
+		}
 
-	return &SSTable{
-		level0: l0,
-		level1: l1,
-	}, nil
+		level := NewLevel(i, blockCapacity)
+
+		if i > 0 {
+			above := levels[i-1]
+			above.below = level
+			level.above = above
+		}
+		levels = append(levels, level)
+	}
+
+	return &SSTable{levels: levels}, nil
 }
 
 func (table *SSTable) Append(blocks, index []byte, startKey, endKey string) error {
 	var f *os.File
 	var err error
 
-	filename := table.level0.getUniqueId()
+	level := table.levels[0]
 
-	f, err = os.OpenFile(table.level0.directory+filename+".sst", os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
+	filename := level.getUniqueId()
+
+	f, err = os.OpenFile(level.directory+filename+".sst", os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
 	defer f.Close()
 
 	if err != nil {
 		return err
 	}
 
-	filler := make([]byte, l0IndexSize-len(index))
+	filler := make([]byte, level.indexBlockSize-len(index))
 	index = append(index, filler...)
 
-	if len(index) != l0IndexSize {
+	if len(index) != level.indexBlockSize {
 		return errors.New("LSM index block does not match 16 KB")
 	}
 
@@ -60,26 +80,29 @@ func (table *SSTable) Append(blocks, index []byte, startKey, endKey string) erro
 		return err
 	}
 
-	err = table.level0.NewSSTFile(filename, startKey, endKey)
-	if err != nil {
-		return err
-	}
+	level.NewSSTFile(filename, startKey, endKey)
 
 	return nil
 }
 
-func (table *SSTable) Find(key string) ([]*LSMFind, error) {
-	filenames := table.level0.FindSSTFile(key)
+func (table *SSTable) Find(key string, levelNum int) ([]*LSMFind, error) {
+	if levelNum > 6 {
+		return nil, errors.New("Find exceeds greatest level")
+	}
+
+	level := table.levels[levelNum]
+
+	filenames := level.FindSSTFile(key)
 	if len(filenames) == 0 {
-		return nil, errors.New("No SSTables in Level 0 contain key")
+		return table.Find(key, levelNum+1)
 	}
 
 	replyChan := make(chan *LSMFind, len(filenames))
 
 	for _, filename := range filenames {
-		go func(filename, key string) {
-			table.find(filename, key, replyChan)
-		}(filename, key)
+		go func(filename string) {
+			table.find(filename, key, levelNum, replyChan)
+		}(filename)
 	}
 
 	replies := []*LSMFind{}
@@ -95,7 +118,7 @@ func (table *SSTable) Find(key string) ([]*LSMFind, error) {
 	return replies, nil
 }
 
-func (table *SSTable) find(filename, key string, replyChan chan *LSMFind) {
+func (table *SSTable) find(filename, key string, levelNum int, replyChan chan *LSMFind) {
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	defer f.Close()
 
@@ -108,8 +131,22 @@ func (table *SSTable) find(filename, key string, replyChan chan *LSMFind) {
 		return
 	}
 
-	index := make([]byte, l0IndexSize)
-	numBytes, err := f.ReadAt(index, int64(l0Size*blockSize))
+	level := table.levels[levelNum]
+
+	info, err := f.Stat()
+	if err != nil {
+		replyChan <- &LSMFind{
+			offset: 0,
+			size:   0,
+			err:    err,
+		}
+		return
+	}
+
+	totalSize := info.Size()
+	indexSize := level.indexBlockSize
+	index := make([]byte, indexSize)
+	numBytes, err := f.ReadAt(index, totalSize-int64(indexSize))
 
 	if err != nil {
 		replyChan <- &LSMFind{
@@ -120,7 +157,7 @@ func (table *SSTable) find(filename, key string, replyChan chan *LSMFind) {
 		return
 	}
 
-	if numBytes != l0IndexSize {
+	if numBytes != indexSize {
 		replyChan <- &LSMFind{
 			offset: 0,
 			size:   0,
@@ -160,23 +197,29 @@ func (table *SSTable) find(filename, key string, replyChan chan *LSMFind) {
 
 func findDataBlock(key string, index []byte) uint16 {
 	i := 0
+	block := uint16(0)
 	for i < len(index) {
 		size := uint8(index[i])
 		i++
 		indexKey := string(index[i : i+int(size)])
-
 		i += int(size)
+
 		if key < indexKey {
 			return binary.LittleEndian.Uint16(index[i:i+2]) - 1
+		} else if key == indexKey {
+			return binary.LittleEndian.Uint16(index[i : i+2])
 		}
+
 		i += 2
+		block++
 	}
 
-	return uint16(l0Size - 1)
+	return block - 1
 }
 
 func findKeyInBlock(key string, block []byte) (offset uint64, size uint32, err error) {
 	i := 0
+
 	for i < blockSize {
 		size := uint8(block[i])
 		i++
