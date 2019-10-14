@@ -2,7 +2,6 @@ package db
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"strings"
 )
@@ -14,7 +13,18 @@ func (level *Level) NewSSTFile(filename, startKey, endKey string) {
 
 	level.manifest[filename] = &keyRange{startKey: startKey, endKey: endKey}
 
-	level.manifestChan <- struct{}{}
+	if len(level.manifest) > 0 && len(level.manifest)%compactThreshold == 0 {
+		level.mergeLock.Lock()
+		compact := []*merge{}
+		for filename, keyRange := range level.manifest {
+			if _, ok := level.merging[filename]; !ok {
+				compact = append(compact, &merge{files: []string{filename}, keyRange: keyRange})
+				level.merging[filename] = struct{}{}
+			}
+		}
+		level.mergeLock.Unlock()
+		level.below.compactReqChan <- compact
+	}
 }
 
 // FindSSTFile finds files in level where key falls in their key range
@@ -40,7 +50,6 @@ func (level *Level) DeleteSSTFiles(files []string) error {
 	for _, file := range files {
 		err := os.Remove(file)
 		if err != nil {
-			level.manifestChan <- struct{}{}
 			return err
 		}
 		arr := strings.Split(file, "/")
@@ -50,7 +59,6 @@ func (level *Level) DeleteSSTFiles(files []string) error {
 		delete(level.merging, id)
 	}
 
-	level.manifestChan <- struct{}{}
 	return nil
 }
 
@@ -58,6 +66,28 @@ func (level *Level) DeleteSSTFiles(files []string) error {
 func (level *Level) UpdateManifest() error {
 	level.manifestLock.RLock()
 	defer level.manifestLock.RUnlock()
+
+	if len(level.manifestSync) == 0 {
+		for filename, item := range level.manifest {
+			level.manifestSync[filename] = item
+		}
+	} else {
+		hasUpdated := false
+		for filename, item1 := range level.manifest {
+			if item2, ok := level.manifestSync[filename]; !ok {
+				hasUpdated = true
+				break
+			} else {
+				if item1.startKey != item2.startKey || item1.endKey != item2.endKey {
+					hasUpdated = true
+					break
+				}
+			}
+		}
+		if !hasUpdated {
+			return nil
+		}
+	}
 
 	f, err := os.OpenFile(level.directory+"manifest_new", os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
 	defer f.Close()
@@ -89,7 +119,6 @@ func (level *Level) UpdateManifest() error {
 	}
 
 	if numBytes != len(level.manifest)*(filenameLength+keySize*2+2) {
-		fmt.Printf("Manifest bytes: %d, Num bytes written: %d, Expected bytes written: %d\n", len(manifest), numBytes, len(level.manifest)*(filenameLength+keySize*2+2))
 		return errors.New("Num bytes written to manifest does not match data")
 	}
 
@@ -101,19 +130,6 @@ func (level *Level) UpdateManifest() error {
 	err = os.Rename(level.directory+"manifest_new", level.directory+"manifest")
 	if err != nil {
 		return err
-	}
-
-	if len(level.manifest) > 0 && len(level.manifest)%compactThreshold == 0 {
-		level.mergeLock.Lock()
-		compact := []*merge{}
-		for filename, keyRange := range level.manifest {
-			if _, ok := level.merging[filename]; !ok {
-				compact = append(compact, &merge{files: []string{filename}, keyRange: keyRange})
-				level.merging[filename] = struct{}{}
-			}
-		}
-		level.mergeLock.Unlock()
-		level.below.compactReqChan <- compact
 	}
 
 	return nil

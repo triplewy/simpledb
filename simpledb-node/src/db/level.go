@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -36,7 +37,7 @@ type Level struct {
 	mergeLock sync.RWMutex
 
 	manifest     map[string]*keyRange
-	manifestChan chan struct{}
+	manifestSync map[string]*keyRange
 	manifestLock sync.RWMutex
 
 	compactReqChan   chan []*merge
@@ -55,10 +56,10 @@ func NewLevel(level, blockCapacity int) *Level {
 		merging:        make(map[string]struct{}),
 
 		manifest:     make(map[string]*keyRange),
-		manifestChan: make(chan struct{}, 8),
+		manifestSync: make(map[string]*keyRange),
 
-		compactReqChan:   make(chan []*merge),
-		compactReplyChan: make(chan *compactReply),
+		compactReqChan:   make(chan []*merge, 16),
+		compactReplyChan: make(chan *compactReply, 8),
 
 		above: nil,
 		below: nil,
@@ -120,7 +121,7 @@ func (level *Level) Merge(below string, above []string) {
 
 		data := append(dataBlocks, indexBlock...)
 
-		filename := level.getUniqueId()
+		filename := level.getUniqueID()
 
 		f, err := os.OpenFile(level.directory+filename+".sst", os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
 		defer f.Close()
@@ -243,15 +244,16 @@ func mmap(filename string, indexBlockSize int) ([][]byte, error) {
 	return keys, nil
 }
 
-func (level *Level) getUniqueId() string {
+func (level *Level) getUniqueID() string {
 	id := uuid.New().String()[:8]
 	if _, ok := level.manifest[id]; !ok {
 		return id
 	}
-	return level.getUniqueId()
+	return level.getUniqueID()
 }
 
 func (level *Level) run() {
+	updateManifest := time.NewTicker(500 * time.Millisecond)
 	for {
 		select {
 		case compact := <-level.compactReqChan:
@@ -304,7 +306,6 @@ func (level *Level) run() {
 
 			for filename, mergeStruct := range merging {
 				if len(mergeStruct.files) > 0 {
-					fmt.Printf("Level %d: Merging %s with %v\n", level.level, filename, mergeStruct.files)
 					wg.Add(1)
 					go func(filename string, files []string) {
 						defer wg.Done()
@@ -324,7 +325,7 @@ func (level *Level) run() {
 				}
 				fmt.Println("Done compacting")
 			}
-		case <-level.manifestChan:
+		case <-updateManifest.C:
 			err := level.UpdateManifest()
 			if err != nil {
 				fmt.Println(err)

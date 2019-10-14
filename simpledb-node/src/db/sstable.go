@@ -54,7 +54,7 @@ func (table *SSTable) Append(blocks, index []byte, startKey, endKey string) erro
 
 	level := table.levels[0]
 
-	filename := level.getUniqueId()
+	filename := level.getUniqueID()
 
 	f, err = os.OpenFile(level.directory+filename+".sst", os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
 	defer f.Close()
