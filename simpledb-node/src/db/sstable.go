@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"os"
+	"sync"
 )
 
 const l0Size = 2 * 1024
@@ -97,22 +98,33 @@ func (table *SSTable) Find(key string, levelNum int) ([]*LSMFind, error) {
 		return table.Find(key, levelNum+1)
 	}
 
-	replyChan := make(chan *LSMFind, len(filenames))
+	replyChan := make(chan *LSMFind)
+	replies := []*LSMFind{}
 
+	var wg sync.WaitGroup
+	var err error
+
+	wg.Add(len(filenames))
 	for _, filename := range filenames {
 		go func(filename string) {
 			table.find(filename, key, levelNum, replyChan)
 		}(filename)
 	}
 
-	replies := []*LSMFind{}
-
-	for i := 0; i < len(filenames); i++ {
-		reply := <-replyChan
-		if reply.err != nil {
-			return nil, reply.err
+	go func() {
+		for reply := range replyChan {
+			if reply.err != nil {
+				err = reply.err
+			}
+			replies = append(replies, reply)
+			wg.Done()
 		}
-		replies = append(replies, reply)
+	}()
+
+	wg.Wait()
+
+	if err != nil {
+		return nil, err
 	}
 
 	return replies, nil
@@ -169,7 +181,7 @@ func (table *SSTable) find(filename, key string, levelNum int, replyChan chan *L
 	blockIndex := findDataBlock(key, index)
 
 	block := make([]byte, blockSize)
-	numBytes, err = f.ReadAt(block, int64(blockSize*blockIndex))
+	numBytes, err = f.ReadAt(block, int64(blockSize*int(blockIndex)))
 	if err != nil {
 		replyChan <- &LSMFind{
 			offset: 0,
@@ -209,7 +221,6 @@ func findDataBlock(key string, index []byte) uint16 {
 		} else if key == indexKey {
 			return binary.LittleEndian.Uint16(index[i : i+2])
 		}
-
 		i += 2
 		block++
 	}

@@ -59,7 +59,7 @@ func NewLevel(level, blockCapacity int) *Level {
 		manifestSync: make(map[string]*keyRange),
 
 		compactReqChan:   make(chan []*merge, 16),
-		compactReplyChan: make(chan *compactReply, 8),
+		compactReplyChan: make(chan *compactReply, 16),
 
 		above: nil,
 		below: nil,
@@ -138,6 +138,12 @@ func (level *Level) Merge(below string, above []string) {
 		}
 		if numBytes != len(data) {
 			level.compactReplyChan <- &compactReply{mergedFiles: nil, err: errors.New("Num bytes written during merge does not match expected")}
+			return
+		}
+
+		err = f.Sync()
+		if err != nil {
+			level.compactReplyChan <- &compactReply{mergedFiles: nil, err: err}
 			return
 		}
 
@@ -253,7 +259,7 @@ func (level *Level) getUniqueID() string {
 }
 
 func (level *Level) run() {
-	updateManifest := time.NewTicker(500 * time.Millisecond)
+	updateManifest := time.NewTicker(1 * time.Second)
 	for {
 		select {
 		case compact := <-level.compactReqChan:

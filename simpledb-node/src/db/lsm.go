@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-const blockSize = 32
+const blockSize = 256
 
 const keySize = 19
 const valueSize = 65535

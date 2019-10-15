@@ -40,7 +40,7 @@ func (level *Level) FindSSTFile(key string) (filenames []string) {
 	return filenames
 }
 
-// DeleteSSTFiles deletes SST files from in-memory manifest and sends update request to manifest channel
+// DeleteSSTFiles deletes SST files and updates in-memory manifest
 func (level *Level) DeleteSSTFiles(files []string) error {
 	level.manifestLock.Lock()
 	level.mergeLock.Lock()
@@ -62,31 +62,26 @@ func (level *Level) DeleteSSTFiles(files []string) error {
 	return nil
 }
 
-// UpdateManifest writes in-memory manifest to disk. If manifest has more than 4 SST Files, send merge request to level below.
+// UpdateManifest writes in-memory manifest to disk
 func (level *Level) UpdateManifest() error {
 	level.manifestLock.RLock()
 	defer level.manifestLock.RUnlock()
 
-	if len(level.manifestSync) == 0 {
-		for filename, item := range level.manifest {
-			level.manifestSync[filename] = item
-		}
-	} else {
-		hasUpdated := false
-		for filename, item1 := range level.manifest {
-			if item2, ok := level.manifestSync[filename]; !ok {
+	hasUpdated := false
+	for filename, item1 := range level.manifest {
+		if item2, ok := level.manifestSync[filename]; !ok {
+			level.manifestSync[filename] = item1
+			hasUpdated = true
+		} else {
+			if item1.startKey != item2.startKey || item1.endKey != item2.endKey {
+				level.manifestSync[filename] = item1
 				hasUpdated = true
-				break
-			} else {
-				if item1.startKey != item2.startKey || item1.endKey != item2.endKey {
-					hasUpdated = true
-					break
-				}
 			}
 		}
-		if !hasUpdated {
-			return nil
-		}
+	}
+
+	if !hasUpdated {
+		return nil
 	}
 
 	f, err := os.OpenFile(level.directory+"manifest_new", os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
