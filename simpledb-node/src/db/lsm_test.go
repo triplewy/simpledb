@@ -60,7 +60,7 @@ func TestLSMOverlapPut(t *testing.T) {
 		t.Fatalf("Error creating LSM: %v\n", err)
 	}
 
-	numItems := 1000
+	numItems := 40960
 
 	startInsertTime := time.Now()
 	for i := 0; i < numItems; i++ {
@@ -80,6 +80,15 @@ func TestLSMOverlapPut(t *testing.T) {
 	}
 	duration := time.Since(startInsertTime)
 	fmt.Printf("Duration inserting %d items: %v\n", numItems, duration)
+
+	time.Sleep(1 * time.Second)
+
+	// result, err := ReadAllSSTs()
+	// if err != nil {
+	// 	t.Fatalf("Error reading all SST files: %v\n", err)
+	// }
+
+	// fmt.Println(result)
 
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(i)

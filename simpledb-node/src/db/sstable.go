@@ -90,7 +90,7 @@ func (table *SSTable) Find(key string, levelNum int) (*LSMFind, error) {
 	replies := []*LSMFind{}
 
 	var wg sync.WaitGroup
-	var err error
+	var errs []error
 
 	wg.Add(len(filenames))
 	for _, filename := range filenames {
@@ -102,30 +102,36 @@ func (table *SSTable) Find(key string, levelNum int) (*LSMFind, error) {
 	go func() {
 		for reply := range replyChan {
 			if reply.err != nil {
-				err = reply.err
+				errs = append(errs, reply.err)
+			} else {
+				replies = append(replies, reply)
 			}
-			replies = append(replies, reply)
 			wg.Done()
 		}
 	}()
 
 	wg.Wait()
 
-	if err != nil {
-		return nil, err
-	}
-
-	if len(replies) > 1 {
-		latestUpdate := replies[0]
-		for i := 1; i < len(replies); i++ {
-			if replies[i].offset > latestUpdate.offset {
-				latestUpdate = replies[i]
+	if len(replies) > 0 {
+		if len(replies) > 1 {
+			latestUpdate := replies[0]
+			for i := 1; i < len(replies); i++ {
+				if replies[i].offset > latestUpdate.offset {
+					latestUpdate = replies[i]
+				}
 			}
+			return latestUpdate, nil
 		}
-		return latestUpdate, nil
+		return replies[0], nil
 	}
 
-	return replies[0], nil
+	for _, err := range errs {
+		if err.Error() != "Key not found" {
+			return nil, err
+		}
+	}
+
+	return table.Find(key, levelNum+1)
 }
 
 func (table *SSTable) find(filename, key string, replyChan chan *LSMFind) {

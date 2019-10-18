@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"path"
+	"strconv"
 )
 
 // Max returns the larger of x or y.
@@ -76,4 +77,49 @@ func PopulateSSTFile(keys []string, filename string) error {
 	}
 
 	return nil
+}
+
+func ReadAllSSTs() ([]map[string]bool, error) {
+	result := []map[string]bool{}
+	for i := 0; i < 7; i++ {
+		result = append(result, make(map[string]bool))
+	}
+
+	for i := 0; i < 7; i++ {
+		dir := "data/L" + strconv.Itoa(i)
+		d, err := ioutil.ReadDir(dir)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, fileInfo := range d {
+			if fileInfo.Name() != "manifest" {
+				keys, err := ReadAllKeys(path.Join([]string{dir, fileInfo.Name()}...))
+				if err != nil {
+					return nil, err
+				}
+				for _, key := range keys {
+					result[i][key] = true
+				}
+			}
+		}
+	}
+
+	return result, nil
+}
+
+func ReadAllKeys(filename string) ([]string, error) {
+	values, err := mmap(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]string, len(values))
+
+	for i, val := range values {
+		keySize := uint8(val[0])
+		result[i] = string(val[1 : 1+keySize])
+	}
+
+	return result, nil
 }
