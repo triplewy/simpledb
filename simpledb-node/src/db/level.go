@@ -1,6 +1,7 @@
 package db
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
@@ -175,17 +176,33 @@ func mergeHelper(left, right [][]byte) [][]byte {
 	result := [][]byte{}
 
 	for i < len(left) && j < len(right) {
-		leftKeySize := uint8(left[i][0])
-		leftKey := left[i][1 : 1+leftKeySize]
+		leftEntry := left[i]
+		leftKeySize := uint8(leftEntry[0])
+		leftKey := string(leftEntry[1 : 1+leftKeySize])
 
-		rightKeySize := uint8(right[j][0])
-		rightKey := right[j][1 : 1+rightKeySize]
+		rightEntry := right[j]
+		rightKeySize := uint8(rightEntry[0])
+		rightKey := string(rightEntry[1 : 1+rightKeySize])
 
-		if string(leftKey) < string(rightKey) {
-			result = append(result, left[i])
+		if leftKey < rightKey {
+			result = append(result, leftEntry)
 			i++
+		} else if leftKey == rightKey {
+			leftOffsetBytes := leftEntry[1+leftKeySize : 1+leftKeySize+8]
+			rightOffsetBytes := rightEntry[1+rightKeySize : 1+rightKeySize+8]
+
+			leftOffset := binary.LittleEndian.Uint64(leftOffsetBytes)
+			rightOffset := binary.LittleEndian.Uint64(rightOffsetBytes)
+
+			if leftOffset < rightOffset {
+				result = append(result, leftEntry)
+			} else {
+				result = append(result, rightEntry)
+			}
+			i++
+			j++
 		} else {
-			result = append(result, right[j])
+			result = append(result, rightEntry)
 			j++
 		}
 	}
@@ -231,7 +248,10 @@ func mmap(filename string) ([][]byte, error) {
 	i := 0
 
 	for i < len(buffer) {
-		keySize := uint8(buffer[0])
+		if buffer[i] == byte(0) {
+			break
+		}
+		keySize := uint8(buffer[i])
 		i++
 		entry := make([]byte, 13+keySize)
 		copy(entry[0:], []byte{keySize})

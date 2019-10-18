@@ -39,7 +39,7 @@ func newAVLNode(key, value string) *AVLNode {
 func NewAVLTree() *AVLTree {
 	return &AVLTree{
 		root:     nil,
-		capacity: l0Size,
+		capacity: blockSize,
 		size:     0,
 	}
 }
@@ -80,7 +80,7 @@ func (tree *AVLTree) Inorder() []*kvPair {
 	return inorder(tree.root)
 }
 
-//Preorder prints preorder traversal of AVL-Tree
+//Preorder prints keys of preorder traversal of AVL-Tree
 func (tree *AVLTree) Preorder() []string {
 	tree.RLock()
 	defer tree.RUnlock()
@@ -89,7 +89,22 @@ func (tree *AVLTree) Preorder() []string {
 	result := make([]string, len(pairs))
 
 	for i, pair := range pairs {
-		result[i] = pair.String()
+		result[i] = pair.key
+	}
+
+	return result
+}
+
+//PreorderValues prints values of preorder traversal of AVL-Tree
+func (tree *AVLTree) PreorderValues() []string {
+	tree.RLock()
+	defer tree.RUnlock()
+
+	pairs := preorder(tree.root)
+	result := make([]string, len(pairs))
+
+	for i, pair := range pairs {
+		result[i] = pair.value
 	}
 
 	return result
@@ -99,7 +114,8 @@ func put(root, newNode *AVLNode) (*AVLNode, error) {
 	if root == nil {
 		return newNode, nil
 	} else if newNode.key == root.key {
-		return nil, errors.New("Key already exists")
+		root.value = newNode.value
+		return root, nil
 	} else if newNode.key < root.key {
 		node, err := put(root.left, newNode)
 		if err != nil {
@@ -204,8 +220,4 @@ func preorder(root *AVLNode) []*kvPair {
 		return []*kvPair{}
 	}
 	return append(append([]*kvPair{&kvPair{key: root.key, value: root.value}}, preorder(root.left)...), preorder(root.right)...)
-}
-
-func (pair *kvPair) String() string {
-	return pair.key
 }

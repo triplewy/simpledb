@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-const blockSize = 64
+const blockSize = 4096
 
 const keySize = 19
 const valueSize = 65535
@@ -110,20 +110,20 @@ func (lsm *LSM) Get(key string) (string, error) {
 	}
 
 	startTime := time.Now()
-	replies, err := lsm.ssTable.Find(key, 0)
+	reply, err := lsm.ssTable.Find(key, 0)
 	if err != nil {
 		return "", err
 	}
 	lsm.totalLsmReadDuration += time.Since(startTime)
 
 	startTime = time.Now()
-	result, err := lsm.vLog.Read(replies)
+	result, err := lsm.vLog.Get(reply)
 	if err != nil {
 		return "", err
 	}
 	lsm.totalVlogReadDuration += time.Since(startTime)
 
-	return result[0].value, nil
+	return result.value, nil
 }
 
 func (lsm *LSM) Flush(kvPairs []*kvPair) error {

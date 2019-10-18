@@ -8,8 +8,6 @@ import (
 	"sync"
 )
 
-const l0Size = 2 * 1024
-
 type SSTable struct {
 	levels []*Level
 }
@@ -26,9 +24,9 @@ func NewSSTable() (*SSTable, error) {
 	for i := 0; i < 7; i++ {
 		var blockCapacity int
 		if i == 0 {
-			blockCapacity = 2 * 1024 / blockSize
+			blockCapacity = 2 * 1048576 / blockSize
 		} else {
-			blockCapacity = int(math.Pow10(i)) * 1024 / blockSize
+			blockCapacity = int(math.Pow10(i)) * 1048576 / blockSize
 		}
 
 		level := NewLevel(i, blockCapacity)
@@ -76,7 +74,7 @@ func (table *SSTable) Append(blocks, index []byte, startKey, endKey string) erro
 	return nil
 }
 
-func (table *SSTable) Find(key string, levelNum int) ([]*LSMFind, error) {
+func (table *SSTable) Find(key string, levelNum int) (*LSMFind, error) {
 	if levelNum > 6 {
 		return nil, errors.New("Find exceeds greatest level")
 	}
@@ -117,7 +115,17 @@ func (table *SSTable) Find(key string, levelNum int) ([]*LSMFind, error) {
 		return nil, err
 	}
 
-	return replies, nil
+	if len(replies) > 1 {
+		latestUpdate := replies[0]
+		for i := 1; i < len(replies); i++ {
+			if replies[i].offset > latestUpdate.offset {
+				latestUpdate = replies[i]
+			}
+		}
+		return latestUpdate, nil
+	}
+
+	return replies[0], nil
 }
 
 func (table *SSTable) find(filename, key string, replyChan chan *LSMFind) {

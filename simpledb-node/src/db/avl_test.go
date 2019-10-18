@@ -49,11 +49,23 @@ func TestAVLPutRightLeft(t *testing.T) {
 	}
 }
 
-func TestAVLPutError(t *testing.T) {
+func TestAVLPutDuplicate(t *testing.T) {
 	tree := NewAVLTree()
 	tree.Put("3", "3")
-	err := tree.Put("3", "3")
-	if err == nil || err.Error() != "Key already exists" {
-		t.Fatalf("Expected: Key already exists, Got: %s\n", err)
+	tree.Put("5", "5")
+	tree.Put("4", "4")
+	tree.Put("3", "10")
+
+	preorder := strings.Join(tree.PreorderValues(), ",")
+	if preorder != "4,10,5" {
+		t.Fatalf("Expected: 4,10,5 Got: %s\n", preorder)
+	}
+
+	tree.Put("5", "15")
+	tree.Put("4", "40")
+
+	preorder = strings.Join(tree.PreorderValues(), ",")
+	if preorder != "40,10,15" {
+		t.Fatalf("Expected: 40,10,15 Got: %s\n", preorder)
 	}
 }
