@@ -13,7 +13,7 @@ func (level *Level) NewSSTFile(filename, startKey, endKey string) {
 
 	level.manifest[filename] = &keyRange{startKey: startKey, endKey: endKey}
 
-	if len(level.manifest) > 0 && len(level.manifest)%compactThreshold == 0 {
+	if level.level < 6 && len(level.manifest) > 0 && len(level.manifest)%compactThreshold == 0 {
 		level.mergeLock.Lock()
 		compact := []*merge{}
 		for filename, keyRange := range level.manifest {

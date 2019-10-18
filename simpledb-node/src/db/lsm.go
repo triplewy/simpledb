@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
+	"time"
 )
 
-const blockSize = 256
+const blockSize = 64
 
 const keySize = 19
 const valueSize = 65535
@@ -31,6 +32,9 @@ type LSM struct {
 	flushChan chan []*kvPair
 
 	vLog *VLog
+
+	totalLsmReadDuration  time.Duration
+	totalVlogReadDuration time.Duration
 }
 
 func NewLSM() (*LSM, error) {
@@ -49,6 +53,9 @@ func NewLSM() (*LSM, error) {
 		flushChan: make(chan []*kvPair),
 		ssTable:   ssTable,
 		vLog:      vLog,
+
+		totalLsmReadDuration:  0 * time.Second,
+		totalVlogReadDuration: 0 * time.Second,
 	}
 
 	go lsm.run()
@@ -57,7 +64,6 @@ func NewLSM() (*LSM, error) {
 }
 
 func (lsm *LSM) Put(key, value string) error {
-	// Data layout: (keySize uint8, valueSize uint16, key []byte (max 255 bytes), value []byte (max 64kb))
 	if len(key) > keySize {
 		return errors.New("Key size has exceeded " + strconv.Itoa(keySize) + " bytes")
 	}
@@ -103,15 +109,19 @@ func (lsm *LSM) Get(key string) (string, error) {
 		return "", err
 	}
 
+	startTime := time.Now()
 	replies, err := lsm.ssTable.Find(key, 0)
 	if err != nil {
 		return "", err
 	}
+	lsm.totalLsmReadDuration += time.Since(startTime)
 
+	startTime = time.Now()
 	result, err := lsm.vLog.Read(replies)
 	if err != nil {
 		return "", err
 	}
+	lsm.totalVlogReadDuration += time.Since(startTime)
 
 	return result[0].value, nil
 }
@@ -131,15 +141,17 @@ func (lsm *LSM) Flush(kvPairs []*kvPair) error {
 	vlogOffset := lsm.vLog.head
 
 	lsmBlock := []byte{}
-	currBlock := uint16(0)
+	currBlock := uint32(0)
 
 	for _, req := range kvPairs {
+		// Create vlog entry
 		vlogEntry, err := createVlogEntry(req.key, req.value)
 		if err != nil {
 			return err
 		}
 		vlogEntries = append(vlogEntries, vlogEntry...)
 
+		// Create new block if current kvPair overflows block
 		if len(lsmBlock)+13+len(req.key) > blockSize {
 			filler := make([]byte, blockSize-len(lsmBlock))
 			lsmBlock = append(lsmBlock, filler...)
@@ -153,11 +165,13 @@ func (lsm *LSM) Flush(kvPairs []*kvPair) error {
 			currBlock++
 		}
 
+		// Create lsmIndex entry if block is empty
 		if len(lsmBlock) == 0 {
 			indexEntry := createLsmIndex(req.key, currBlock)
 			lsmIndex = append(lsmIndex, indexEntry...)
 		}
 
+		// Add lsmEntry to current block
 		lsmEntry := createLsmEntry(req.key, vlogOffset, len(vlogEntry))
 		lsmBlock = append(lsmBlock, lsmEntry...)
 
@@ -229,11 +243,11 @@ func createLsmEntry(key string, offset, size int) []byte {
 	return lsmEntry
 }
 
-func createLsmIndex(key string, block uint16) []byte {
-	indexEntry := make([]byte, 3+len(key))
+func createLsmIndex(key string, block uint32) []byte {
+	indexEntry := make([]byte, 5+len(key))
 
-	blockBytes := make([]byte, 2)
-	binary.LittleEndian.PutUint16(blockBytes, block)
+	blockBytes := make([]byte, 4)
+	binary.LittleEndian.PutUint32(blockBytes, block)
 
 	copy(indexEntry[0:], []byte{uint8(len(key))})
 	copy(indexEntry[1:], key)

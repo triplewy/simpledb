@@ -1,7 +1,6 @@
 package db
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
@@ -28,10 +27,9 @@ type compactReply struct {
 }
 
 type Level struct {
-	level          int
-	blockCapacity  int
-	indexBlockSize int
-	directory      string
+	level         int
+	blockCapacity int
+	directory     string
 
 	merging   map[string]struct{}
 	mergeLock sync.RWMutex
@@ -49,11 +47,10 @@ type Level struct {
 
 func NewLevel(level, blockCapacity int) *Level {
 	l := &Level{
-		level:          level,
-		blockCapacity:  blockCapacity,
-		indexBlockSize: blockCapacity * (3 + keySize),
-		directory:      "data/L" + strconv.Itoa(level) + "/",
-		merging:        make(map[string]struct{}),
+		level:         level,
+		blockCapacity: blockCapacity,
+		directory:     "data/L" + strconv.Itoa(level) + "/",
+		merging:       make(map[string]struct{}),
 
 		manifest:     make(map[string]*keyRange),
 		manifestSync: make(map[string]*keyRange),
@@ -86,32 +83,26 @@ func (level *Level) Merge(below string, above []string) {
 	endKey := string(endItem[1 : 1+endKeySize])
 
 	if below == "empty" {
-		indexBlock := make([]byte, level.indexBlockSize)
+		indexBlock := []byte{}
 		dataBlocks := []byte{}
 		block := make([]byte, blockSize)
-		currBlock := 0
+		currBlock := uint32(0)
 
-		i, j := 0, 0
+		i := 0
 		for _, item := range mergedAbove {
 			if i+len(item) > blockSize {
 				dataBlocks = append(dataBlocks, block...)
 				block = make([]byte, blockSize)
 				i = 0
 			}
+
 			if i == 0 {
 				keySize := uint8(item[0])
-				indexEntry := make([]byte, keySize+3)
 				key := item[1 : 1+keySize]
-				currBlockBytes := make([]byte, 2)
-				binary.LittleEndian.PutUint16(currBlockBytes, uint16(currBlock))
-
-				copy(indexEntry[0:], []byte{keySize})
-				copy(indexEntry[1:], key)
-				copy(indexEntry[1+keySize:], currBlockBytes)
+				indexEntry := createLsmIndex(string(key), currBlock)
+				indexBlock = append(indexBlock, indexEntry...)
 
 				currBlock++
-
-				j += copy(indexBlock[j:], indexEntry)
 			}
 
 			i += copy(block[i:], item)
@@ -119,7 +110,9 @@ func (level *Level) Merge(below string, above []string) {
 
 		dataBlocks = append(dataBlocks, block...)
 
-		data := append(dataBlocks, indexBlock...)
+		header := createHeader(len(dataBlocks), len(indexBlock))
+
+		data := append(header, append(dataBlocks, indexBlock...)...)
 
 		filename := level.getUniqueID()
 
@@ -173,7 +166,7 @@ func (level *Level) mergeAbove(above []string) ([][]byte, error) {
 		return result, nil
 	}
 
-	return mmap(above[0], level.above.indexBlockSize)
+	return mmap(above[0])
 }
 
 func mergeHelper(left, right [][]byte) [][]byte {
@@ -210,7 +203,7 @@ func mergeHelper(left, right [][]byte) [][]byte {
 	return result
 }
 
-func mmap(filename string, indexBlockSize int) ([][]byte, error) {
+func mmap(filename string) ([][]byte, error) {
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	defer f.Close()
 
@@ -218,14 +211,14 @@ func mmap(filename string, indexBlockSize int) ([][]byte, error) {
 		return nil, err
 	}
 
-	info, err := f.Stat()
+	dataSize, _, err := readHeader(f)
 	if err != nil {
 		return nil, err
 	}
 
-	totalSize := info.Size()
-	buffer := make([]byte, totalSize-int64(indexBlockSize))
-	numBytes, err := f.Read(buffer)
+	buffer := make([]byte, dataSize)
+
+	numBytes, err := f.ReadAt(buffer, int64(16))
 	if err != nil {
 		return nil, err
 	}
@@ -251,6 +244,9 @@ func mmap(filename string, indexBlockSize int) ([][]byte, error) {
 }
 
 func (level *Level) getUniqueID() string {
+	level.manifestLock.RLock()
+	defer level.manifestLock.RUnlock()
+
 	id := uuid.New().String()[:8]
 	if _, ok := level.manifest[id]; !ok {
 		return id

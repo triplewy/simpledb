@@ -32,7 +32,7 @@
 | -------| ------ | -------- |
 | keySize  | 1  | uint8 |
 | key  | 1-255  | string |
-| block | 2 | uint16 |
+| block | 4 | uint32 |
 
 <b>Size: 16KB</b>
 

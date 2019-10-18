@@ -10,11 +10,6 @@ import (
 
 const l0Size = 2 * 1024
 
-// const l1Size = 10 * 1024 / blockSize
-
-// const l0IndexSize = l0Size * (3 + keySize)
-// const l1IndexSize = l1Size * (3 + keySize)
-
 type SSTable struct {
 	levels []*Level
 }
@@ -64,14 +59,9 @@ func (table *SSTable) Append(blocks, index []byte, startKey, endKey string) erro
 		return err
 	}
 
-	filler := make([]byte, level.indexBlockSize-len(index))
-	index = append(index, filler...)
+	header := createHeader(len(blocks), len(index))
 
-	if len(index) != level.indexBlockSize {
-		return errors.New("LSM index block does not match 16 KB")
-	}
-
-	_, err = f.Write(append(blocks, index...))
+	_, err = f.Write(append(header, append(blocks, index...)...))
 	if err != nil {
 		return err
 	}
@@ -107,7 +97,7 @@ func (table *SSTable) Find(key string, levelNum int) ([]*LSMFind, error) {
 	wg.Add(len(filenames))
 	for _, filename := range filenames {
 		go func(filename string) {
-			table.find(filename, key, levelNum, replyChan)
+			table.find(filename, key, replyChan)
 		}(filename)
 	}
 
@@ -130,7 +120,7 @@ func (table *SSTable) Find(key string, levelNum int) ([]*LSMFind, error) {
 	return replies, nil
 }
 
-func (table *SSTable) find(filename, key string, levelNum int, replyChan chan *LSMFind) {
+func (table *SSTable) find(filename, key string, replyChan chan *LSMFind) {
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	defer f.Close()
 
@@ -143,9 +133,7 @@ func (table *SSTable) find(filename, key string, levelNum int, replyChan chan *L
 		return
 	}
 
-	level := table.levels[levelNum]
-
-	info, err := f.Stat()
+	dataSize, indexSize, err := readHeader(f)
 	if err != nil {
 		replyChan <- &LSMFind{
 			offset: 0,
@@ -155,11 +143,8 @@ func (table *SSTable) find(filename, key string, levelNum int, replyChan chan *L
 		return
 	}
 
-	totalSize := info.Size()
-	indexSize := level.indexBlockSize
 	index := make([]byte, indexSize)
-	numBytes, err := f.ReadAt(index, totalSize-int64(indexSize))
-
+	numBytes, err := f.ReadAt(index, 16+int64(dataSize))
 	if err != nil {
 		replyChan <- &LSMFind{
 			offset: 0,
@@ -169,7 +154,7 @@ func (table *SSTable) find(filename, key string, levelNum int, replyChan chan *L
 		return
 	}
 
-	if numBytes != indexSize {
+	if numBytes != int(indexSize) {
 		replyChan <- &LSMFind{
 			offset: 0,
 			size:   0,
@@ -181,7 +166,7 @@ func (table *SSTable) find(filename, key string, levelNum int, replyChan chan *L
 	blockIndex := findDataBlock(key, index)
 
 	block := make([]byte, blockSize)
-	numBytes, err = f.ReadAt(block, int64(blockSize*int(blockIndex)))
+	numBytes, err = f.ReadAt(block, 16+int64(blockSize*int(blockIndex)))
 	if err != nil {
 		replyChan <- &LSMFind{
 			offset: 0,
@@ -207,9 +192,9 @@ func (table *SSTable) find(filename, key string, levelNum int, replyChan chan *L
 	}
 }
 
-func findDataBlock(key string, index []byte) uint16 {
+func findDataBlock(key string, index []byte) uint32 {
 	i := 0
-	block := uint16(0)
+	block := uint32(0)
 	for i < len(index) {
 		size := uint8(index[i])
 		i++
@@ -217,11 +202,11 @@ func findDataBlock(key string, index []byte) uint16 {
 		i += int(size)
 
 		if key < indexKey {
-			return binary.LittleEndian.Uint16(index[i:i+2]) - 1
+			return binary.LittleEndian.Uint32(index[i:i+4]) - 1
 		} else if key == indexKey {
-			return binary.LittleEndian.Uint16(index[i : i+2])
+			return binary.LittleEndian.Uint32(index[i : i+4])
 		}
-		i += 2
+		i += 4
 		block++
 	}
 
@@ -247,4 +232,33 @@ func findKeyInBlock(key string, block []byte) (offset uint64, size uint32, err e
 	}
 
 	return 0, 0, errors.New("Key not found")
+}
+
+func createHeader(dataSize, indexSize int) []byte {
+	dataSizeBytes := make([]byte, 8)
+	indexSizeBytes := make([]byte, 8)
+
+	binary.LittleEndian.PutUint64(dataSizeBytes, uint64(dataSize))
+	binary.LittleEndian.PutUint64(indexSizeBytes, uint64(indexSize))
+
+	header := append(dataSizeBytes, indexSizeBytes...)
+
+	return header
+}
+
+func readHeader(f *os.File) (dataSize, indexSize uint64, err error) {
+	header := make([]byte, 16)
+
+	numBytes, err := f.Read(header)
+	if err != nil {
+		return 0, 0, err
+	}
+	if numBytes != len(header) {
+		return 0, 0, errors.New("Num bytes read does nat match expect header size")
+	}
+
+	dataSize = binary.LittleEndian.Uint64(header[:8])
+	indexSize = binary.LittleEndian.Uint64(header[8:])
+
+	return dataSize, indexSize, nil
 }
