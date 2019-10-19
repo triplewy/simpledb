@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"os"
+	"strings"
 	"sync"
 )
 
@@ -24,9 +25,9 @@ func NewSSTable() (*SSTable, error) {
 	for i := 0; i < 7; i++ {
 		var blockCapacity int
 		if i == 0 {
-			blockCapacity = 2 * 1048576
+			blockCapacity = 2 * 1024
 		} else {
-			blockCapacity = int(math.Pow10(i)) * 1048576
+			blockCapacity = int(math.Pow10(i)) * multiplier
 		}
 
 		level := NewLevel(i, blockCapacity)
@@ -57,10 +58,14 @@ func (table *SSTable) Append(blocks, index []byte, startKey, endKey string) erro
 	}
 
 	header := createHeader(len(blocks), len(index))
+	data := append(header, append(blocks, index...)...)
 
-	_, err = f.Write(append(header, append(blocks, index...)...))
+	numBytes, err := f.Write(data)
 	if err != nil {
 		return err
+	}
+	if numBytes != len(data) {
+		return errors.New("Num bytes written to SST does not match size of data")
 	}
 
 	err = f.Sync()
@@ -125,7 +130,7 @@ func (table *SSTable) Find(key string, levelNum int) (*LSMFind, error) {
 	}
 
 	for _, err := range errs {
-		if err.Error() != "Key not found" {
+		if !(strings.HasSuffix(err.Error(), "no such file or directory") || err.Error() == "Key not found") {
 			return nil, err
 		}
 	}

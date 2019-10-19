@@ -5,13 +5,13 @@ import (
 	"os"
 )
 
+// VLog is a struct that represents Value Log from WiscKey Paper
 type VLog struct {
 	fileName string
 	tail     int
 	head     int
 
 	appendChan chan *appendRequest
-	closeChan  chan struct{}
 }
 
 type appendRequest struct {
@@ -21,11 +21,12 @@ type appendRequest struct {
 
 func NewVLog(filename string) (*VLog, error) {
 	vLog := &VLog{
-		fileName:   filename,
-		tail:       0,
-		head:       0,
+		fileName: filename,
+
+		tail: 0,
+		head: 0,
+
 		appendChan: make(chan *appendRequest),
-		closeChan:  make(chan struct{}, 1),
 	}
 
 	f, err := os.OpenFile(vLog.fileName, os.O_CREATE|os.O_TRUNC, 0644)
@@ -50,18 +51,13 @@ func (vlog *VLog) run() {
 	for {
 		select {
 		case req := <-vlog.appendChan:
-			numBytes, err := vlog.append(req.data)
-			if numBytes != len(req.data) {
-				req.replyChan <- errors.New("Num bytes written does not match size of data")
-			} else {
-				req.replyChan <- err
-			}
-		case <-vlog.closeChan:
-			return
+			err := vlog.append(req.data)
+			req.replyChan <- err
 		}
 	}
 }
 
+// Append sends an append request to VLog channel to guarantee non-concurrent writes to file
 func (vlog *VLog) Append(data []byte) error {
 	replyChan := make(chan error, 1)
 	vlog.appendChan <- &appendRequest{
@@ -75,27 +71,30 @@ func (vlog *VLog) Append(data []byte) error {
 	return nil
 }
 
-func (vlog *VLog) append(data []byte) (numBytes int, err error) {
+func (vlog *VLog) append(data []byte) error {
 	f, err := os.OpenFile(vlog.fileName, os.O_APPEND|os.O_WRONLY, 0644)
 	defer f.Close()
 
 	if err != nil {
-		return 0, err
+		return err
 	}
 
-	numBytes, err = f.Write(data)
+	numBytes, err := f.Write(data)
 	if err != nil {
-		return 0, err
+		return err
+	}
+	if numBytes != len(data) {
+		return errors.New("Num bytes written to VLog does not match size of data")
 	}
 
 	err = f.Sync()
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	vlog.head += numBytes
 
-	return numBytes, nil
+	return nil
 }
 
 func (vlog *VLog) Get(query *LSMFind) (*kvPair, error) {

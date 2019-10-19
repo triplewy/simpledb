@@ -28,6 +28,7 @@ type compactReply struct {
 	err         error
 }
 
+// Level represents struct for level in LSM tree
 type Level struct {
 	level     int
 	capacity  int
@@ -48,6 +49,7 @@ type Level struct {
 	below *Level
 }
 
+// NewLevel creates a new level in the LSM tree
 func NewLevel(level, capacity int) *Level {
 	l := &Level{
 		level:     level,
@@ -72,7 +74,42 @@ func NewLevel(level, capacity int) *Level {
 	return l
 }
 
+// Merge takes an empty or existing file at the current level and merges it with file(s) from the level above
 func (level *Level) Merge(below string, above []string) {
+	if below == "" && len(above) == 1 {
+		info, err := os.Stat(above[0])
+		if err != nil {
+			level.compactReplyChan <- &compactReply{mergedFiles: nil, err: err}
+			return
+		}
+
+		size := int(info.Size())
+
+		aboveArr := strings.Split(above[0], "/")
+		aboveID := strings.Split(aboveArr[len(aboveArr)-1], ".")[0]
+
+		fileID := level.getUniqueID()
+
+		err = os.Rename(above[0], level.directory+fileID+".sst")
+		if err != nil {
+			level.compactReplyChan <- &compactReply{mergedFiles: nil, err: err}
+			return
+		}
+
+		level.manifestLock.Lock()
+		level.above.manifestLock.Lock()
+
+		level.manifest[fileID] = level.above.manifest[aboveID]
+		delete(level.above.manifest, aboveID)
+
+		level.manifestLock.Unlock()
+		level.above.manifestLock.Unlock()
+
+		level.size += size
+		level.above.compactReplyChan <- &compactReply{mergedFiles: []string{}, err: nil}
+		return
+	}
+
 	var values [][]byte
 
 	mergedAbove, err := level.mergeAbove(above)
@@ -190,11 +227,7 @@ func (level *Level) writeMerge(below string, values [][]byte) error {
 	}
 
 	level.size += len(data)
-	if level.size > level.capacity {
-		level.size = 0
-		compact := level.mergeManifest()
-		level.below.compactReqChan <- compact
-	}
+
 	return nil
 }
 
@@ -337,6 +370,8 @@ func (level *Level) getUniqueID() string {
 
 func (level *Level) run() {
 	updateManifest := time.NewTicker(1 * time.Second)
+	exceedCapacity := time.NewTicker(500 * time.Millisecond)
+
 	for {
 		select {
 		case compact := <-level.compactReqChan:
@@ -408,12 +443,17 @@ func (level *Level) run() {
 				if err != nil {
 					fmt.Println(err)
 				}
-				fmt.Println("Done compacting")
 			}
 		case <-updateManifest.C:
 			err := level.UpdateManifest()
 			if err != nil {
 				fmt.Println(err)
+			}
+		case <-exceedCapacity.C:
+			if level.size > level.capacity {
+				level.size = 0
+				compact := level.mergeManifest()
+				level.below.compactReqChan <- compact
 			}
 		}
 	}

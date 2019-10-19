@@ -9,13 +9,15 @@ import (
 	"time"
 )
 
-const blockSize = 4096
+const blockSize = 16 * 1024
 
 const keySize = 19
 const valueSize = 65535
 
 const filenameLength = 8
 const compactThreshold = 4
+
+const multiplier = 10240
 
 type lsmEntry struct {
 	key    string
@@ -264,7 +266,6 @@ func (lsm *LSM) run() {
 			if err != nil {
 				fmt.Printf("error flushing data from immutable table: %v\n", err)
 			}
-			fmt.Println("Done flushing")
 		}
 	}
 }
