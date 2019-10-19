@@ -19,7 +19,7 @@ func TestLSMPut(t *testing.T) {
 		t.Fatalf("Error creating LSM: %v\n", err)
 	}
 
-	numItems := 409600
+	numItems := 4096
 
 	startInsertTime := time.Now()
 	for i := 0; i < numItems; i++ {
@@ -60,7 +60,7 @@ func TestLSMOverlapPut(t *testing.T) {
 		t.Fatalf("Error creating LSM: %v\n", err)
 	}
 
-	numItems := 40960
+	numItems := 20480
 
 	startInsertTime := time.Now()
 	for i := 0; i < numItems; i++ {
@@ -81,15 +81,6 @@ func TestLSMOverlapPut(t *testing.T) {
 	duration := time.Since(startInsertTime)
 	fmt.Printf("Duration inserting %d items: %v\n", numItems, duration)
 
-	time.Sleep(1 * time.Second)
-
-	// result, err := ReadAllSSTs()
-	// if err != nil {
-	// 	t.Fatalf("Error reading all SST files: %v\n", err)
-	// }
-
-	// fmt.Println(result)
-
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(i)
 		result, err := lsm.Get(key)
@@ -100,4 +91,6 @@ func TestLSMOverlapPut(t *testing.T) {
 			t.Errorf("Incorrect result from get. Expected: %s, Got: %s\n", strconv.Itoa(i+1), result)
 		}
 	}
+
+	fmt.Printf("Total LSM Read duration: %v, Total Vlog Read duration: %v\n", lsm.totalLsmReadDuration, lsm.totalVlogReadDuration)
 }

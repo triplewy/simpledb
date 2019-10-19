@@ -24,9 +24,9 @@ func NewSSTable() (*SSTable, error) {
 	for i := 0; i < 7; i++ {
 		var blockCapacity int
 		if i == 0 {
-			blockCapacity = 2 * 1048576 / blockSize
+			blockCapacity = 2 * 1048576
 		} else {
-			blockCapacity = int(math.Pow10(i)) * 1048576 / blockSize
+			blockCapacity = int(math.Pow10(i)) * 1048576
 		}
 
 		level := NewLevel(i, blockCapacity)
@@ -47,7 +47,6 @@ func (table *SSTable) Append(blocks, index []byte, startKey, endKey string) erro
 	var err error
 
 	level := table.levels[0]
-
 	filename := level.getUniqueID()
 
 	f, err = os.OpenFile(level.directory+filename+".sst", os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)

@@ -9,20 +9,11 @@ import (
 // NewSSTFile adds new SST file to in-memory manifest and sends update request to manifest channel
 func (level *Level) NewSSTFile(filename, startKey, endKey string) {
 	level.manifestLock.Lock()
-	defer level.manifestLock.Unlock()
-
 	level.manifest[filename] = &keyRange{startKey: startKey, endKey: endKey}
+	level.manifestLock.Unlock()
 
-	if level.level < 6 && len(level.manifest) > 0 && len(level.manifest)%compactThreshold == 0 {
-		level.mergeLock.Lock()
-		compact := []*merge{}
-		for filename, keyRange := range level.manifest {
-			if _, ok := level.merging[filename]; !ok {
-				compact = append(compact, &merge{files: []string{filename}, keyRange: keyRange})
-				level.merging[filename] = struct{}{}
-			}
-		}
-		level.mergeLock.Unlock()
+	if level.level == 0 && len(level.manifest)%compactThreshold == 0 {
+		compact := level.mergeManifest()
 		level.below.compactReqChan <- compact
 	}
 }
@@ -44,19 +35,23 @@ func (level *Level) FindSSTFile(key string) (filenames []string) {
 func (level *Level) DeleteSSTFiles(files []string) error {
 	level.manifestLock.Lock()
 	level.mergeLock.Lock()
-	defer level.manifestLock.Unlock()
-	defer level.mergeLock.Unlock()
+
+	for _, file := range files {
+		arr := strings.Split(file, "/")
+		id := strings.Split(arr[len(arr)-1], ".")[0]
+
+		delete(level.manifest, id)
+		delete(level.merging, id)
+	}
+
+	level.manifestLock.Unlock()
+	level.mergeLock.Unlock()
 
 	for _, file := range files {
 		err := os.Remove(file)
 		if err != nil {
 			return err
 		}
-		arr := strings.Split(file, "/")
-		id := strings.Split(arr[len(arr)-1], ".")[0]
-
-		delete(level.manifest, id)
-		delete(level.merging, id)
 	}
 
 	return nil
@@ -128,4 +123,51 @@ func (level *Level) UpdateManifest() error {
 	}
 
 	return nil
+}
+
+func (level *Level) mergeManifest() []*merge {
+	level.manifestLock.RLock()
+	level.mergeLock.Lock()
+	defer level.manifestLock.RUnlock()
+	defer level.mergeLock.Unlock()
+
+	compact := []*merge{}
+
+	for filename, keyRange := range level.manifest {
+		if _, ok := level.merging[filename]; !ok {
+			sk1 := keyRange.startKey
+			ek1 := keyRange.endKey
+			merged := false
+
+			for i, mergeStruct := range compact {
+				sk2 := mergeStruct.keyRange.startKey
+				ek2 := mergeStruct.keyRange.endKey
+
+				if (sk1 >= sk2 && sk1 <= ek2) || (ek1 >= sk2 && ek1 <= ek2) {
+					compact[i].aboveFiles = append(compact[i].aboveFiles, level.directory+filename+".sst")
+
+					if sk1 < sk2 {
+						compact[i].keyRange.startKey = sk1
+					}
+					if ek1 > ek2 {
+						compact[i].keyRange.endKey = ek1
+					}
+					merged = true
+					break
+				}
+			}
+
+			if !merged {
+				compact = append(compact, &merge{
+					aboveFiles: []string{level.directory + filename + ".sst"},
+					belowFile:  "",
+					keyRange:   keyRange,
+				})
+			}
+
+			level.merging[filename] = struct{}{}
+		}
+	}
+
+	return compact
 }

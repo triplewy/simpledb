@@ -18,8 +18,9 @@ type keyRange struct {
 }
 
 type merge struct {
-	files    []string
-	keyRange *keyRange
+	aboveFiles []string
+	belowFile  string
+	keyRange   *keyRange
 }
 
 type compactReply struct {
@@ -28,9 +29,10 @@ type compactReply struct {
 }
 
 type Level struct {
-	level         int
-	blockCapacity int
-	directory     string
+	level     int
+	capacity  int
+	size      int
+	directory string
 
 	merging   map[string]struct{}
 	mergeLock sync.RWMutex
@@ -46,12 +48,14 @@ type Level struct {
 	below *Level
 }
 
-func NewLevel(level, blockCapacity int) *Level {
+func NewLevel(level, capacity int) *Level {
 	l := &Level{
-		level:         level,
-		blockCapacity: blockCapacity,
-		directory:     "data/L" + strconv.Itoa(level) + "/",
-		merging:       make(map[string]struct{}),
+		level:     level,
+		capacity:  capacity,
+		size:      0,
+		directory: "data/L" + strconv.Itoa(level) + "/",
+
+		merging: make(map[string]struct{}),
 
 		manifest:     make(map[string]*keyRange),
 		manifestSync: make(map[string]*keyRange),
@@ -77,7 +81,7 @@ func (level *Level) Merge(below string, above []string) {
 		return
 	}
 
-	if below != "empty" {
+	if below != "" {
 		belowValues, err := mmap(below)
 		if err != nil {
 			level.compactReplyChan <- &compactReply{mergedFiles: nil, err: err}
@@ -139,7 +143,7 @@ func (level *Level) writeMerge(below string, values [][]byte) error {
 	var fileID string
 	var filename string
 
-	if below != "empty" {
+	if below != "" {
 		filenameArr := strings.Split(below, ".")
 		if len(filenameArr) != 2 {
 			return errors.New("Improper format of sst file")
@@ -147,7 +151,7 @@ func (level *Level) writeMerge(below string, values [][]byte) error {
 		directoryArr := strings.Split(filenameArr[0], "/")
 
 		fileID = directoryArr[len(directoryArr)-1]
-		filename = filenameArr[0] + "_new." + filenameArr[1]
+		filename = filenameArr[0] + "_new.sst"
 	} else {
 		fileID = level.getUniqueID()
 		filename = level.directory + fileID + ".sst"
@@ -173,7 +177,7 @@ func (level *Level) writeMerge(below string, values [][]byte) error {
 		return err
 	}
 
-	if below != "empty" {
+	if below != "" {
 		err := os.Rename(filename, below)
 		if err != nil {
 			return err
@@ -185,6 +189,12 @@ func (level *Level) writeMerge(below string, values [][]byte) error {
 		level.NewSSTFile(fileID, startKey, endKey)
 	}
 
+	level.size += len(data)
+	if level.size > level.capacity {
+		level.size = 0
+		compact := level.mergeManifest()
+		level.below.compactReqChan <- compact
+	}
 	return nil
 }
 
@@ -330,60 +340,62 @@ func (level *Level) run() {
 	for {
 		select {
 		case compact := <-level.compactReqChan:
-			merging := make(map[string]*merge)
+			merging := []*merge{}
 
+			// Place manifest into merging array
 			level.manifestLock.RLock()
+			level.mergeLock.RLock()
 			for filename, keyRange := range level.manifest {
-				merging[level.directory+filename+".sst"] = &merge{files: []string{}, keyRange: keyRange}
+				if _, ok := level.merging[filename]; !ok {
+					merging = append(merging, &merge{
+						aboveFiles: []string{},
+						belowFile:  level.directory + filename + ".sst",
+						keyRange:   keyRange,
+					})
+				}
 			}
 			level.manifestLock.RUnlock()
-
-			noMergeCandidates := []string{}
+			level.mergeLock.RUnlock()
 
 			for _, m1 := range compact {
-				f1 := m1.files[0]
-				kr1 := m1.keyRange
-				sk1 := kr1.startKey
-				ek1 := kr1.endKey
-				foundMergeCandidate := false
+				sk1 := m1.keyRange.startKey
+				ek1 := m1.keyRange.endKey
+				merged := false
 
-				for f2, m2 := range merging {
-					kr2 := m2.keyRange
-					sk2 := kr2.startKey
-					ek2 := kr2.endKey
+				for i, m2 := range merging {
+					sk2 := m2.keyRange.startKey
+					ek2 := m2.keyRange.endKey
 
-					if (sk1 <= ek2 && sk1 >= sk2) || (ek1 <= ek2 && ek1 >= sk2) {
-						foundMergeCandidate = true
-						merging[f2].files = append(merging[f2].files, level.above.directory+f1+".sst")
+					if (sk1 >= sk2 && sk1 <= ek2) || (ek1 >= sk2 && ek1 <= ek2) {
+						merging[i].aboveFiles = append(merging[i].aboveFiles, m1.aboveFiles...)
 
 						if sk1 < sk2 {
-							merging[f2].keyRange.startKey = sk1
+							merging[i].keyRange.startKey = sk1
 						}
 
 						if ek1 > ek2 {
-							merging[f2].keyRange.endKey = ek1
+							merging[i].keyRange.endKey = ek1
 						}
+
+						merged = true
 						break
 					}
 				}
-				if !foundMergeCandidate {
-					noMergeCandidates = append(noMergeCandidates, level.above.directory+f1+".sst")
-				}
-			}
 
-			if len(noMergeCandidates) > 0 {
-				merging["empty"] = &merge{files: noMergeCandidates, keyRange: nil}
+				if !merged {
+					merging = append(merging, m1)
+				}
 			}
 
 			var wg sync.WaitGroup
 
-			for filename, mergeStruct := range merging {
-				if len(mergeStruct.files) > 0 {
+			for _, mergeStruct := range merging {
+				if len(mergeStruct.aboveFiles) > 0 {
 					wg.Add(1)
 					go func(filename string, files []string) {
 						defer wg.Done()
 						level.Merge(filename, files)
-					}(filename, mergeStruct.files)
+					}(mergeStruct.belowFile, mergeStruct.aboveFiles)
 				}
 			}
 
