@@ -19,9 +19,9 @@ type appendRequest struct {
 	replyChan chan error
 }
 
-func NewVLog(filename string) (*VLog, error) {
+func NewVLog() (*VLog, error) {
 	vLog := &VLog{
-		fileName: filename,
+		fileName: "data/VLog/vlog.log",
 
 		tail: 0,
 		head: 0,

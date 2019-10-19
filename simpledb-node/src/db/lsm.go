@@ -40,7 +40,7 @@ type LSM struct {
 }
 
 func NewLSM() (*LSM, error) {
-	vLog, err := NewVLog("data/VLog/vlog.log")
+	vLog, err := NewVLog()
 	if err != nil {
 		return nil, err
 	}
@@ -95,6 +95,9 @@ func (lsm *LSM) Get(key string) (string, error) {
 
 	node, err := lsm.mutable.Find(key)
 	if node != nil {
+		if node.value == "__delete__" {
+			return "", errors.New("Key not found")
+		}
 		return node.value, nil
 	}
 
@@ -104,6 +107,9 @@ func (lsm *LSM) Get(key string) (string, error) {
 
 	node, err = lsm.immutable.Find(key)
 	if node != nil {
+		if node.value == "__delete__" {
+			return "", errors.New("Key not found")
+		}
 		return node.value, nil
 	}
 
@@ -125,7 +131,15 @@ func (lsm *LSM) Get(key string) (string, error) {
 	}
 	lsm.totalVlogReadDuration += time.Since(startTime)
 
+	if result.value == "__delete__" {
+		return "", errors.New("Key not found")
+	}
+
 	return result.value, nil
+}
+
+func (lsm *LSM) Delete(key string) error {
+	return lsm.Put(key, "__delete__")
 }
 
 func (lsm *LSM) Flush(kvPairs []*kvPair) error {
