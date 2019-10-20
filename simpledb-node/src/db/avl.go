@@ -23,7 +23,8 @@ type AVLTree struct {
 	sync.RWMutex
 }
 
-type kvPair struct {
+// KVPair is struct for key, value pair
+type KVPair struct {
 	key   string
 	value string
 }
@@ -76,7 +77,7 @@ func (tree *AVLTree) Find(key string) (*AVLNode, error) {
 }
 
 // Inorder prints inorder traversal of AVL-Tree
-func (tree *AVLTree) Inorder() []*kvPair {
+func (tree *AVLTree) Inorder() []*KVPair {
 	tree.RLock()
 	defer tree.RUnlock()
 
@@ -211,16 +212,16 @@ func find(root *AVLNode, key string) (*AVLNode, error) {
 	return find(root.right, key)
 }
 
-func inorder(root *AVLNode) []*kvPair {
+func inorder(root *AVLNode) []*KVPair {
 	if root == nil {
-		return []*kvPair{}
+		return []*KVPair{}
 	}
-	return append(append(inorder(root.left), &kvPair{key: root.key, value: root.value}), inorder(root.right)...)
+	return append(append(inorder(root.left), &KVPair{key: root.key, value: root.value}), inorder(root.right)...)
 }
 
-func preorder(root *AVLNode) []*kvPair {
+func preorder(root *AVLNode) []*KVPair {
 	if root == nil {
-		return []*kvPair{}
+		return []*KVPair{}
 	}
-	return append(append([]*kvPair{&kvPair{key: root.key, value: root.value}}, preorder(root.left)...), preorder(root.right)...)
+	return append(append([]*KVPair{&KVPair{key: root.key, value: root.value}}, preorder(root.left)...), preorder(root.right)...)
 }

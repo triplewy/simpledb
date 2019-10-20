@@ -14,7 +14,7 @@ type DB struct {
 	immutable *AVLTree
 	immLock   sync.Mutex
 
-	flushChan chan []*kvPair
+	flushChan chan []*KVPair
 
 	lsm  *LSM
 	vlog *VLog
@@ -39,7 +39,7 @@ func NewDB() (*DB, error) {
 		mutable:   NewAVLTree(),
 		immutable: NewAVLTree(),
 
-		flushChan: make(chan []*kvPair),
+		flushChan: make(chan []*KVPair),
 
 		lsm:  lsm,
 		vlog: vlog,
@@ -136,12 +136,12 @@ func (db *DB) Delete(key string) error {
 	return db.Put(key, "__delete__")
 }
 
-func (db *DB) flush(kvPairs []*kvPair) error {
+func (db *DB) flush(KVPairs []*KVPair) error {
 	db.immLock.Lock()
 	defer db.immLock.Unlock()
 
-	startKey := kvPairs[0].key
-	endKey := kvPairs[len(kvPairs)-1].key
+	startKey := KVPairs[0].key
+	endKey := KVPairs[len(KVPairs)-1].key
 
 	vlogEntries := []byte{}
 
@@ -153,7 +153,7 @@ func (db *DB) flush(kvPairs []*kvPair) error {
 	lsmBlock := []byte{}
 	currBlock := uint32(0)
 
-	for _, req := range kvPairs {
+	for _, req := range KVPairs {
 		// Create vlog entry
 		vlogEntry, err := createVlogEntry(req.key, req.value)
 		if err != nil {
@@ -161,7 +161,7 @@ func (db *DB) flush(kvPairs []*kvPair) error {
 		}
 		vlogEntries = append(vlogEntries, vlogEntry...)
 
-		// Create new block if current kvPair overflows block
+		// Create new block if current KVPair overflows block
 		if len(lsmBlock)+13+len(req.key) > blockSize {
 			filler := make([]byte, blockSize-len(lsmBlock))
 			lsmBlock = append(lsmBlock, filler...)
@@ -217,8 +217,8 @@ func (db *DB) flush(kvPairs []*kvPair) error {
 func (db *DB) run() {
 	for {
 		select {
-		case kvPairs := <-db.flushChan:
-			err := db.flush(kvPairs)
+		case KVPairs := <-db.flushChan:
+			err := db.flush(KVPairs)
 			if err != nil {
 				fmt.Printf("error flushing data from immutable table: %v\n", err)
 			}

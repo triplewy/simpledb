@@ -19,6 +19,7 @@ type appendRequest struct {
 	replyChan chan error
 }
 
+// NewVLog creates vlog file and instantiates VLog struct
 func NewVLog() (*VLog, error) {
 	vLog := &VLog{
 		fileName: "data/VLog/vlog.log",
@@ -97,7 +98,8 @@ func (vlog *VLog) append(data []byte) error {
 	return nil
 }
 
-func (vlog *VLog) Get(query *LSMFind) (*kvPair, error) {
+// Get gets a KVPair from the vlog
+func (vlog *VLog) Get(query *LSMFind) (*KVPair, error) {
 	f, err := os.OpenFile(vlog.fileName, os.O_RDONLY, 0644)
 	defer f.Close()
 
@@ -119,5 +121,5 @@ func (vlog *VLog) Get(query *LSMFind) (*kvPair, error) {
 	keySize := uint8(data[0])
 	key := data[1 : 1+keySize]
 	value := data[3+keySize:]
-	return &kvPair{key: string(key), value: string(value)}, nil
+	return &KVPair{key: string(key), value: string(value)}, nil
 }
