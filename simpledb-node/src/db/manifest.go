@@ -31,6 +31,19 @@ func (level *Level) FindSSTFile(key string) (filenames []string) {
 	return filenames
 }
 
+// RangeSSTFiles finds files in level where their key range falls in the range query
+func (level *Level) RangeSSTFiles(startKey, endKey string) (filenames []string) {
+	level.manifestLock.RLock()
+	defer level.manifestLock.RUnlock()
+
+	for filename, item := range level.manifest {
+		if (item.startKey >= startKey && item.startKey <= endKey) || (item.endKey >= startKey && item.endKey <= endKey) {
+			filenames = append(filenames, level.directory+filename+".sst")
+		}
+	}
+	return filenames
+}
+
 // DeleteSSTFiles deletes SST files and updates in-memory manifest
 func (level *Level) DeleteSSTFiles(files []string) error {
 	level.manifestLock.Lock()

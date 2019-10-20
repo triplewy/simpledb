@@ -74,6 +74,17 @@ func NewLevel(level, capacity int) *Level {
 	return l
 }
 
+func (level *Level) getUniqueID() string {
+	level.manifestLock.RLock()
+	defer level.manifestLock.RUnlock()
+
+	id := uuid.New().String()[:8]
+	if _, ok := level.manifest[id]; !ok {
+		return id
+	}
+	return level.getUniqueID()
+}
+
 // Merge takes an empty or existing file at the current level and merges it with file(s) from the level above
 func (level *Level) Merge(below string, above []string) {
 	if below == "" && len(above) == 1 {
@@ -112,7 +123,7 @@ func (level *Level) Merge(below string, above []string) {
 
 	var values [][]byte
 
-	mergedAbove, err := level.mergeAbove(above)
+	mergedAbove, err := mergeAbove(above)
 	if err != nil {
 		level.compactReplyChan <- &compactReply{mergedFiles: nil, err: err}
 		return
@@ -231,141 +242,45 @@ func (level *Level) writeMerge(below string, values [][]byte) error {
 	return nil
 }
 
-func (level *Level) mergeAbove(above []string) ([][]byte, error) {
-	if len(above) > 1 {
-		mid := len(above) / 2
+func (level *Level) Range(startKey, endKey string, replyChan chan *LSMRange) {
+	filenames := level.RangeSSTFiles(startKey, endKey)
 
-		left, err := level.mergeAbove(above[:mid])
-		if err != nil {
-			return nil, err
-		}
-		right, err := level.mergeAbove(above[mid:])
-		if err != nil {
-			return nil, err
-		}
+	replies := make(chan *LSMRange)
+	var wg sync.WaitGroup
+	var errs []error
 
-		result := mergeHelper(left, right)
-
-		return result, nil
+	wg.Add(len(filenames))
+	for _, filename := range filenames {
+		go func(filename string) {
+			fileRangeQuery(filename, startKey, endKey, replies)
+		}(filename)
 	}
 
-	return mmap(above[0])
-}
-
-func mergeHelper(left, right [][]byte) [][]byte {
-	od := NewOrderedDict()
-	i, j := 0, 0
-
-	for i < len(left) && j < len(right) {
-		leftEntry := NewODValue(left[i])
-		rightEntry := NewODValue(right[j])
-
-		if val, ok := od.Get(leftEntry.Key()); ok {
-			if val.(odValue).Offset() < leftEntry.Offset() {
-				od.Set(leftEntry.Key(), leftEntry)
-			}
-			i++
-			continue
-		}
-
-		if val, ok := od.Get(rightEntry.Key()); ok {
-			if val.(odValue).Offset() < rightEntry.Offset() {
-				od.Set(rightEntry.Key(), rightEntry)
-			}
-			j++
-			continue
-		}
-
-		if leftEntry.Key() < rightEntry.Key() {
-			od.Set(leftEntry.Key(), leftEntry)
-			i++
-		} else if leftEntry.Key() == rightEntry.Key() {
-			if leftEntry.Offset() > rightEntry.Offset() {
-				od.Set(leftEntry.Key(), leftEntry)
+	result := []*LSMFind{}
+	go func() {
+		for reply := range replies {
+			if reply.err != nil {
+				errs = append(errs, reply.err)
 			} else {
-				od.Set(rightEntry.Key(), rightEntry)
+				result = append(result, reply.lsmFinds...)
 			}
-			i++
-			j++
-		} else {
-			od.Set(rightEntry.Key(), rightEntry)
-			j++
+			wg.Done()
 		}
-	}
+	}()
 
-	for i < len(left) {
-		leftEntry := NewODValue(left[i])
-		od.Set(leftEntry.Key(), leftEntry)
-		i++
-	}
+	wg.Wait()
 
-	for j < len(right) {
-		rightEntry := NewODValue(right[j])
-		od.Set(rightEntry.Key(), rightEntry)
-		j++
-	}
-
-	result := [][]byte{}
-
-	for val := range od.Iterate() {
-		result = append(result, val.(odValue).Entry())
-	}
-
-	return result
-}
-
-func mmap(filename string) ([][]byte, error) {
-	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
-	defer f.Close()
-
-	if err != nil {
-		return nil, err
-	}
-
-	dataSize, _, err := readHeader(f)
-	if err != nil {
-		return nil, err
-	}
-
-	buffer := make([]byte, dataSize)
-
-	numBytes, err := f.ReadAt(buffer, 16)
-	if err != nil {
-		return nil, err
-	}
-
-	if numBytes != len(buffer) {
-		return nil, errors.New("Num bytes read from file does not match expected data block size")
-	}
-
-	keys := [][]byte{}
-
-	for i := 0; i < len(buffer); i += blockSize {
-		block := buffer[i : i+blockSize]
-		j := 0
-		for j < len(block) && block[j] != byte(0) {
-			keySize := uint8(block[j])
-			j++
-			entry := make([]byte, 13+int(keySize))
-			copy(entry[0:], []byte{keySize})
-			copy(entry[1:], block[j:j+int(keySize)+12])
-			j += int(keySize) + 12
-			keys = append(keys, entry)
+	if len(errs) > 0 {
+		replyChan <- &LSMRange{
+			lsmFinds: result,
+			err:      errs[0],
 		}
+		return
 	}
-
-	return keys, nil
-}
-
-func (level *Level) getUniqueID() string {
-	level.manifestLock.RLock()
-	defer level.manifestLock.RUnlock()
-
-	id := uuid.New().String()[:8]
-	if _, ok := level.manifest[id]; !ok {
-		return id
+	replyChan <- &LSMRange{
+		lsmFinds: result,
+		err:      nil,
 	}
-	return level.getUniqueID()
 }
 
 func (level *Level) run() {
@@ -407,7 +322,6 @@ func (level *Level) run() {
 						if sk1 < sk2 {
 							merging[i].keyRange.startKey = sk1
 						}
-
 						if ek1 > ek2 {
 							merging[i].keyRange.endKey = ek1
 						}
@@ -416,7 +330,6 @@ func (level *Level) run() {
 						break
 					}
 				}
-
 				if !merged {
 					merging = append(merging, m1)
 				}

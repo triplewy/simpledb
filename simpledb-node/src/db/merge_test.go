@@ -11,11 +11,6 @@ func TestMergeAbove1(t *testing.T) {
 		t.Errorf("Error deleting data: %v\n", err)
 	}
 
-	lsm, err := NewLSM()
-	if err != nil {
-		t.Errorf("Error creating SSTable: %v\n", err)
-	}
-
 	keys1 := []string{}
 	keys2 := []string{}
 	keys3 := []string{}
@@ -51,7 +46,7 @@ func TestMergeAbove1(t *testing.T) {
 		t.Errorf("Error populating file: %v\n", err)
 	}
 
-	result, err := lsm.levels[1].mergeAbove([]string{"data/L0/test2", "data/L0/test1", "data/L0/test3", "data/L0/test4"})
+	result, err := mergeAbove([]string{"data/L0/test2", "data/L0/test1", "data/L0/test3", "data/L0/test4"})
 	if err != nil {
 		t.Errorf("Error merge sorting files: %v\n", err)
 	}
@@ -71,11 +66,6 @@ func TestMergeAbove2(t *testing.T) {
 	err := DeleteData()
 	if err != nil {
 		t.Errorf("Error deleting data: %v\n", err)
-	}
-
-	lsm, err := NewLSM()
-	if err != nil {
-		t.Errorf("Error creating SSTable: %v\n", err)
 	}
 
 	keys1 := []string{}
@@ -106,7 +96,7 @@ func TestMergeAbove2(t *testing.T) {
 		t.Errorf("Error populating file: %v\n", err)
 	}
 
-	result, err := lsm.levels[1].mergeAbove([]string{"data/L0/test2", "data/L0/test1", "data/L0/test3"})
+	result, err := mergeAbove([]string{"data/L0/test2", "data/L0/test1", "data/L0/test3"})
 	if err != nil {
 		t.Errorf("Error merge sorting files: %v\n", err)
 	}

@@ -3,6 +3,7 @@ package db
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -80,7 +81,7 @@ func (db *DB) Put(key, value string) error {
 // Get retrieves value for a given key or returns key not found
 func (db *DB) Get(key string) (string, error) {
 	if len(key) > keySize {
-		return "", errors.New("Key size has exceeded 255 bytes")
+		return "", errors.New("Key size has exceeded maximum size")
 	}
 
 	node, err := db.mutable.Find(key)
@@ -110,9 +111,6 @@ func (db *DB) Get(key string) (string, error) {
 	startTime := time.Now()
 	reply, err := db.lsm.Find(key, 0)
 	if err != nil {
-		if err.Error() == "Find exceeds greatest level" {
-			return "", errors.New("Key not found")
-		}
 		return "", err
 	}
 	db.totalLsmReadDuration += time.Since(startTime)
@@ -134,6 +132,32 @@ func (db *DB) Get(key string) (string, error) {
 // Delete deletes a given key from the database
 func (db *DB) Delete(key string) error {
 	return db.Put(key, "__delete__")
+}
+
+func (db *DB) Range(startKey, endKey string) ([]*KVPair, error) {
+	if len(startKey) > keySize {
+		return nil, errors.New("Start Key size has exceeded maximum size")
+	}
+	if len(endKey) > keySize {
+		return nil, errors.New("End Key size has exceeded maximum size")
+	}
+	if startKey > endKey {
+		return nil, errors.New("Start Key is greater than End Key")
+	}
+
+	result := []*KVPair{}
+
+	pairs := db.mutable.Range(startKey, endKey)
+	result = append(result, pairs...)
+
+	pairs = db.immutable.Range(startKey, endKey)
+	result = append(result, pairs...)
+
+	sort.SliceStable(result, func(i, j int) bool {
+		return result[i].key < result[j].key
+	})
+
+	return result, nil
 }
 
 func (db *DB) flush(KVPairs []*KVPair) error {

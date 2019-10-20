@@ -76,6 +76,17 @@ func (tree *AVLTree) Find(key string) (*AVLNode, error) {
 	return node, nil
 }
 
+func (tree *AVLTree) Range(startKey, endKey string) []*KVPair {
+	tree.RLock()
+	defer tree.RUnlock()
+
+	node := commonParent(tree.root, startKey, endKey)
+	if node == nil {
+		return []*KVPair{}
+	}
+	return rangeQuery(node, startKey, endKey)
+}
+
 // Inorder prints inorder traversal of AVL-Tree
 func (tree *AVLTree) Inorder() []*KVPair {
 	tree.RLock()
@@ -210,6 +221,40 @@ func find(root *AVLNode, key string) (*AVLNode, error) {
 		return find(root.left, key)
 	}
 	return find(root.right, key)
+}
+
+func commonParent(root *AVLNode, startKey, endKey string) *AVLNode {
+	if root == nil {
+		return nil
+	}
+	if startKey < root.key && endKey < root.key {
+		return commonParent(root.left, startKey, endKey)
+	}
+	if startKey > root.key && endKey > root.key {
+		return commonParent(root.right, startKey, endKey)
+	}
+	return root
+}
+
+func rangeQuery(root *AVLNode, startKey, endKey string) []*KVPair {
+	if root == nil {
+		return []*KVPair{}
+	}
+
+	if root.key >= startKey && root.key <= endKey {
+		leftKeys := rangeQuery(root.left, startKey, endKey)
+		rightKeys := rangeQuery(root.right, startKey, endKey)
+
+		result := append(leftKeys, &KVPair{key: root.key, value: root.value})
+		result = append(result, rightKeys...)
+		return result
+	}
+
+	if root.key < startKey {
+		return rangeQuery(root.right, startKey, endKey)
+	}
+
+	return rangeQuery(root.left, startKey, endKey)
 }
 
 func inorder(root *AVLNode) []*KVPair {

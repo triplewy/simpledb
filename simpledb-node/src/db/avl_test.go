@@ -69,3 +69,58 @@ func TestAVLPutDuplicate(t *testing.T) {
 		t.Fatalf("Expected: 40,10,15 Got: %s\n", preorder)
 	}
 }
+
+func TestAVLRange(t *testing.T) {
+	tree := NewAVLTree()
+	tree.Put("0", "0")
+	tree.Put("2", "2")
+	tree.Put("4", "4")
+	tree.Put("5", "5")
+	tree.Put("6", "6")
+	tree.Put("8", "8")
+	tree.Put("9", "9")
+
+	pairs := tree.Range("4", "6")
+	result := []string{}
+
+	for _, pair := range pairs {
+		result = append(result, pair.key)
+	}
+
+	if strings.Join(result, ",") != "4,5,6" {
+		t.Fatalf("Expected: 4,5,6 Got: %s\n", strings.Join(result, ","))
+	}
+
+	pairs = tree.Range("2", "6")
+	result = []string{}
+
+	for _, pair := range pairs {
+		result = append(result, pair.key)
+	}
+
+	if strings.Join(result, ",") != "2,4,5,6" {
+		t.Fatalf("Expected: 2,4,5,6 Got: %s\n", strings.Join(result, ","))
+	}
+
+	pairs = tree.Range("11", "12")
+	result = []string{}
+
+	for _, pair := range pairs {
+		result = append(result, pair.key)
+	}
+
+	if strings.Join(result, ",") != "" {
+		t.Fatalf("Expected:  Got: %s\n", strings.Join(result, ","))
+	}
+
+	pairs = tree.Range("0", "9")
+	result = []string{}
+
+	for _, pair := range pairs {
+		result = append(result, pair.key)
+	}
+
+	if strings.Join(result, ",") != "0,2,4,5,6,8,9" {
+		t.Fatalf("Expected: 0,2,4,5,6,8,9 Got: %s\n", strings.Join(result, ","))
+	}
+}

@@ -303,7 +303,7 @@ func TestDBDelete(t *testing.T) {
 	}
 
 	fmt.Printf("Duration reading %d items: %v\n", numCmds, duration)
-	fmt.Printf("Total LSM Read duration: %v, Total Vlog Read duration: %v\n", db.totalLsmReadDuration, db.totalVlogReadDuration)
+	fmt.Printf("Total LSM Read duration: %v\nTotal Vlog Read duration: %v\n", db.totalLsmReadDuration, db.totalVlogReadDuration)
 }
 
 func TestDBTinyBenchmark(t *testing.T) {
@@ -412,6 +412,60 @@ func TestDBTinyBenchmark(t *testing.T) {
 	if len(errors) > 0 {
 		t.Fatalf("Encountered errors during read: %v\n", errors)
 	}
+
+	fmt.Printf("Total LSM Read duration: %v\nTotal Vlog Read duration: %v\n", db.totalLsmReadDuration, db.totalVlogReadDuration)
+}
+
+func TestDBRange(t *testing.T) {
+	err := DeleteData()
+	if err != nil {
+		t.Fatalf("Error deleting data: %v\n", err)
+	}
+
+	db, err := NewDB()
+	if err != nil {
+		t.Fatalf("Error creating LSM: %v\n", err)
+	}
+
+	memoryKV := make(map[string]string)
+	numItems := 64
+
+	startInsertTime := time.Now()
+	for i := 0; i < numItems; i++ {
+		key := strconv.Itoa(i)
+		value := uuid.New().String()
+		memoryKV[key] = value
+		err := db.Put(key, value)
+		if err != nil {
+			t.Fatalf("Error inserting into LSM: %v\n", key)
+		}
+	}
+	duration := time.Since(startInsertTime)
+	fmt.Printf("Duration inserting %d items: %v\n", numItems, duration)
+
+	// errors := make(map[string]int)
+
+	startReadTime := time.Now()
+	result, err := db.Range("0", "9")
+	if err != nil {
+		t.Fatalf("Error performing range query: %v\n", err)
+	}
+	duration = time.Since(startReadTime)
+	fmt.Printf("Duration reading range: %v\n", duration)
+
+	numWrong := 0
+
+	for _, item := range result {
+		if memoryKV[item.key] != item.value {
+			numWrong++
+		}
+		// fmt.Printf("(%s, %s),", item.key, item.value)
+	}
+	// fmt.Println()
+	fmt.Printf("Correct: %f%%\n", float64(numItems-numWrong)/float64(numItems)*float64(100))
+	// if len(errors) > 0 {
+	// 	t.Fatalf("Encountered errors during read: %v\n", errors)
+	// }
 
 	fmt.Printf("Total LSM Read duration: %v\nTotal Vlog Read duration: %v\n", db.totalLsmReadDuration, db.totalVlogReadDuration)
 }

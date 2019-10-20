@@ -1,7 +1,6 @@
 package db
 
 import (
-	"encoding/binary"
 	"errors"
 	"math"
 	"os"
@@ -17,6 +16,11 @@ type LSMFind struct {
 	offset uint64
 	size   uint32
 	err    error
+}
+
+type LSMRange struct {
+	lsmFinds []*LSMFind
+	err      error
 }
 
 func NewLSM() (*LSM, error) {
@@ -80,7 +84,7 @@ func (lsm *LSM) Append(blocks, index []byte, startKey, endKey string) error {
 
 func (lsm *LSM) Find(key string, levelNum int) (*LSMFind, error) {
 	if levelNum > 6 {
-		return nil, errors.New("Find exceeds greatest level")
+		return nil, errors.New("Key not found")
 	}
 
 	level := lsm.levels[levelNum]
@@ -99,7 +103,7 @@ func (lsm *LSM) Find(key string, levelNum int) (*LSMFind, error) {
 	wg.Add(len(filenames))
 	for _, filename := range filenames {
 		go func(filename string) {
-			lsm.find(filename, key, replyChan)
+			fileFind(filename, key, replyChan)
 		}(filename)
 	}
 
@@ -138,116 +142,35 @@ func (lsm *LSM) Find(key string, levelNum int) (*LSMFind, error) {
 	return lsm.Find(key, levelNum+1)
 }
 
-func (lsm *LSM) find(filename, key string, replyChan chan *LSMFind) {
-	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
-	defer f.Close()
+func (lsm *LSM) Range(startKey, endKey string) ([]*LSMFind, error) {
+	replyChan := make(chan *LSMRange)
+	var wg sync.WaitGroup
+	var errs []error
 
-	if err != nil {
-		replyChan <- &LSMFind{
-			offset: 0,
-			size:   0,
-			err:    err,
+	wg.Add(7)
+	for _, level := range lsm.levels {
+		go func(level *Level) {
+			level.Range(startKey, endKey, replyChan)
+		}(level)
+	}
+
+	result := []*LSMFind{}
+	go func() {
+		for reply := range replyChan {
+			if reply.err != nil {
+				errs = append(errs, reply.err)
+			} else {
+				result = append(result, reply.lsmFinds...)
+			}
+			wg.Done()
 		}
-		return
+	}()
+
+	wg.Wait()
+
+	if len(errs) > 0 {
+		return result, errs[0]
 	}
 
-	dataSize, indexSize, err := readHeader(f)
-	if err != nil {
-		replyChan <- &LSMFind{
-			offset: 0,
-			size:   0,
-			err:    err,
-		}
-		return
-	}
-
-	index := make([]byte, indexSize)
-	numBytes, err := f.ReadAt(index, 16+int64(dataSize))
-	if err != nil {
-		replyChan <- &LSMFind{
-			offset: 0,
-			size:   0,
-			err:    err,
-		}
-		return
-	}
-
-	if numBytes != int(indexSize) {
-		replyChan <- &LSMFind{
-			offset: 0,
-			size:   0,
-			err:    errors.New("Did not read correct amount of bytes for index"),
-		}
-		return
-	}
-
-	blockIndex := findDataBlock(key, index)
-
-	block := make([]byte, blockSize)
-	numBytes, err = f.ReadAt(block, 16+int64(blockSize*int(blockIndex)))
-	if err != nil {
-		replyChan <- &LSMFind{
-			offset: 0,
-			size:   0,
-			err:    err,
-		}
-		return
-	}
-	if numBytes != blockSize {
-		replyChan <- &LSMFind{
-			offset: 0,
-			size:   0,
-			err:    errors.New("Did not read correct amount of bytes for data block"),
-		}
-		return
-	}
-
-	offset, size, err := findKeyInBlock(key, block)
-	replyChan <- &LSMFind{
-		offset: offset,
-		size:   size,
-		err:    err,
-	}
-}
-
-func findDataBlock(key string, index []byte) uint32 {
-	i := 0
-	block := uint32(0)
-	for i < len(index) {
-		size := uint8(index[i])
-		i++
-		indexKey := string(index[i : i+int(size)])
-		i += int(size)
-
-		if key < indexKey {
-			return binary.LittleEndian.Uint32(index[i:i+4]) - 1
-		} else if key == indexKey {
-			return binary.LittleEndian.Uint32(index[i : i+4])
-		}
-		i += 4
-		block++
-	}
-
-	return block - 1
-}
-
-func findKeyInBlock(key string, block []byte) (offset uint64, size uint32, err error) {
-	i := 0
-
-	for i < blockSize {
-		size := uint8(block[i])
-		i++
-		foundKey := string(block[i : i+int(size)])
-		i += int(size)
-		if key == foundKey {
-			valueOffset := binary.LittleEndian.Uint64(block[i : i+8])
-			i += 8
-			valueSize := binary.LittleEndian.Uint32(block[i : i+4])
-			i += 4
-			return valueOffset, valueSize, nil
-		}
-		i += 12
-	}
-
-	return 0, 0, errors.New("Key not found")
+	return result, nil
 }
