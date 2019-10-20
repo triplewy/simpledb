@@ -10,13 +10,13 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestLSMPut(t *testing.T) {
+func TestDBPut(t *testing.T) {
 	err := DeleteData()
 	if err != nil {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
 
-	lsm, err := NewLSM()
+	db, err := NewDB()
 	if err != nil {
 		t.Fatalf("Error creating LSM: %v\n", err)
 	}
@@ -26,39 +26,56 @@ func TestLSMPut(t *testing.T) {
 	startInsertTime := time.Now()
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(1000000000000000000 + i)
-		err = lsm.Put(key, key)
+		err = db.Put(key, key)
 		if err != nil {
-			t.Fatalf("Error Puting into LSM: %v\n", err)
+			t.Fatalf("Error Putting into LSM: %v\n", err)
 		}
 	}
 	duration := time.Since(startInsertTime)
 	fmt.Printf("Duration inserting %d items: %v\n", numItems, duration)
 
-	fmt.Println("Start getting values...")
+	numWrong := 0
+	errors := make(map[string]int)
+
 	startReadTime := time.Now()
 	for i := 0; i < 10000; i++ {
 		key := strconv.Itoa(1000000000000000000 + rand.Intn(numItems))
-		result, err := lsm.Get(key)
+		result, err := db.Get(key)
 		if err != nil {
-			t.Fatalf("Error reading from LSM: %v\n", err)
+			numWrong++
+			if val, ok := errors[err.Error()]; !ok {
+				errors[err.Error()] = 1
+			} else {
+				errors[err.Error()] = val + 1
+			}
 		}
 		if result != key {
-			t.Fatalf("Incorrect result from get. Expected: %s, Got: %s\n", key, result)
+			numWrong++
+			if val, ok := errors["Incorrect result for get"]; !ok {
+				errors["Incorrect result for get"] = 1
+			} else {
+				errors["Incorrect result for get"] = val + 1
+			}
 		}
 	}
 	duration = time.Since(startReadTime)
-
 	fmt.Printf("Duration reading 10000 random items: %v\n", duration)
-	fmt.Printf("Total LSM Read duration: %v, Total Vlog Read duration: %v\n", lsm.totalLsmReadDuration, lsm.totalVlogReadDuration)
+
+	fmt.Printf("Correct: %f%%\n", float64(10000-numWrong)/float64(10000)*float64(100))
+	if len(errors) > 0 {
+		t.Fatalf("Encountered errors during read: %v\n", errors)
+	}
+
+	fmt.Printf("Total LSM Read duration: %v\nTotal Vlog Read duration: %v\n", db.totalLsmReadDuration, db.totalVlogReadDuration)
 }
 
-func TestLSMOverlapPut(t *testing.T) {
+func TestDBOverlapPut(t *testing.T) {
 	err := DeleteData()
 	if err != nil {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
 
-	lsm, err := NewLSM()
+	db, err := NewDB()
 	if err != nil {
 		t.Fatalf("Error creating LSM: %v\n", err)
 	}
@@ -68,7 +85,7 @@ func TestLSMOverlapPut(t *testing.T) {
 	startInsertTime := time.Now()
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(i)
-		err = lsm.Put(key, key)
+		err = db.Put(key, key)
 		if err != nil {
 			t.Fatalf("Error Puting into LSM: %v\n", err)
 		}
@@ -76,7 +93,7 @@ func TestLSMOverlapPut(t *testing.T) {
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(i)
 		value := strconv.Itoa(i + 1)
-		err = lsm.Put(key, value)
+		err = db.Put(key, value)
 		if err != nil {
 			t.Fatalf("Error Puting into LSM: %v\n", err)
 		}
@@ -84,31 +101,48 @@ func TestLSMOverlapPut(t *testing.T) {
 	duration := time.Since(startInsertTime)
 	fmt.Printf("Duration inserting %d items: %v\n", numItems, duration)
 
-	fmt.Println("Start getting values...")
+	numWrong := 0
+	errors := make(map[string]int)
+
 	startReadTime := time.Now()
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(i)
-		result, err := lsm.Get(key)
+		result, err := db.Get(key)
 		if err != nil {
-			t.Errorf("Error reading from LSM: %v\n", err)
+			numWrong++
+			if val, ok := errors[err.Error()]; !ok {
+				errors[err.Error()] = 1
+			} else {
+				errors[err.Error()] = val + 1
+			}
 		}
 		if strconv.Itoa(i+1) != result {
-			t.Errorf("Incorrect result from get. Expected: %s, Got: %s\n", strconv.Itoa(i+1), result)
+			numWrong++
+			if val, ok := errors["Incorrect result for get"]; !ok {
+				errors["Incorrect result for get"] = 1
+			} else {
+				errors["Incorrect result for get"] = val + 1
+			}
 		}
 	}
 	duration = time.Since(startReadTime)
-
 	fmt.Printf("Duration reading %d items: %v\n", numItems, duration)
-	fmt.Printf("Total LSM Read duration: %v, Total Vlog Read duration: %v\n", lsm.totalLsmReadDuration, lsm.totalVlogReadDuration)
+
+	fmt.Printf("Correct: %f%%\n", float64(10000-numWrong)/float64(10000)*float64(100))
+	if len(errors) > 0 {
+		t.Fatalf("Encountered errors during read: %v\n", errors)
+	}
+
+	fmt.Printf("Total LSM Read duration: %v\nTotal Vlog Read duration: %v\n", db.totalLsmReadDuration, db.totalVlogReadDuration)
 }
 
-func TestLSMPutUpdate(t *testing.T) {
+func TestDBPutUpdate(t *testing.T) {
 	err := DeleteData()
 	if err != nil {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
 
-	lsm, err := NewLSM()
+	db, err := NewDB()
 	if err != nil {
 		t.Fatalf("Error creating LSM: %v\n", err)
 	}
@@ -131,10 +165,9 @@ func TestLSMPutUpdate(t *testing.T) {
 		commands = append(commands, &command{key: key, value: value})
 	}
 
-	fmt.Println("Starting to put items...")
 	startInsertTime := time.Now()
 	for _, cmd := range commands {
-		err := lsm.Put(cmd.key, cmd.value)
+		err := db.Put(cmd.key, cmd.value)
 		if err != nil {
 			t.Fatalf("Error putting data: %v\n", err)
 		}
@@ -142,46 +175,59 @@ func TestLSMPutUpdate(t *testing.T) {
 	duration := time.Since(startInsertTime)
 	fmt.Printf("Duration inserting %d items: %v\n", numCmds, duration)
 
-	time.Sleep(1 * time.Second)
+	numWrong := 0
+	errors := make(map[string]int)
 
-	fmt.Println("Start getting values...")
 	startReadTime := time.Now()
 	for key, value := range memoryKV {
-		result, err := lsm.Get(key)
+		result, err := db.Get(key)
 		if err != nil {
-			t.Errorf("Error reading from LSM: %v\n", err)
+			numWrong++
+			if val, ok := errors[err.Error()]; !ok {
+				errors[err.Error()] = 1
+			} else {
+				errors[err.Error()] = val + 1
+			}
 		}
-		if value != result {
-			t.Errorf("Incorrect result from get. Expected: %s, Got: %s\n", value, result)
+		if result != value {
+			numWrong++
+			if val, ok := errors["Incorrect result for get"]; !ok {
+				errors["Incorrect result for get"] = 1
+			} else {
+				errors["Incorrect result for get"] = val + 1
+			}
 		}
 	}
 	duration = time.Since(startReadTime)
-
 	fmt.Printf("Duration reading %d items: %v\n", numCmds, duration)
-	fmt.Printf("Total LSM Read duration: %v, Total Vlog Read duration: %v\n", lsm.totalLsmReadDuration, lsm.totalVlogReadDuration)
+
+	fmt.Printf("Correct: %f%%\n", float64(10000-numWrong)/float64(10000)*float64(100))
+	if len(errors) > 0 {
+		t.Fatalf("Encountered errors during read: %v\n", errors)
+	}
+
+	fmt.Printf("Total LSM Read duration: %v\nTotal Vlog Read duration: %v\n", db.totalLsmReadDuration, db.totalVlogReadDuration)
 }
 
-func TestLSMDelete(t *testing.T) {
+func TestDBDelete(t *testing.T) {
 	err := DeleteData()
 	if err != nil {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
 
-	lsm, err := NewLSM()
+	db, err := NewDB()
 	if err != nil {
 		t.Fatalf("Error creating LSM: %v\n", err)
 	}
 
 	memoryKV := make(map[string]string)
-
 	numItems := 100000
 
-	fmt.Println("Starting to put items...")
 	startInsertTime := time.Now()
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(i)
 		memoryKV[key] = key
-		err := lsm.Put(key, key)
+		err := db.Put(key, key)
 		if err != nil {
 			t.Fatalf("Error inserting into LSM: %v\n", key)
 		}
@@ -191,12 +237,11 @@ func TestLSMDelete(t *testing.T) {
 
 	numCmds := 5000
 
-	fmt.Println("Starting to delete items...")
 	startDeleteTime := time.Now()
 	for i := 0; i < numCmds; i++ {
 		key := strconv.Itoa(rand.Intn(numItems))
 		memoryKV[key] = "__delete__"
-		err := lsm.Delete(key)
+		err := db.Delete(key)
 		if err != nil {
 			t.Fatalf("Error deleting from LSM: %v\n", key)
 		}
@@ -207,13 +252,12 @@ func TestLSMDelete(t *testing.T) {
 	numWrong := 0
 	errors := make(map[string]int)
 
-	fmt.Println("Start getting values...")
 	startReadTime := time.Now()
 	for i := 0; i < numCmds; i++ {
 		key := strconv.Itoa(rand.Intn(numItems))
 		value := memoryKV[key]
 
-		result, err := lsm.Get(key)
+		result, err := db.Get(key)
 		if value == "__delete__" {
 			if err != nil {
 				if err.Error() != "Key not found" {
@@ -242,10 +286,10 @@ func TestLSMDelete(t *testing.T) {
 				}
 			} else if value != result {
 				numWrong++
-				if val, ok := errors[err.Error()]; !ok {
-					errors[err.Error()] = 1
+				if val, ok := errors["Incorrect result for get"]; !ok {
+					errors["Incorrect result for get"] = 1
 				} else {
-					errors[err.Error()] = val + 1
+					errors["Incorrect result for get"] = val + 1
 				}
 			}
 		}
@@ -259,5 +303,5 @@ func TestLSMDelete(t *testing.T) {
 	}
 
 	fmt.Printf("Duration reading %d items: %v\n", numCmds, duration)
-	fmt.Printf("Total LSM Read duration: %v, Total Vlog Read duration: %v\n", lsm.totalLsmReadDuration, lsm.totalVlogReadDuration)
+	fmt.Printf("Total LSM Read duration: %v, Total Vlog Read duration: %v\n", db.totalLsmReadDuration, db.totalVlogReadDuration)
 }

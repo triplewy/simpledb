@@ -44,8 +44,6 @@ func DeleteData() error {
 }
 
 func PopulateSSTFile(keys []string, filename string) error {
-	indexBlock := make([]byte, 2*1024/blockSize*(3+keySize))
-
 	f, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
 	defer f.Close()
 
@@ -53,26 +51,27 @@ func PopulateSSTFile(keys []string, filename string) error {
 		return err
 	}
 
-	for _, key := range keys {
-		keySize := uint8(len(key))
-		entry := make([]byte, keySize+13)
-		copy(entry[0:], []byte{keySize})
-		copy(entry[1:], []byte(key))
+	data := []byte{}
+	block := []byte{}
 
-		numBytes, err := f.Write(entry)
-		if err != nil {
-			return err
-		}
-		if numBytes != len(entry) {
-			return err
+	for _, key := range keys {
+		input := []byte{uint8(len(key))}
+		input = append(input, []byte(key)...)
+		input = append(input, []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}...)
+		block, newBlock := appendDataBlock(block, input)
+		if newBlock != nil {
+			data = append(data, block...)
+			block = newBlock
 		}
 	}
 
-	numBytes, err := f.Write(indexBlock)
+	header := createHeader(len(data), 0)
+
+	numBytes, err := f.Write(append(header, data...))
 	if err != nil {
 		return err
 	}
-	if numBytes != len(indexBlock) {
+	if numBytes != len(data) {
 		return err
 	}
 

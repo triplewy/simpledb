@@ -3,283 +3,251 @@ package db
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
-	"strconv"
+	"math"
+	"os"
+	"strings"
 	"sync"
-	"time"
 )
 
-const blockSize = 16 * 1024
-
-const keySize = 19
-const valueSize = 65535
-
-const filenameLength = 8
-const compactThreshold = 4
-
-const multiplier = 10240
-
-type lsmEntry struct {
-	key    string
-	offset int
+type LSM struct {
+	levels []*Level
 }
 
-type LSM struct {
-	mutable   *AVLTree
-	immutable *AVLTree
-	immLock   sync.Mutex
-
-	ssTable *SSTable
-
-	flushChan chan []*kvPair
-
-	vLog *VLog
-
-	totalLsmReadDuration  time.Duration
-	totalVlogReadDuration time.Duration
+type LSMFind struct {
+	offset uint64
+	size   uint32
+	err    error
 }
 
 func NewLSM() (*LSM, error) {
-	vLog, err := NewVLog()
-	if err != nil {
-		return nil, err
+	levels := []*Level{}
+
+	for i := 0; i < 7; i++ {
+		var blockCapacity int
+		if i == 0 {
+			blockCapacity = 2 * 1024
+		} else {
+			blockCapacity = int(math.Pow10(i)) * multiplier
+		}
+
+		level := NewLevel(i, blockCapacity)
+
+		if i > 0 {
+			above := levels[i-1]
+			above.below = level
+			level.above = above
+		}
+		levels = append(levels, level)
 	}
-	ssTable, err := NewSSTable()
-	if err != nil {
-		return nil, err
-	}
 
-	lsm := &LSM{
-		mutable:   NewAVLTree(),
-		immutable: NewAVLTree(),
-		flushChan: make(chan []*kvPair),
-		ssTable:   ssTable,
-		vLog:      vLog,
-
-		totalLsmReadDuration:  0 * time.Second,
-		totalVlogReadDuration: 0 * time.Second,
-	}
-
-	go lsm.run()
-
-	return lsm, nil
+	return &LSM{levels: levels}, nil
 }
 
-func (lsm *LSM) Put(key, value string) error {
-	if len(key) > keySize {
-		return errors.New("Key size has exceeded " + strconv.Itoa(keySize) + " bytes")
-	}
-	if len(value) > valueSize {
-		return errors.New("Value size has exceeded " + strconv.Itoa(valueSize) + " bytes")
-	}
+func (lsm *LSM) Append(blocks, index []byte, startKey, endKey string) error {
+	var f *os.File
+	var err error
 
-	if lsm.mutable.size+13+len(key) > lsm.mutable.capacity {
-		lsm.immutable = lsm.mutable
-		lsm.mutable = NewAVLTree()
-		pairs := lsm.immutable.Inorder()
-		lsm.flushChan <- pairs
-	}
+	level := lsm.levels[0]
+	filename := level.getUniqueID()
 
-	err := lsm.mutable.Put(key, value)
+	f, err = os.OpenFile(level.directory+filename+".sst", os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
+	defer f.Close()
+
 	if err != nil {
 		return err
 	}
 
+	header := createHeader(len(blocks), len(index))
+	data := append(header, append(blocks, index...)...)
+
+	numBytes, err := f.Write(data)
+	if err != nil {
+		return err
+	}
+	if numBytes != len(data) {
+		return errors.New("Num bytes written to SST does not match size of data")
+	}
+
+	err = f.Sync()
+	if err != nil {
+		return err
+	}
+
+	level.NewSSTFile(filename, startKey, endKey)
+
 	return nil
 }
 
-func (lsm *LSM) Get(key string) (string, error) {
-	if len(key) > keySize {
-		return "", errors.New("Key size has exceeded 255 bytes")
+func (lsm *LSM) Find(key string, levelNum int) (*LSMFind, error) {
+	if levelNum > 6 {
+		return nil, errors.New("Find exceeds greatest level")
 	}
 
-	node, err := lsm.mutable.Find(key)
-	if node != nil {
-		if node.value == "__delete__" {
-			return "", errors.New("Key not found")
-		}
-		return node.value, nil
+	level := lsm.levels[levelNum]
+
+	filenames := level.FindSSTFile(key)
+	if len(filenames) == 0 {
+		return lsm.Find(key, levelNum+1)
 	}
 
-	if err != nil && err.Error() != "Key not found" {
-		return "", err
+	replyChan := make(chan *LSMFind)
+	replies := []*LSMFind{}
+
+	var wg sync.WaitGroup
+	var errs []error
+
+	wg.Add(len(filenames))
+	for _, filename := range filenames {
+		go func(filename string) {
+			lsm.find(filename, key, replyChan)
+		}(filename)
 	}
 
-	node, err = lsm.immutable.Find(key)
-	if node != nil {
-		if node.value == "__delete__" {
-			return "", errors.New("Key not found")
-		}
-		return node.value, nil
-	}
-
-	if err != nil && err.Error() != "Key not found" {
-		return "", err
-	}
-
-	startTime := time.Now()
-	reply, err := lsm.ssTable.Find(key, 0)
-	if err != nil {
-		return "", err
-	}
-	lsm.totalLsmReadDuration += time.Since(startTime)
-
-	startTime = time.Now()
-	result, err := lsm.vLog.Get(reply)
-	if err != nil {
-		return "", err
-	}
-	lsm.totalVlogReadDuration += time.Since(startTime)
-
-	if result.value == "__delete__" {
-		return "", errors.New("Key not found")
-	}
-
-	return result.value, nil
-}
-
-func (lsm *LSM) Delete(key string) error {
-	return lsm.Put(key, "__delete__")
-}
-
-func (lsm *LSM) Flush(kvPairs []*kvPair) error {
-	lsm.immLock.Lock()
-	defer lsm.immLock.Unlock()
-
-	startKey := kvPairs[0].key
-	endKey := kvPairs[len(kvPairs)-1].key
-
-	vlogEntries := []byte{}
-
-	lsmBlocks := []byte{}
-	lsmIndex := []byte{}
-
-	vlogOffset := lsm.vLog.head
-
-	lsmBlock := []byte{}
-	currBlock := uint32(0)
-
-	for _, req := range kvPairs {
-		// Create vlog entry
-		vlogEntry, err := createVlogEntry(req.key, req.value)
-		if err != nil {
-			return err
-		}
-		vlogEntries = append(vlogEntries, vlogEntry...)
-
-		// Create new block if current kvPair overflows block
-		if len(lsmBlock)+13+len(req.key) > blockSize {
-			filler := make([]byte, blockSize-len(lsmBlock))
-			lsmBlock = append(lsmBlock, filler...)
-
-			if len(lsmBlock) != blockSize {
-				return errors.New("LSM data block does not match block size")
+	go func() {
+		for reply := range replyChan {
+			if reply.err != nil {
+				errs = append(errs, reply.err)
+			} else {
+				replies = append(replies, reply)
 			}
-
-			lsmBlocks = append(lsmBlocks, lsmBlock...)
-			lsmBlock = []byte{}
-			currBlock++
+			wg.Done()
 		}
+	}()
 
-		// Create lsmIndex entry if block is empty
-		if len(lsmBlock) == 0 {
-			indexEntry := createLsmIndex(req.key, currBlock)
-			lsmIndex = append(lsmIndex, indexEntry...)
+	wg.Wait()
+
+	if len(replies) > 0 {
+		if len(replies) > 1 {
+			latestUpdate := replies[0]
+			for i := 1; i < len(replies); i++ {
+				if replies[i].offset > latestUpdate.offset {
+					latestUpdate = replies[i]
+				}
+			}
+			return latestUpdate, nil
 		}
-
-		// Add lsmEntry to current block
-		lsmEntry := createLsmEntry(req.key, vlogOffset, len(vlogEntry))
-		lsmBlock = append(lsmBlock, lsmEntry...)
-
-		vlogOffset += len(vlogEntry)
+		return replies[0], nil
 	}
 
-	if len(lsmBlock) > 0 {
-		filler := make([]byte, blockSize-len(lsmBlock))
-		lsmBlock = append(lsmBlock, filler...)
-
-		if len(lsmBlock) != blockSize {
-			return errors.New("LSM data block does not match block size")
+	for _, err := range errs {
+		if !(strings.HasSuffix(err.Error(), "no such file or directory") || err.Error() == "Key not found") {
+			return nil, err
 		}
-
-		lsmBlocks = append(lsmBlocks, lsmBlock...)
 	}
 
-	// Append to vlog
-	err := lsm.vLog.Append(vlogEntries)
-	if err != nil {
-		return err
-	}
-
-	// Append to sstable
-	err = lsm.ssTable.Append(lsmBlocks, lsmIndex, startKey, endKey)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return lsm.Find(key, levelNum+1)
 }
 
-func createVlogEntry(key, value string) ([]byte, error) {
-	keySize := uint8(len(key))
-	valueSize := uint16(len(value))
+func (lsm *LSM) find(filename, key string, replyChan chan *LSMFind) {
+	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
+	defer f.Close()
 
-	valueSizeBytes := make([]byte, 2)
-	binary.LittleEndian.PutUint16(valueSizeBytes, valueSize)
+	if err != nil {
+		replyChan <- &LSMFind{
+			offset: 0,
+			size:   0,
+			err:    err,
+		}
+		return
+	}
 
-	dataSize := 3 + len(key) + len(value)
-	data := make([]byte, dataSize)
+	dataSize, indexSize, err := readHeader(f)
+	if err != nil {
+		replyChan <- &LSMFind{
+			offset: 0,
+			size:   0,
+			err:    err,
+		}
+		return
+	}
 
+	index := make([]byte, indexSize)
+	numBytes, err := f.ReadAt(index, 16+int64(dataSize))
+	if err != nil {
+		replyChan <- &LSMFind{
+			offset: 0,
+			size:   0,
+			err:    err,
+		}
+		return
+	}
+
+	if numBytes != int(indexSize) {
+		replyChan <- &LSMFind{
+			offset: 0,
+			size:   0,
+			err:    errors.New("Did not read correct amount of bytes for index"),
+		}
+		return
+	}
+
+	blockIndex := findDataBlock(key, index)
+
+	block := make([]byte, blockSize)
+	numBytes, err = f.ReadAt(block, 16+int64(blockSize*int(blockIndex)))
+	if err != nil {
+		replyChan <- &LSMFind{
+			offset: 0,
+			size:   0,
+			err:    err,
+		}
+		return
+	}
+	if numBytes != blockSize {
+		replyChan <- &LSMFind{
+			offset: 0,
+			size:   0,
+			err:    errors.New("Did not read correct amount of bytes for data block"),
+		}
+		return
+	}
+
+	offset, size, err := findKeyInBlock(key, block)
+	replyChan <- &LSMFind{
+		offset: offset,
+		size:   size,
+		err:    err,
+	}
+}
+
+func findDataBlock(key string, index []byte) uint32 {
 	i := 0
-	i += copy(data[i:], []byte{keySize})
-	i += copy(data[i:], key)
-	i += copy(data[i:], valueSizeBytes)
-	i += copy(data[i:], value)
+	block := uint32(0)
+	for i < len(index) {
+		size := uint8(index[i])
+		i++
+		indexKey := string(index[i : i+int(size)])
+		i += int(size)
 
-	if i != dataSize {
-		return nil, errors.New("Expected length of data array does not match actual length")
-	}
-	return data, nil
-}
-
-func createLsmEntry(key string, offset, size int) []byte {
-	lsmEntry := make([]byte, 13+len(key))
-
-	offsetBytes := make([]byte, 8)
-	binary.LittleEndian.PutUint64(offsetBytes, uint64(offset))
-
-	dataSizeBytes := make([]byte, 4)
-	binary.LittleEndian.PutUint32(dataSizeBytes, uint32(size))
-
-	copy(lsmEntry[0:], []byte{uint8(len(key))})
-	copy(lsmEntry[1:], key)
-	copy(lsmEntry[1+len(key):], offsetBytes)
-	copy(lsmEntry[1+len(key)+8:], dataSizeBytes)
-
-	return lsmEntry
-}
-
-func createLsmIndex(key string, block uint32) []byte {
-	indexEntry := make([]byte, 5+len(key))
-
-	blockBytes := make([]byte, 4)
-	binary.LittleEndian.PutUint32(blockBytes, block)
-
-	copy(indexEntry[0:], []byte{uint8(len(key))})
-	copy(indexEntry[1:], key)
-	copy(indexEntry[1+len(key):], blockBytes)
-
-	return indexEntry
-}
-
-func (lsm *LSM) run() {
-	for {
-		select {
-		case kvPairs := <-lsm.flushChan:
-			err := lsm.Flush(kvPairs)
-			if err != nil {
-				fmt.Printf("error flushing data from immutable table: %v\n", err)
-			}
+		if key < indexKey {
+			return binary.LittleEndian.Uint32(index[i:i+4]) - 1
+		} else if key == indexKey {
+			return binary.LittleEndian.Uint32(index[i : i+4])
 		}
+		i += 4
+		block++
 	}
+
+	return block - 1
+}
+
+func findKeyInBlock(key string, block []byte) (offset uint64, size uint32, err error) {
+	i := 0
+
+	for i < blockSize {
+		size := uint8(block[i])
+		i++
+		foundKey := string(block[i : i+int(size)])
+		i += int(size)
+		if key == foundKey {
+			valueOffset := binary.LittleEndian.Uint64(block[i : i+8])
+			i += 8
+			valueSize := binary.LittleEndian.Uint32(block[i : i+4])
+			i += 4
+			return valueOffset, valueSize, nil
+		}
+		i += 12
+	}
+
+	return 0, 0, errors.New("Key not found")
 }
