@@ -5,6 +5,7 @@ import (
 	"sync"
 )
 
+// AVLNode is node struct for AVL-Tree
 type AVLNode struct {
 	key   string
 	value string
@@ -14,6 +15,7 @@ type AVLNode struct {
 	height int
 }
 
+// AVLTree is struct for AVL-Tree
 type AVLTree struct {
 	root     *AVLNode
 	capacity int
@@ -36,6 +38,7 @@ func newAVLNode(key, value string) *AVLNode {
 	}
 }
 
+// NewAVLTree creates a new AVL-Tree
 func NewAVLTree() *AVLTree {
 	return &AVLTree{
 		root:     nil,
@@ -72,7 +75,7 @@ func (tree *AVLTree) Find(key string) (*AVLNode, error) {
 	return node, nil
 }
 
-//Inorder prints inorder traversal of AVL-Tree
+// Inorder prints inorder traversal of AVL-Tree
 func (tree *AVLTree) Inorder() []*kvPair {
 	tree.RLock()
 	defer tree.RUnlock()
@@ -130,7 +133,7 @@ func put(root, newNode *AVLNode) (*AVLNode, error) {
 		root.right = node
 	}
 
-	root.height = 1 + Max(getHeight(root.left), getHeight(root.right))
+	root.height = 1 + max(getHeight(root.left), getHeight(root.right))
 	balance := getBalance(root)
 
 	// Case 1 - Left Left
@@ -176,8 +179,8 @@ func leftRotate(z *AVLNode) *AVLNode {
 	y.left = z
 	z.right = T2
 
-	z.height = 1 + Max(getHeight(z.left), getHeight(z.right))
-	y.height = 1 + Max(getHeight(y.left), getHeight(y.right))
+	z.height = 1 + max(getHeight(z.left), getHeight(z.right))
+	y.height = 1 + max(getHeight(y.left), getHeight(y.right))
 
 	return y
 }
@@ -189,8 +192,8 @@ func rightRotate(z *AVLNode) *AVLNode {
 	y.right = z
 	z.left = T2
 
-	z.height = 1 + Max(getHeight(z.left), getHeight(z.right))
-	y.height = 1 + Max(getHeight(y.left), getHeight(y.right))
+	z.height = 1 + max(getHeight(z.left), getHeight(z.right))
+	y.height = 1 + max(getHeight(y.left), getHeight(y.right))
 
 	return y
 }

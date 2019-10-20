@@ -34,19 +34,19 @@ func TestMergeAbove1(t *testing.T) {
 		}
 	}
 
-	err = PopulateSSTFile(keys1, "data/L0/test1")
+	err = populateSSTFile(keys1, "data/L0/test1")
 	if err != nil {
 		t.Errorf("Error populating file: %v\n", err)
 	}
-	err = PopulateSSTFile(keys2, "data/L0/test2")
+	err = populateSSTFile(keys2, "data/L0/test2")
 	if err != nil {
 		t.Errorf("Error populating file: %v\n", err)
 	}
-	err = PopulateSSTFile(keys3, "data/L0/test3")
+	err = populateSSTFile(keys3, "data/L0/test3")
 	if err != nil {
 		t.Errorf("Error populating file: %v\n", err)
 	}
-	err = PopulateSSTFile(keys4, "data/L0/test4")
+	err = populateSSTFile(keys4, "data/L0/test4")
 	if err != nil {
 		t.Errorf("Error populating file: %v\n", err)
 	}
@@ -93,15 +93,15 @@ func TestMergeAbove2(t *testing.T) {
 		}
 	}
 
-	err = PopulateSSTFile(keys1, "data/L0/test1")
+	err = populateSSTFile(keys1, "data/L0/test1")
 	if err != nil {
 		t.Errorf("Error populating file: %v\n", err)
 	}
-	err = PopulateSSTFile(keys2, "data/L0/test2")
+	err = populateSSTFile(keys2, "data/L0/test2")
 	if err != nil {
 		t.Errorf("Error populating file: %v\n", err)
 	}
-	err = PopulateSSTFile(keys3, "data/L0/test3")
+	err = populateSSTFile(keys3, "data/L0/test3")
 	if err != nil {
 		t.Errorf("Error populating file: %v\n", err)
 	}

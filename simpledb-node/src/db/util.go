@@ -9,15 +9,14 @@ import (
 	"strconv"
 )
 
-// Max returns the larger of x or y.
-func Max(x, y int) int {
+func max(x, y int) int {
 	if x < y {
 		return y
 	}
 	return x
 }
 
-func Floor(x float64) (int64, error) {
+func floor(x float64) (int64, error) {
 	f64 := math.Floor(x)
 	if f64 >= math.MaxInt64 || f64 <= math.MinInt64 {
 		return 0, errors.New("input is out of int64 range")
@@ -26,8 +25,9 @@ func Floor(x float64) (int64, error) {
 	return int64(f64), nil
 }
 
+// DeleteData deletes all data from database
 func DeleteData() error {
-	dirs := []string{"data/L0", "data/L1", "data/L2", "data/L3", "data/L4", "data/L5", "data/L6"}
+	dirs := []string{"data/L0", "data/L1", "data/L2", "data/L3", "data/L4", "data/L5", "data/L6", "data/VLog"}
 
 	for _, dir := range dirs {
 		d, err := ioutil.ReadDir(dir)
@@ -43,7 +43,7 @@ func DeleteData() error {
 	return nil
 }
 
-func PopulateSSTFile(keys []string, filename string) error {
+func populateSSTFile(keys []string, filename string) error {
 	f, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
 	defer f.Close()
 
@@ -78,7 +78,7 @@ func PopulateSSTFile(keys []string, filename string) error {
 	return nil
 }
 
-func ReadAllSSTs() ([]map[string]bool, error) {
+func readAllSSTs() ([]map[string]bool, error) {
 	result := []map[string]bool{}
 	for i := 0; i < 7; i++ {
 		result = append(result, make(map[string]bool))
@@ -93,7 +93,7 @@ func ReadAllSSTs() ([]map[string]bool, error) {
 
 		for _, fileInfo := range d {
 			if fileInfo.Name() != "manifest" {
-				keys, err := ReadAllKeys(path.Join([]string{dir, fileInfo.Name()}...))
+				keys, err := readAllKeys(path.Join([]string{dir, fileInfo.Name()}...))
 				if err != nil {
 					return nil, err
 				}
@@ -107,7 +107,7 @@ func ReadAllSSTs() ([]map[string]bool, error) {
 	return result, nil
 }
 
-func ReadAllKeys(filename string) ([]string, error) {
+func readAllKeys(filename string) ([]string, error) {
 	values, err := mmap(filename)
 	if err != nil {
 		return nil, err

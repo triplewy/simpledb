@@ -305,3 +305,113 @@ func TestDBDelete(t *testing.T) {
 	fmt.Printf("Duration reading %d items: %v\n", numCmds, duration)
 	fmt.Printf("Total LSM Read duration: %v, Total Vlog Read duration: %v\n", db.totalLsmReadDuration, db.totalVlogReadDuration)
 }
+
+func TestDBTinyBenchmark(t *testing.T) {
+	err := DeleteData()
+	if err != nil {
+		t.Fatalf("Error deleting data: %v\n", err)
+	}
+
+	db, err := NewDB()
+	if err != nil {
+		t.Fatalf("Error creating LSM: %v\n", err)
+	}
+
+	memoryKV := make(map[string]string)
+	numItems := 500000
+
+	startInsertTime := time.Now()
+	for i := 0; i < numItems; i++ {
+		key := strconv.Itoa(i)
+		value := uuid.New().String()
+		memoryKV[key] = value
+		err := db.Put(key, value)
+		if err != nil {
+			t.Fatalf("Error inserting into LSM: %v\n", key)
+		}
+	}
+	duration := time.Since(startInsertTime)
+	fmt.Printf("Duration inserting %d items: %v\n", numItems, duration)
+
+	numCmds := 50000
+
+	startDeleteTime := time.Now()
+	for i := 0; i < numCmds; i++ {
+		key := strconv.Itoa(rand.Intn(numItems))
+		memoryKV[key] = "__delete__"
+		err := db.Delete(key)
+		if err != nil {
+			t.Fatalf("Error deleting from LSM: %v\n", key)
+		}
+	}
+	duration = time.Since(startDeleteTime)
+	fmt.Printf("Duration deleting %d items: %v\n", numCmds, duration)
+
+	startUpdateTime := time.Now()
+	for i := 0; i < numCmds; i++ {
+		key := strconv.Itoa(rand.Intn(numItems))
+		value := uuid.New().String()
+		memoryKV[key] = value
+		err := db.Put(key, value)
+		if err != nil {
+			t.Fatalf("Error inserting into LSM: %v\n", key)
+		}
+	}
+	duration = time.Since(startUpdateTime)
+	fmt.Printf("Duration updating %d items: %v\n", numCmds, duration)
+
+	numWrong := 0
+	errors := make(map[string]int)
+
+	startReadTime := time.Now()
+	for i := 0; i < numCmds; i++ {
+		key := strconv.Itoa(rand.Intn(numItems))
+		value := memoryKV[key]
+
+		result, err := db.Get(key)
+		if value == "__delete__" {
+			if err != nil {
+				if err.Error() != "Key not found" {
+					numWrong++
+					if val, ok := errors[err.Error()]; !ok {
+						errors[err.Error()] = 1
+					} else {
+						errors[err.Error()] = val + 1
+					}
+				}
+			} else {
+				numWrong++
+				if val, ok := errors[err.Error()]; !ok {
+					errors[err.Error()] = 1
+				} else {
+					errors[err.Error()] = val + 1
+				}
+			}
+		} else {
+			if err != nil {
+				numWrong++
+				if val, ok := errors[err.Error()]; !ok {
+					errors[err.Error()] = 1
+				} else {
+					errors[err.Error()] = val + 1
+				}
+			} else if value != result {
+				numWrong++
+				if val, ok := errors["Incorrect result for get"]; !ok {
+					errors["Incorrect result for get"] = 1
+				} else {
+					errors["Incorrect result for get"] = val + 1
+				}
+			}
+		}
+	}
+	duration = time.Since(startReadTime)
+	fmt.Printf("Duration reading %d items: %v\n", numCmds, duration)
+
+	fmt.Printf("Correct: %f%%\n", float64(numCmds-numWrong)/float64(numCmds)*float64(100))
+	if len(errors) > 0 {
+		t.Fatalf("Encountered errors during read: %v\n", errors)
+	}
+
+	fmt.Printf("Total LSM Read duration: %v\nTotal Vlog Read duration: %v\n", db.totalLsmReadDuration, db.totalVlogReadDuration)
+}
