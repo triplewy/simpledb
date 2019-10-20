@@ -134,6 +134,7 @@ func (db *DB) Delete(key string) error {
 	return db.Put(key, "__delete__")
 }
 
+// Range finds all key, value pairs within the given range of keys
 func (db *DB) Range(startKey, endKey string) ([]*KVPair, error) {
 	if len(startKey) > keySize {
 		return nil, errors.New("Start Key size has exceeded maximum size")

@@ -242,6 +242,8 @@ func (level *Level) writeMerge(below string, values [][]byte) error {
 	return nil
 }
 
+// Range gets all files at a specific level whose key range fall within the given range query.
+// It then concurrently reads all files and returns the result to the given channel
 func (level *Level) Range(startKey, endKey string, replyChan chan *LSMRange) {
 	filenames := level.RangeSSTFiles(startKey, endKey)
 

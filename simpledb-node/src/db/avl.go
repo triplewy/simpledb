@@ -76,6 +76,7 @@ func (tree *AVLTree) Find(key string) (*AVLNode, error) {
 	return node, nil
 }
 
+// Range finds all nodes whose keys fall within the range query
 func (tree *AVLTree) Range(startKey, endKey string) []*KVPair {
 	tree.RLock()
 	defer tree.RUnlock()

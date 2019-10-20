@@ -8,21 +8,25 @@ import (
 	"sync"
 )
 
+// LSM is struct for all levels in an LSM
 type LSM struct {
 	levels []*Level
 }
 
+// LSMFind is struct that represents the result of a Find query on the LSM tree
 type LSMFind struct {
 	offset uint64
 	size   uint32
 	err    error
 }
 
+// LSMRange is struct that represents the result of Range query on the LSM tree
 type LSMRange struct {
 	lsmFinds []*LSMFind
 	err      error
 }
 
+// NewLSM instatiates all levels for a new LSM tree
 func NewLSM() (*LSM, error) {
 	levels := []*Level{}
 
@@ -47,6 +51,8 @@ func NewLSM() (*LSM, error) {
 	return &LSM{levels: levels}, nil
 }
 
+// Append takes data blocks, an index block, and a key range as input and writes an SST File to level 0.
+// It then adds this new file to level 0's manifest
 func (lsm *LSM) Append(blocks, index []byte, startKey, endKey string) error {
 	var f *os.File
 	var err error
@@ -82,6 +88,8 @@ func (lsm *LSM) Append(blocks, index []byte, startKey, endKey string) error {
 	return nil
 }
 
+// Find is a recursive function that goes through each level of the LSM tree and
+// returns if a result is found for the given key. If no result is found, Find throws an error
 func (lsm *LSM) Find(key string, levelNum int) (*LSMFind, error) {
 	if levelNum > 6 {
 		return nil, errors.New("Key not found")
@@ -142,6 +150,8 @@ func (lsm *LSM) Find(key string, levelNum int) (*LSMFind, error) {
 	return lsm.Find(key, levelNum+1)
 }
 
+// Range concurrently finds all keys in the LSM tree that fall within the range query.
+// Concurrency is achieved by going through each level on its own goroutine
 func (lsm *LSM) Range(startKey, endKey string) ([]*LSMFind, error) {
 	replyChan := make(chan *LSMRange)
 	var wg sync.WaitGroup
