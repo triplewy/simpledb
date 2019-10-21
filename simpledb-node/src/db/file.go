@@ -206,7 +206,12 @@ func rangeDataBlocks(startKey, endKey string, index []byte) (startBlock, endBloc
 			return startBlock, endBlock
 		} else if startKey < indexKey && indexKey < endKey {
 			if !foundStart {
-				startBlock = binary.LittleEndian.Uint32(index[i:i+4]) - 1
+				start := binary.LittleEndian.Uint32(index[i : i+4])
+				if start == 0 {
+					startBlock = uint32(0)
+				} else {
+					startBlock = start - 1
+				}
 				foundStart = true
 			}
 		} else if indexKey > endKey {
@@ -216,7 +221,7 @@ func rangeDataBlocks(startKey, endKey string, index []byte) (startBlock, endBloc
 		i += 4
 		block++
 	}
-	return startBlock, block
+	return startBlock, block - 1
 }
 
 func findKeysInBlocks(startKey, endKey string, data []byte) ([]*LSMFind, error) {

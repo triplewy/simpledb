@@ -146,13 +146,38 @@ func (db *DB) Range(startKey, endKey string) ([]*KVPair, error) {
 		return nil, errors.New("Start Key is greater than End Key")
 	}
 
-	result := []*KVPair{}
+	all := []*KVPair{}
 
 	pairs := db.mutable.Range(startKey, endKey)
-	result = append(result, pairs...)
+	all = append(all, pairs...)
 
 	pairs = db.immutable.Range(startKey, endKey)
-	result = append(result, pairs...)
+	all = append(all, pairs...)
+
+	startTime := time.Now()
+	lsmFinds, err := db.lsm.Range(startKey, endKey)
+	if err != nil {
+		return nil, err
+	}
+	db.totalLsmReadDuration += time.Since(startTime)
+
+	startTime = time.Now()
+	pairs, err = db.vlog.Range(lsmFinds)
+	if err != nil {
+		return nil, err
+	}
+	db.totalVlogReadDuration += time.Since(startTime)
+	all = append(all, pairs...)
+
+	resultMap := make(map[string]string)
+	result := []*KVPair{}
+
+	for _, kvPair := range all {
+		if _, ok := resultMap[kvPair.key]; !ok {
+			resultMap[kvPair.key] = kvPair.value
+			result = append(result, kvPair)
+		}
+	}
 
 	sort.SliceStable(result, func(i, j int) bool {
 		return result[i].key < result[j].key

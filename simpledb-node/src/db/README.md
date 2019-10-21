@@ -47,7 +47,7 @@ can store a maximum amount of 64 keys in an SST File, resulting in 64*268=16 KB 
 | Name  | # of bytes | Go type |
 | -------| ------ | -------- |
 | keySize | 1 | uint8 |
-| key  | 1-123  | string |
+| key  | 1-255  | string |
 | block | 4 | uint32 |
 
 <h3>Level sizes</h3>

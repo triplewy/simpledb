@@ -24,7 +24,7 @@ func (level *Level) FindSSTFile(key string) (filenames []string) {
 	defer level.manifestLock.RUnlock()
 
 	for filename, item := range level.manifest {
-		if key >= item.startKey && key <= item.endKey {
+		if item.startKey <= key && key <= item.endKey {
 			filenames = append(filenames, level.directory+filename+".sst")
 		}
 	}
@@ -37,7 +37,7 @@ func (level *Level) RangeSSTFiles(startKey, endKey string) (filenames []string) 
 	defer level.manifestLock.RUnlock()
 
 	for filename, item := range level.manifest {
-		if (item.startKey >= startKey && item.startKey <= endKey) || (item.endKey >= startKey && item.endKey <= endKey) {
+		if (item.startKey <= startKey && startKey <= item.endKey) || (item.startKey <= endKey && endKey <= item.endKey) || (startKey <= item.startKey && endKey >= item.endKey) {
 			filenames = append(filenames, level.directory+filename+".sst")
 		}
 	}

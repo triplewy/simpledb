@@ -3,6 +3,7 @@ package db
 import (
 	"fmt"
 	"math/rand"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
@@ -428,7 +429,7 @@ func TestDBRange(t *testing.T) {
 	}
 
 	memoryKV := make(map[string]string)
-	numItems := 64
+	numItems := 300000
 
 	startInsertTime := time.Now()
 	for i := 0; i < numItems; i++ {
@@ -443,29 +444,75 @@ func TestDBRange(t *testing.T) {
 	duration := time.Since(startInsertTime)
 	fmt.Printf("Duration inserting %d items: %v\n", numItems, duration)
 
-	// errors := make(map[string]int)
+	errors := make(map[string]int)
+	numWrong := 0
 
 	startReadTime := time.Now()
-	result, err := db.Range("0", "9")
+	for i := 0; i < numItems; i++ {
+		key := strconv.Itoa(i)
+		value := memoryKV[key]
+		result, err := db.Get(key)
+		if err != nil {
+			numWrong++
+			if val, ok := errors[err.Error()]; !ok {
+				errors[err.Error()] = 1
+			} else {
+				errors[err.Error()] = val + 1
+			}
+		} else if result != value {
+			numWrong++
+			if val, ok := errors["Incorrect result for get"]; !ok {
+				errors["Incorrect result for get"] = 1
+			} else {
+				errors["Incorrect result for get"] = val + 1
+			}
+		}
+	}
+	duration = time.Since(startReadTime)
+	fmt.Printf("Duration reading %d items: %v\n", numItems, duration)
+
+	fmt.Printf("Correct: %f%%\n", float64(numItems-numWrong)/float64(numItems)*float64(100))
+	if len(errors) > 0 {
+		t.Fatalf("Encountered errors during read: %v\n", errors)
+	}
+	fmt.Printf("Total LSM Read duration: %v\nTotal Vlog Read duration: %v\n", db.totalLsmReadDuration, db.totalVlogReadDuration)
+
+	startKey := "0"
+	endKey := "200000"
+
+	expected := []*KVPair{}
+	for key, value := range memoryKV {
+		if startKey <= key && key <= endKey {
+			expected = append(expected, &KVPair{key: key, value: value})
+		}
+	}
+
+	sort.SliceStable(expected, func(i, j int) bool {
+		return expected[i].key < expected[j].key
+	})
+
+	startReadTime = time.Now()
+	result, err := db.Range(startKey, endKey)
 	if err != nil {
 		t.Fatalf("Error performing range query: %v\n", err)
 	}
 	duration = time.Since(startReadTime)
 	fmt.Printf("Duration reading range: %v\n", duration)
 
-	numWrong := 0
+	if len(result) != len(expected) {
+		t.Fatalf("Expected range to return %d items, got %d items instead\n", len(expected), len(result))
+	}
+	numWrong = 0
 
-	for _, item := range result {
-		if memoryKV[item.key] != item.value {
+	for i := 0; i < len(result); i++ {
+		expect := expected[i]
+		got := result[i]
+
+		if expect.key != got.key || expect.value != got.value {
 			numWrong++
 		}
-		// fmt.Printf("(%s, %s),", item.key, item.value)
 	}
-	// fmt.Println()
-	fmt.Printf("Correct: %f%%\n", float64(numItems-numWrong)/float64(numItems)*float64(100))
-	// if len(errors) > 0 {
-	// 	t.Fatalf("Encountered errors during read: %v\n", errors)
-	// }
 
+	fmt.Printf("Correct: %f%%\n", float64(numItems-numWrong)/float64(numItems)*float64(100))
 	fmt.Printf("Total LSM Read duration: %v\nTotal Vlog Read duration: %v\n", db.totalLsmReadDuration, db.totalVlogReadDuration)
 }

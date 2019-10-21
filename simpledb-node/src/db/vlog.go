@@ -123,3 +123,34 @@ func (vlog *VLog) Get(query *LSMFind) (*KVPair, error) {
 	value := data[3+keySize:]
 	return &KVPair{key: string(key), value: string(value)}, nil
 }
+
+func (vlog *VLog) Range(queries []*LSMFind) ([]*KVPair, error) {
+	f, err := os.OpenFile(vlog.fileName, os.O_RDONLY, 0644)
+	defer f.Close()
+
+	if err != nil {
+		return nil, err
+	}
+
+	result := []*KVPair{}
+
+	for _, query := range queries {
+		data := make([]byte, query.size)
+
+		bytesRead, err := f.ReadAt(data, int64(query.offset))
+		if err != nil {
+			return nil, err
+		}
+		if bytesRead != int(query.size) {
+			return nil, errors.New("Did not read correct amount of bytes")
+		}
+
+		keySize := uint8(data[0])
+		key := string(data[1 : 1+keySize])
+		value := string(data[3+keySize:])
+
+		result = append(result, &KVPair{key: key, value: value})
+	}
+
+	return result, nil
+}
