@@ -27,12 +27,12 @@ func mergeAbove(above []string) ([][]byte, error) {
 }
 
 func mergeHelper(left, right [][]byte) [][]byte {
-	od := NewOrderedDict()
+	od := newOrderedDict()
 	i, j := 0, 0
 
 	for i < len(left) && j < len(right) {
-		leftEntry := NewODValue(left[i])
-		rightEntry := NewODValue(right[j])
+		leftEntry := newODValue(left[i])
+		rightEntry := newODValue(right[j])
 
 		if val, ok := od.Get(leftEntry.Key()); ok {
 			if val.(odValue).Offset() < leftEntry.Offset() {
@@ -68,13 +68,13 @@ func mergeHelper(left, right [][]byte) [][]byte {
 	}
 
 	for i < len(left) {
-		leftEntry := NewODValue(left[i])
+		leftEntry := newODValue(left[i])
 		od.Set(leftEntry.Key(), leftEntry)
 		i++
 	}
 
 	for j < len(right) {
-		rightEntry := NewODValue(right[j])
+		rightEntry := newODValue(right[j])
 		od.Set(rightEntry.Key(), rightEntry)
 		j++
 	}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -50,12 +51,17 @@ type Level struct {
 }
 
 // NewLevel creates a new level in the LSM tree
-func NewLevel(level, capacity int) *Level {
-	l := &Level{
+func NewLevel(level, capacity int, directory string) (*Level, error) {
+	err := os.MkdirAll(filepath.Join(directory, "L"+strconv.Itoa(level)), os.ModePerm)
+	if err != nil {
+		return nil, err
+	}
+
+	lvl := &Level{
 		level:     level,
 		capacity:  capacity,
 		size:      0,
-		directory: "data/L" + strconv.Itoa(level) + "/",
+		directory: filepath.Join(directory, "L"+strconv.Itoa(level)),
 
 		merging: make(map[string]struct{}),
 
@@ -69,9 +75,9 @@ func NewLevel(level, capacity int) *Level {
 		below: nil,
 	}
 
-	go l.run()
+	go lvl.run()
 
-	return l
+	return lvl, nil
 }
 
 func (level *Level) getUniqueID() string {
@@ -101,7 +107,7 @@ func (level *Level) Merge(below string, above []string) {
 
 		fileID := level.getUniqueID()
 
-		err = os.Rename(above[0], level.directory+fileID+".sst")
+		err = os.Rename(above[0], filepath.Join(level.directory, fileID+".sst"))
 		if err != nil {
 			level.compactReplyChan <- &compactReply{mergedFiles: nil, err: err}
 			return
@@ -202,7 +208,7 @@ func (level *Level) writeMerge(below string, values [][]byte) error {
 		filename = filenameArr[0] + "_new.sst"
 	} else {
 		fileID = level.getUniqueID()
-		filename = level.directory + fileID + ".sst"
+		filename = filepath.Join(level.directory, fileID+".sst")
 	}
 
 	f, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
@@ -217,7 +223,7 @@ func (level *Level) writeMerge(below string, values [][]byte) error {
 		return err
 	}
 	if numBytes != len(data) {
-		return errors.New("Num bytes written during merge does not match expected")
+		return newErrWriteUnexpectedBytes("SST File, Merge")
 	}
 
 	err = f.Sync()
@@ -244,45 +250,41 @@ func (level *Level) writeMerge(below string, values [][]byte) error {
 
 // Range gets all files at a specific level whose key range fall within the given range query.
 // It then concurrently reads all files and returns the result to the given channel
-func (level *Level) Range(startKey, endKey string, replyChan chan *LSMRange) {
+func (level *Level) Range(startKey, endKey string, replyChan chan []*LSMDataEntry, errChan chan error) {
 	filenames := level.RangeSSTFiles(startKey, endKey)
-
-	replies := make(chan *LSMRange)
+	replies := make(chan []*LSMDataEntry)
+	errs := make(chan error)
+	result := []*LSMDataEntry{}
+	var resultErr error
 	var wg sync.WaitGroup
-	var errs []error
 
 	wg.Add(len(filenames))
 	for _, filename := range filenames {
 		go func(filename string) {
-			fileRangeQuery(filename, startKey, endKey, replies)
+			fileRangeQuery(filename, startKey, endKey, replies, errs)
 		}(filename)
 	}
 
-	result := []*LSMFind{}
 	go func() {
-		for reply := range replies {
-			if reply.err != nil {
-				errs = append(errs, reply.err)
-			} else {
-				result = append(result, reply.lsmFinds...)
+		for {
+			select {
+			case reply := <-replies:
+				result = append(result, reply...)
+				wg.Done()
+			case err := <-errs:
+				resultErr = err
+				wg.Done()
 			}
-			wg.Done()
 		}
 	}()
 
 	wg.Wait()
 
-	if len(errs) > 0 {
-		replyChan <- &LSMRange{
-			lsmFinds: result,
-			err:      errs[0],
-		}
+	if resultErr != nil {
+		errChan <- resultErr
 		return
 	}
-	replyChan <- &LSMRange{
-		lsmFinds: result,
-		err:      nil,
-	}
+	replyChan <- result
 }
 
 func (level *Level) run() {
@@ -301,7 +303,7 @@ func (level *Level) run() {
 				if _, ok := level.merging[filename]; !ok {
 					merging = append(merging, &merge{
 						aboveFiles: []string{},
-						belowFile:  level.directory + filename + ".sst",
+						belowFile:  filepath.Join(level.directory, filename+".sst"),
 						keyRange:   keyRange,
 					})
 				}

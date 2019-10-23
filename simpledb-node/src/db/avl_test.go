@@ -7,9 +7,9 @@ import (
 
 func TestAVLPutLeftLeft(t *testing.T) {
 	tree := NewAVLTree()
-	tree.Put("5", "5")
-	tree.Put("4", "4")
-	tree.Put("3", "3")
+	tree.Put("5", "5", nil)
+	tree.Put("4", "4", nil)
+	tree.Put("3", "3", nil)
 	preorder := strings.Join(tree.Preorder(), ",")
 	if preorder != "4,3,5" {
 		t.Fatalf("Expected: 4,3,5 Got: %s\n", preorder)
@@ -18,9 +18,9 @@ func TestAVLPutLeftLeft(t *testing.T) {
 
 func TestAVLPutLeftRight(t *testing.T) {
 	tree := NewAVLTree()
-	tree.Put("5", "5")
-	tree.Put("3", "3")
-	tree.Put("4", "4")
+	tree.Put("5", "5", nil)
+	tree.Put("3", "3", nil)
+	tree.Put("4", "4", nil)
 	preorder := strings.Join(tree.Preorder(), ",")
 	if preorder != "4,3,5" {
 		t.Fatalf("Expected: 4,3,5 Got: %s\n", preorder)
@@ -29,9 +29,9 @@ func TestAVLPutLeftRight(t *testing.T) {
 
 func TestAVLPutRightRight(t *testing.T) {
 	tree := NewAVLTree()
-	tree.Put("3", "3")
-	tree.Put("4", "4")
-	tree.Put("5", "5")
+	tree.Put("3", "3", nil)
+	tree.Put("4", "4", nil)
+	tree.Put("5", "5", nil)
 	preorder := strings.Join(tree.Preorder(), ",")
 	if preorder != "4,3,5" {
 		t.Fatalf("Expected: 4,3,5 Got: %s\n", preorder)
@@ -40,9 +40,9 @@ func TestAVLPutRightRight(t *testing.T) {
 
 func TestAVLPutRightLeft(t *testing.T) {
 	tree := NewAVLTree()
-	tree.Put("3", "3")
-	tree.Put("5", "5")
-	tree.Put("4", "4")
+	tree.Put("3", "3", nil)
+	tree.Put("5", "5", nil)
+	tree.Put("4", "4", nil)
 	preorder := strings.Join(tree.Preorder(), ",")
 	if preorder != "4,3,5" {
 		t.Fatalf("Expected: 4,3,5 Got: %s\n", preorder)
@@ -51,18 +51,18 @@ func TestAVLPutRightLeft(t *testing.T) {
 
 func TestAVLPutDuplicate(t *testing.T) {
 	tree := NewAVLTree()
-	tree.Put("3", "3")
-	tree.Put("5", "5")
-	tree.Put("4", "4")
-	tree.Put("3", "10")
+	tree.Put("3", "3", nil)
+	tree.Put("5", "5", nil)
+	tree.Put("4", "4", nil)
+	tree.Put("3", "10", nil)
 
 	preorder := strings.Join(tree.PreorderValues(), ",")
 	if preorder != "4,10,5" {
 		t.Fatalf("Expected: 4,10,5 Got: %s\n", preorder)
 	}
 
-	tree.Put("5", "15")
-	tree.Put("4", "40")
+	tree.Put("5", "15", nil)
+	tree.Put("4", "40", nil)
 
 	preorder = strings.Join(tree.PreorderValues(), ",")
 	if preorder != "40,10,15" {
@@ -72,13 +72,13 @@ func TestAVLPutDuplicate(t *testing.T) {
 
 func TestAVLRange(t *testing.T) {
 	tree := NewAVLTree()
-	tree.Put("0", "0")
-	tree.Put("2", "2")
-	tree.Put("4", "4")
-	tree.Put("5", "5")
-	tree.Put("6", "6")
-	tree.Put("8", "8")
-	tree.Put("9", "9")
+	tree.Put("0", "0", nil)
+	tree.Put("2", "2", nil)
+	tree.Put("4", "4", nil)
+	tree.Put("5", "5", nil)
+	tree.Put("6", "6", nil)
+	tree.Put("8", "8", nil)
+	tree.Put("9", "9", nil)
 
 	pairs := tree.Range("4", "6")
 	result := []string{}

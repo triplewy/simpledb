@@ -9,6 +9,7 @@ import (
 type AVLNode struct {
 	key   string
 	value string
+	entry *LSMDataEntry
 
 	left   *AVLNode
 	right  *AVLNode
@@ -29,10 +30,12 @@ type KVPair struct {
 	value string
 }
 
-func newAVLNode(key, value string) *AVLNode {
+func newAVLNode(key, value string, entry *LSMDataEntry) *AVLNode {
 	return &AVLNode{
-		key:    key,
-		value:  value,
+		key:   key,
+		value: value,
+		entry: entry,
+
 		left:   nil,
 		right:  nil,
 		height: 1,
@@ -49,11 +52,11 @@ func NewAVLTree() *AVLTree {
 }
 
 // Put inserts a new node into an AVL-Tree
-func (tree *AVLTree) Put(key, value string) error {
+func (tree *AVLTree) Put(key, value string, entry *LSMDataEntry) error {
 	tree.Lock()
 	defer tree.Unlock()
 
-	newNode := newAVLNode(key, value)
+	newNode := newAVLNode(key, value, entry)
 	root, err := put(tree.root, newNode)
 	if err != nil {
 		return err
@@ -89,7 +92,7 @@ func (tree *AVLTree) Range(startKey, endKey string) []*KVPair {
 }
 
 // Inorder prints inorder traversal of AVL-Tree
-func (tree *AVLTree) Inorder() []*KVPair {
+func (tree *AVLTree) Inorder() []*LSMDataEntry {
 	tree.RLock()
 	defer tree.RUnlock()
 
@@ -258,11 +261,11 @@ func rangeQuery(root *AVLNode, startKey, endKey string) []*KVPair {
 	return rangeQuery(root.left, startKey, endKey)
 }
 
-func inorder(root *AVLNode) []*KVPair {
+func inorder(root *AVLNode) []*LSMDataEntry {
 	if root == nil {
-		return []*KVPair{}
+		return []*LSMDataEntry{}
 	}
-	return append(append(inorder(root.left), &KVPair{key: root.key, value: root.value}), inorder(root.right)...)
+	return append(append(inorder(root.left), root.entry), inorder(root.right)...)
 }
 
 func preorder(root *AVLNode) []*KVPair {

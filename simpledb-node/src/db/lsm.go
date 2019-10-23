@@ -1,9 +1,9 @@
 package db
 
 import (
-	"errors"
 	"math"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 )
@@ -13,21 +13,23 @@ type LSM struct {
 	levels []*Level
 }
 
-// LSMFind is struct that represents the result of a Find query on the LSM tree
-type LSMFind struct {
-	offset uint64
-	size   uint32
-	err    error
+// LSMDataEntry is struct that represents an entry into an LSM Data Block
+type LSMDataEntry struct {
+	keySize    uint8
+	key        string
+	vlogOffset uint64
+	vlogSize   uint32
 }
 
-// LSMRange is struct that represents the result of Range query on the LSM tree
-type LSMRange struct {
-	lsmFinds []*LSMFind
-	err      error
+// LSMIndexEntry is struct that represents an entry into an LSM Index Block
+type LSMIndexEntry struct {
+	keySize uint8
+	key     string
+	block   uint32
 }
 
 // NewLSM instatiates all levels for a new LSM tree
-func NewLSM() (*LSM, error) {
+func NewLSM(directory string) (*LSM, error) {
 	levels := []*Level{}
 
 	for i := 0; i < 7; i++ {
@@ -38,7 +40,10 @@ func NewLSM() (*LSM, error) {
 			blockCapacity = int(math.Pow10(i)) * multiplier
 		}
 
-		level := NewLevel(i, blockCapacity)
+		level, err := NewLevel(i, blockCapacity, directory)
+		if err != nil {
+			return nil, err
+		}
 
 		if i > 0 {
 			above := levels[i-1]
@@ -60,7 +65,7 @@ func (lsm *LSM) Append(blocks, index []byte, startKey, endKey string) error {
 	level := lsm.levels[0]
 	filename := level.getUniqueID()
 
-	f, err = os.OpenFile(level.directory+filename+".sst", os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
+	f, err = os.OpenFile(filepath.Join(level.directory, filename+".sst"), os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
 	defer f.Close()
 
 	if err != nil {
@@ -75,7 +80,7 @@ func (lsm *LSM) Append(blocks, index []byte, startKey, endKey string) error {
 		return err
 	}
 	if numBytes != len(data) {
-		return errors.New("Num bytes written to SST does not match size of data")
+		return newErrWriteUnexpectedBytes("SST File")
 	}
 
 	err = f.Sync()
@@ -90,9 +95,9 @@ func (lsm *LSM) Append(blocks, index []byte, startKey, endKey string) error {
 
 // Find is a recursive function that goes through each level of the LSM tree and
 // returns if a result is found for the given key. If no result is found, Find throws an error
-func (lsm *LSM) Find(key string, levelNum int) (*LSMFind, error) {
+func (lsm *LSM) Find(key string, levelNum int) (*LSMDataEntry, error) {
 	if levelNum > 6 {
-		return nil, errors.New("Key not found")
+		return nil, newErrKeyNotFound()
 	}
 
 	level := lsm.levels[levelNum]
@@ -102,8 +107,10 @@ func (lsm *LSM) Find(key string, levelNum int) (*LSMFind, error) {
 		return lsm.Find(key, levelNum+1)
 	}
 
-	replyChan := make(chan *LSMFind)
-	replies := []*LSMFind{}
+	replyChan := make(chan *LSMDataEntry)
+	errChan := make(chan error)
+
+	replies := []*LSMDataEntry{}
 
 	var wg sync.WaitGroup
 	var errs []error
@@ -111,18 +118,20 @@ func (lsm *LSM) Find(key string, levelNum int) (*LSMFind, error) {
 	wg.Add(len(filenames))
 	for _, filename := range filenames {
 		go func(filename string) {
-			fileFind(filename, key, replyChan)
+			fileFind(filename, key, replyChan, errChan)
 		}(filename)
 	}
 
 	go func() {
-		for reply := range replyChan {
-			if reply.err != nil {
-				errs = append(errs, reply.err)
-			} else {
+		for {
+			select {
+			case reply := <-replyChan:
 				replies = append(replies, reply)
+				wg.Done()
+			case err := <-errChan:
+				errs = append(errs, err)
+				wg.Done()
 			}
-			wg.Done()
 		}
 	}()
 
@@ -132,7 +141,7 @@ func (lsm *LSM) Find(key string, levelNum int) (*LSMFind, error) {
 		if len(replies) > 1 {
 			latestUpdate := replies[0]
 			for i := 1; i < len(replies); i++ {
-				if replies[i].offset > latestUpdate.offset {
+				if replies[i].vlogOffset > latestUpdate.vlogOffset {
 					latestUpdate = replies[i]
 				}
 			}
@@ -142,7 +151,11 @@ func (lsm *LSM) Find(key string, levelNum int) (*LSMFind, error) {
 	}
 
 	for _, err := range errs {
-		if !(strings.HasSuffix(err.Error(), "no such file or directory") || err.Error() == "Key not found") {
+		if _, ok := err.(*errKeyNotFound); ok {
+			continue
+		} else if strings.HasSuffix(err.Error(), "no such file or directory") {
+			continue
+		} else {
 			return nil, err
 		}
 	}
@@ -152,27 +165,29 @@ func (lsm *LSM) Find(key string, levelNum int) (*LSMFind, error) {
 
 // Range concurrently finds all keys in the LSM tree that fall within the range query.
 // Concurrency is achieved by going through each level on its own goroutine
-func (lsm *LSM) Range(startKey, endKey string) ([]*LSMFind, error) {
-	replyChan := make(chan *LSMRange)
+func (lsm *LSM) Range(startKey, endKey string) ([]*LSMDataEntry, error) {
+	replyChan := make(chan []*LSMDataEntry)
+	errChan := make(chan error)
+	result := []*LSMDataEntry{}
+
 	var wg sync.WaitGroup
 	var errs []error
 
 	wg.Add(7)
 	for _, level := range lsm.levels {
-		go func(level *Level) {
-			level.Range(startKey, endKey, replyChan)
-		}(level)
+		go level.Range(startKey, endKey, replyChan, errChan)
 	}
 
-	result := []*LSMFind{}
 	go func() {
-		for reply := range replyChan {
-			if reply.err != nil {
-				errs = append(errs, reply.err)
-			} else {
-				result = append(result, reply.lsmFinds...)
+		for {
+			select {
+			case reply := <-replyChan:
+				result = append(result, reply...)
+				wg.Done()
+			case err := <-errChan:
+				errs = append(errs, err)
+				wg.Done()
 			}
-			wg.Done()
 		}
 	}()
 

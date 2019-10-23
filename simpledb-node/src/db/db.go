@@ -1,8 +1,10 @@
 package db
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"strconv"
 	"sync"
@@ -15,7 +17,7 @@ type DB struct {
 	immutable *AVLTree
 	immLock   sync.Mutex
 
-	flushChan chan []*KVPair
+	flushChan chan []*LSMDataEntry
 
 	lsm  *LSM
 	vlog *VLog
@@ -25,13 +27,18 @@ type DB struct {
 }
 
 // NewDB creates a new database by instantiating the LSM and Value Log
-func NewDB() (*DB, error) {
-	lsm, err := NewLSM()
+func NewDB(directory string) (*DB, error) {
+	err := os.MkdirAll(directory, os.ModePerm)
 	if err != nil {
 		return nil, err
 	}
 
-	vlog, err := NewVLog()
+	lsm, err := NewLSM(directory)
+	if err != nil {
+		return nil, err
+	}
+
+	vlog, err := NewVLog(directory)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +47,7 @@ func NewDB() (*DB, error) {
 		mutable:   NewAVLTree(),
 		immutable: NewAVLTree(),
 
-		flushChan: make(chan []*KVPair),
+		flushChan: make(chan []*LSMDataEntry),
 
 		lsm:  lsm,
 		vlog: vlog,
@@ -63,6 +70,11 @@ func (db *DB) Put(key, value string) error {
 		return errors.New("Value size has exceeded " + strconv.Itoa(valueSize) + " bytes")
 	}
 
+	entry, err := db.vlog.Append(key, value)
+	if err != nil {
+		return err
+	}
+
 	if db.mutable.size+13+len(key) > db.mutable.capacity {
 		db.immutable = db.mutable
 		db.mutable = NewAVLTree()
@@ -70,7 +82,7 @@ func (db *DB) Put(key, value string) error {
 		db.flushChan <- pairs
 	}
 
-	err := db.mutable.Put(key, value)
+	err = db.mutable.Put(key, value, entry)
 	if err != nil {
 		return err
 	}
@@ -87,7 +99,7 @@ func (db *DB) Get(key string) (string, error) {
 	node, err := db.mutable.Find(key)
 	if node != nil {
 		if node.value == "__delete__" {
-			return "", errors.New("Key not found")
+			return "", newErrKeyNotFound()
 		}
 		return node.value, nil
 	}
@@ -99,7 +111,7 @@ func (db *DB) Get(key string) (string, error) {
 	node, err = db.immutable.Find(key)
 	if node != nil {
 		if node.value == "__delete__" {
-			return "", errors.New("Key not found")
+			return "", newErrKeyNotFound()
 		}
 		return node.value, nil
 	}
@@ -123,7 +135,7 @@ func (db *DB) Get(key string) (string, error) {
 	db.totalVlogReadDuration += time.Since(startTime)
 
 	if result.value == "__delete__" {
-		return "", errors.New("Key not found")
+		return "", newErrKeyNotFound()
 	}
 
 	return result.value, nil
@@ -186,31 +198,20 @@ func (db *DB) Range(startKey, endKey string) ([]*KVPair, error) {
 	return result, nil
 }
 
-func (db *DB) flush(KVPairs []*KVPair) error {
+func (db *DB) flush(entries []*LSMDataEntry) error {
 	db.immLock.Lock()
 	defer db.immLock.Unlock()
 
-	startKey := KVPairs[0].key
-	endKey := KVPairs[len(KVPairs)-1].key
-
-	vlogEntries := []byte{}
+	startKey := entries[0].key
+	endKey := entries[len(entries)-1].key
 
 	lsmBlocks := []byte{}
 	lsmIndex := []byte{}
 
-	vlogOffset := db.vlog.head
-
 	lsmBlock := []byte{}
 	currBlock := uint32(0)
 
-	for _, req := range KVPairs {
-		// Create vlog entry
-		vlogEntry, err := createVlogEntry(req.key, req.value)
-		if err != nil {
-			return err
-		}
-		vlogEntries = append(vlogEntries, vlogEntry...)
-
+	for _, req := range entries {
 		// Create new block if current KVPair overflows block
 		if len(lsmBlock)+13+len(req.key) > blockSize {
 			filler := make([]byte, blockSize-len(lsmBlock))
@@ -232,10 +233,8 @@ func (db *DB) flush(KVPairs []*KVPair) error {
 		}
 
 		// Add lsmEntry to current block
-		lsmEntry := createLsmEntry(req.key, vlogOffset, len(vlogEntry))
+		lsmEntry := createLsmEntry(req.key, req.vlogOffset, req.vlogSize)
 		lsmBlock = append(lsmBlock, lsmEntry...)
-
-		vlogOffset += len(vlogEntry)
 	}
 
 	if len(lsmBlock) > 0 {
@@ -249,14 +248,85 @@ func (db *DB) flush(KVPairs []*KVPair) error {
 		lsmBlocks = append(lsmBlocks, lsmBlock...)
 	}
 
-	// Append to vlog
-	err := db.vlog.Append(vlogEntries)
+	// Flush to LSM
+	err := db.lsm.Append(lsmBlocks, lsmIndex, startKey, endKey)
 	if err != nil {
 		return err
 	}
 
-	// Append to lsm
-	err = db.lsm.Append(lsmBlocks, lsmIndex, startKey, endKey)
+	return nil
+}
+
+func (db *DB) GC() error {
+	f, err := os.OpenFile(db.vlog.fileName, os.O_RDONLY, 0644)
+	defer f.Close()
+
+	if err != nil {
+		return err
+	}
+
+	data := make([]byte, gcThreshold)
+
+	numBytes, err := f.ReadAt(data, int64(db.vlog.tail))
+	if err != nil {
+		return err
+	}
+	if numBytes != len(data) {
+		return errors.New("Num bytes read does not match expected length of data")
+	}
+
+	type gcStruct struct {
+		offset uint64
+		key    string
+		value  string
+	}
+
+	gcStructs := []*gcStruct{}
+
+	i := 0
+	for i < len(data) {
+		offset := db.vlog.tail + uint64(i)
+
+		keySize := uint8(data[i])
+		i++
+		if i+int(keySize) > len(data) {
+			break
+		}
+		key := string(data[i : i+int(keySize)])
+		i += int(keySize)
+		if i+2 > len(data) {
+			break
+		}
+		valueSizeBytes := data[i : i+2]
+		valueSize := binary.LittleEndian.Uint16(valueSizeBytes)
+		i += 2
+		if i+int(valueSize) > len(data) {
+			break
+		}
+		value := string(data[i : i+int(valueSize)])
+		i += int(valueSize)
+
+		gcStructs = append(gcStructs, &gcStruct{
+			offset: offset,
+			key:    key,
+			value:  value,
+		})
+	}
+
+	for _, gcs := range gcStructs {
+		entry, err := db.lsm.Find(gcs.key, 0)
+		if err != nil {
+			continue
+		} else if entry.vlogOffset == gcs.offset {
+			err := db.Put(gcs.key, gcs.value)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	db.vlog.tail += uint64(i)
+	err = db.Put("tail", strconv.Itoa(int(db.vlog.tail)+i))
 	if err != nil {
 		return err
 	}
@@ -265,13 +335,22 @@ func (db *DB) flush(KVPairs []*KVPair) error {
 }
 
 func (db *DB) run() {
+	// gcTicker := time.NewTicker(1 * time.Second)
+
 	for {
 		select {
-		case KVPairs := <-db.flushChan:
-			err := db.flush(KVPairs)
+		case entries := <-db.flushChan:
+			err := db.flush(entries)
 			if err != nil {
 				fmt.Printf("error flushing data from immutable table: %v\n", err)
 			}
+			// case <-gcTicker.C:
+			// 	if db.vlog.tail+gcThreshold < db.vlog.head {
+			// 		err := db.GC()
+			// 		if err != nil {
+			// 			fmt.Printf("error garbage collecting vlog: %v\n", err)
+			// 		}
+			// 	}
 		}
 	}
 }

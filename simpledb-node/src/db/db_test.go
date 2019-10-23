@@ -11,18 +11,18 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestDBPut(t *testing.T) {
+func TestDBPutOnly(t *testing.T) {
 	err := DeleteData()
 	if err != nil {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
 
-	db, err := NewDB()
+	db, err := NewDB("data")
 	if err != nil {
 		t.Fatalf("Error creating LSM: %v\n", err)
 	}
 
-	numItems := 409600
+	numItems := 200000
 
 	startInsertTime := time.Now()
 	for i := 0; i < numItems; i++ {
@@ -34,6 +34,7 @@ func TestDBPut(t *testing.T) {
 	}
 	duration := time.Since(startInsertTime)
 	fmt.Printf("Duration inserting %d items: %v\n", numItems, duration)
+	fmt.Printf("Duration opening vlog: %v\n", db.vlog.openTime)
 
 	numWrong := 0
 	errors := make(map[string]int)
@@ -49,8 +50,7 @@ func TestDBPut(t *testing.T) {
 			} else {
 				errors[err.Error()] = val + 1
 			}
-		}
-		if result != key {
+		} else if result != key {
 			numWrong++
 			if val, ok := errors["Incorrect result for get"]; !ok {
 				errors["Incorrect result for get"] = 1
@@ -76,12 +76,12 @@ func TestDBOverlapPut(t *testing.T) {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
 
-	db, err := NewDB()
+	db, err := NewDB("data")
 	if err != nil {
 		t.Fatalf("Error creating LSM: %v\n", err)
 	}
 
-	numItems := 81920
+	numItems := 100000
 
 	startInsertTime := time.Now()
 	for i := 0; i < numItems; i++ {
@@ -100,7 +100,7 @@ func TestDBOverlapPut(t *testing.T) {
 		}
 	}
 	duration := time.Since(startInsertTime)
-	fmt.Printf("Duration inserting %d items: %v\n", numItems, duration)
+	fmt.Printf("Duration inserting %d items: %v\n", numItems*2, duration)
 
 	numWrong := 0
 	errors := make(map[string]int)
@@ -143,7 +143,7 @@ func TestDBPutUpdate(t *testing.T) {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
 
-	db, err := NewDB()
+	db, err := NewDB("data")
 	if err != nil {
 		t.Fatalf("Error creating LSM: %v\n", err)
 	}
@@ -155,7 +155,7 @@ func TestDBPutUpdate(t *testing.T) {
 		value string
 	}
 
-	numCmds := 500000
+	numCmds := 200000
 	commands := []*command{}
 
 	for i := 0; i < numCmds; i++ {
@@ -191,6 +191,7 @@ func TestDBPutUpdate(t *testing.T) {
 			}
 		}
 		if result != value {
+			t.Errorf("Incorrect result. Expected: %v, Got: %v\n", value, result)
 			numWrong++
 			if val, ok := errors["Incorrect result for get"]; !ok {
 				errors["Incorrect result for get"] = 1
@@ -216,7 +217,7 @@ func TestDBDelete(t *testing.T) {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
 
-	db, err := NewDB()
+	db, err := NewDB("data")
 	if err != nil {
 		t.Fatalf("Error creating LSM: %v\n", err)
 	}
@@ -313,7 +314,7 @@ func TestDBTinyBenchmark(t *testing.T) {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
 
-	db, err := NewDB()
+	db, err := NewDB("data")
 	if err != nil {
 		t.Fatalf("Error creating LSM: %v\n", err)
 	}
@@ -382,10 +383,10 @@ func TestDBTinyBenchmark(t *testing.T) {
 				}
 			} else {
 				numWrong++
-				if val, ok := errors[err.Error()]; !ok {
-					errors[err.Error()] = 1
+				if val, ok := errors["Key should have been deleted"]; !ok {
+					errors["Key should have been deleted"] = 1
 				} else {
-					errors[err.Error()] = val + 1
+					errors["Key should have been deleted"] = val + 1
 				}
 			}
 		} else {
@@ -423,7 +424,7 @@ func TestDBRange(t *testing.T) {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
 
-	db, err := NewDB()
+	db, err := NewDB("data")
 	if err != nil {
 		t.Fatalf("Error creating LSM: %v\n", err)
 	}
@@ -478,7 +479,7 @@ func TestDBRange(t *testing.T) {
 	fmt.Printf("Total LSM Read duration: %v\nTotal Vlog Read duration: %v\n", db.totalLsmReadDuration, db.totalVlogReadDuration)
 
 	startKey := "0"
-	endKey := "200000"
+	endKey := "9999"
 
 	expected := []*KVPair{}
 	for key, value := range memoryKV {

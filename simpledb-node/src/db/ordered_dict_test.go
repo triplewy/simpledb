@@ -6,7 +6,7 @@ import (
 )
 
 func TestOrderedDict(t *testing.T) {
-	od := NewOrderedDict()
+	od := newOrderedDict()
 
 	od.Set("1", "a")
 	od.Set("2", "b")

@@ -87,26 +87,30 @@ func TestFileRange(t *testing.T) {
 
 	f.Close()
 
-	replyChan := make(chan *LSMRange)
+	replyChan := make(chan []*LSMDataEntry)
+	errChan := make(chan error)
 	var wg sync.WaitGroup
 
 	go func() {
-		for reply := range replyChan {
-			if reply.err != nil {
-				t.Fatalf("Error range query on file: %v\n", reply.err)
-			}
-			for i := 0; i < len(reply.lsmFinds); i++ {
-				item := reply.lsmFinds[i]
-				if uint64(i) != item.offset {
-					t.Errorf("Offset expected: %d, got :%d\n", i, item.offset)
+		for {
+			select {
+			case reply := <-replyChan:
+				for i := 0; i < len(reply); i++ {
+					item := reply[i]
+					if uint64(i) != item.vlogOffset {
+						t.Errorf("Offset expected: %d, got :%d\n", i, item.vlogOffset)
+					}
 				}
+				wg.Done()
+			case err := <-errChan:
+				t.Fatalf("Error range query on file: %v\n", err)
+				wg.Done()
 			}
-			wg.Done()
 		}
 	}()
 
 	wg.Add(1)
-	fileRangeQuery("data/L0/test.sst", strconv.Itoa(int(math.Pow10(9))), strconv.Itoa(int(math.Pow10(9))+1000000), replyChan)
+	fileRangeQuery("data/L0/test.sst", strconv.Itoa(int(math.Pow10(9))), strconv.Itoa(int(math.Pow10(9))+1000000), replyChan, errChan)
 
 	wg.Wait()
 }

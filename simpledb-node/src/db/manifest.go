@@ -1,8 +1,8 @@
 package db
 
 import (
-	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -25,7 +25,7 @@ func (level *Level) FindSSTFile(key string) (filenames []string) {
 
 	for filename, item := range level.manifest {
 		if item.startKey <= key && key <= item.endKey {
-			filenames = append(filenames, level.directory+filename+".sst")
+			filenames = append(filenames, filepath.Join(level.directory, filename+".sst"))
 		}
 	}
 	return filenames
@@ -38,7 +38,7 @@ func (level *Level) RangeSSTFiles(startKey, endKey string) (filenames []string) 
 
 	for filename, item := range level.manifest {
 		if (item.startKey <= startKey && startKey <= item.endKey) || (item.startKey <= endKey && endKey <= item.endKey) || (startKey <= item.startKey && endKey >= item.endKey) {
-			filenames = append(filenames, level.directory+filename+".sst")
+			filenames = append(filenames, filepath.Join(level.directory, filename+".sst"))
 		}
 	}
 	return filenames
@@ -92,7 +92,7 @@ func (level *Level) UpdateManifest() error {
 		return nil
 	}
 
-	f, err := os.OpenFile(level.directory+"manifest_new", os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(filepath.Join(level.directory, "manifest_new"), os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
 	defer f.Close()
 
 	if err != nil {
@@ -122,7 +122,7 @@ func (level *Level) UpdateManifest() error {
 	}
 
 	if numBytes != len(level.manifest)*(filenameLength+keySize*2+2) {
-		return errors.New("Num bytes written to manifest does not match data")
+		return newErrWriteUnexpectedBytes("manifest")
 	}
 
 	err = f.Sync()
@@ -130,7 +130,7 @@ func (level *Level) UpdateManifest() error {
 		return err
 	}
 
-	err = os.Rename(level.directory+"manifest_new", level.directory+"manifest")
+	err = os.Rename(filepath.Join(level.directory, "manifest_new"), filepath.Join(level.directory, "manifest"))
 	if err != nil {
 		return err
 	}
@@ -157,7 +157,7 @@ func (level *Level) mergeManifest() []*merge {
 				ek2 := mergeStruct.keyRange.endKey
 
 				if (sk1 >= sk2 && sk1 <= ek2) || (ek1 >= sk2 && ek1 <= ek2) {
-					compact[i].aboveFiles = append(compact[i].aboveFiles, level.directory+filename+".sst")
+					compact[i].aboveFiles = append(compact[i].aboveFiles, filepath.Join(level.directory, filename+".sst"))
 
 					if sk1 < sk2 {
 						compact[i].keyRange.startKey = sk1
@@ -172,7 +172,7 @@ func (level *Level) mergeManifest() []*merge {
 
 			if !merged {
 				compact = append(compact, &merge{
-					aboveFiles: []string{level.directory + filename + ".sst"},
+					aboveFiles: []string{filepath.Join(level.directory, filename+".sst")},
 					belowFile:  "",
 					keyRange:   keyRange,
 				})

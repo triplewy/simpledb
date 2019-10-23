@@ -2,50 +2,33 @@ package db
 
 import (
 	"encoding/binary"
-	"errors"
 	"os"
 )
 
-func fileFind(filename, key string, replyChan chan *LSMFind) {
+func fileFind(filename, key string, replyChan chan *LSMDataEntry, errChan chan error) {
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	defer f.Close()
 
 	if err != nil {
-		replyChan <- &LSMFind{
-			offset: 0,
-			size:   0,
-			err:    err,
-		}
+		errChan <- err
 		return
 	}
 
 	dataSize, indexSize, err := readHeader(f)
 	if err != nil {
-		replyChan <- &LSMFind{
-			offset: 0,
-			size:   0,
-			err:    err,
-		}
+		errChan <- err
 		return
 	}
 
 	index := make([]byte, indexSize)
 	numBytes, err := f.ReadAt(index, 16+int64(dataSize))
 	if err != nil {
-		replyChan <- &LSMFind{
-			offset: 0,
-			size:   0,
-			err:    err,
-		}
+		errChan <- err
 		return
 	}
 
 	if numBytes != int(indexSize) {
-		replyChan <- &LSMFind{
-			offset: 0,
-			size:   0,
-			err:    errors.New("Did not read correct amount of bytes for index"),
-		}
+		errChan <- newErrReadUnexpectedBytes("SST File, Index Block")
 		return
 	}
 
@@ -54,65 +37,45 @@ func fileFind(filename, key string, replyChan chan *LSMFind) {
 	block := make([]byte, blockSize)
 	numBytes, err = f.ReadAt(block, 16+int64(blockSize*int(blockIndex)))
 	if err != nil {
-		replyChan <- &LSMFind{
-			offset: 0,
-			size:   0,
-			err:    err,
-		}
+		errChan <- err
 		return
 	}
 	if numBytes != blockSize {
-		replyChan <- &LSMFind{
-			offset: 0,
-			size:   0,
-			err:    errors.New("Did not read correct amount of bytes for data block"),
-		}
+		errChan <- newErrReadUnexpectedBytes("SST File, Data Block")
 		return
 	}
 
-	offset, size, err := findKeyInBlock(key, block)
-	replyChan <- &LSMFind{
-		offset: offset,
-		size:   size,
-		err:    err,
+	result, err := findKeyInBlock(key, block)
+	if err != nil {
+		errChan <- err
+		return
 	}
+	replyChan <- result
 }
 
-func fileRangeQuery(filename, startKey, endKey string, replyChan chan *LSMRange) {
+func fileRangeQuery(filename, startKey, endKey string, replyChan chan []*LSMDataEntry, errChan chan error) {
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	defer f.Close()
 
 	if err != nil {
-		replyChan <- &LSMRange{
-			lsmFinds: nil,
-			err:      err,
-		}
+		errChan <- err
 		return
 	}
 
 	dataSize, indexSize, err := readHeader(f)
 	if err != nil {
-		replyChan <- &LSMRange{
-			lsmFinds: nil,
-			err:      err,
-		}
+		errChan <- err
 		return
 	}
 
 	index := make([]byte, indexSize)
 	numBytes, err := f.ReadAt(index, 16+int64(dataSize))
 	if err != nil {
-		replyChan <- &LSMRange{
-			lsmFinds: nil,
-			err:      err,
-		}
+		errChan <- err
 		return
 	}
 	if numBytes != int(indexSize) {
-		replyChan <- &LSMRange{
-			lsmFinds: nil,
-			err:      errors.New("Did not read correct amount of bytes for index"),
-		}
+		errChan <- newErrReadUnexpectedBytes("SST File, Index Block")
 		return
 	}
 
@@ -123,25 +86,16 @@ func fileRangeQuery(filename, startKey, endKey string, replyChan chan *LSMRange)
 
 	numBytes, err = f.ReadAt(blocks, 16+int64(blockSize*int(startBlock)))
 	if err != nil {
-		replyChan <- &LSMRange{
-			lsmFinds: nil,
-			err:      err,
-		}
+		errChan <- err
 		return
 	}
 	if numBytes != size {
-		replyChan <- &LSMRange{
-			lsmFinds: nil,
-			err:      errors.New("Did not read correct amount of bytes for data block"),
-		}
+		errChan <- newErrReadUnexpectedBytes("SST File, Data Block")
 		return
 	}
 
-	lsmFinds, err := findKeysInBlocks(startKey, endKey, blocks)
-	replyChan <- &LSMRange{
-		lsmFinds: lsmFinds,
-		err:      err,
-	}
+	lsmEntries := findKeysInBlocks(startKey, endKey, blocks)
+	replyChan <- lsmEntries
 }
 
 func findDataBlock(key string, index []byte) uint32 {
@@ -165,25 +119,30 @@ func findDataBlock(key string, index []byte) uint32 {
 	return block - 1
 }
 
-func findKeyInBlock(key string, block []byte) (offset uint64, size uint32, err error) {
+func findKeyInBlock(key string, block []byte) (*LSMDataEntry, error) {
 	i := 0
 
-	for i < blockSize {
-		size := uint8(block[i])
+	for i < len(block) && block[i] != byte(0) {
+		keySize := uint8(block[i])
 		i++
-		foundKey := string(block[i : i+int(size)])
-		i += int(size)
+		foundKey := string(block[i : i+int(keySize)])
+		i += int(keySize)
 		if key == foundKey {
-			valueOffset := binary.LittleEndian.Uint64(block[i : i+8])
+			vlogOffset := binary.LittleEndian.Uint64(block[i : i+8])
 			i += 8
-			valueSize := binary.LittleEndian.Uint32(block[i : i+4])
+			vlogSize := binary.LittleEndian.Uint32(block[i : i+4])
 			i += 4
-			return valueOffset, valueSize, nil
+			return &LSMDataEntry{
+				keySize:    keySize,
+				key:        key,
+				vlogOffset: vlogOffset,
+				vlogSize:   vlogSize,
+			}, nil
 		}
 		i += 12
 	}
 
-	return 0, 0, errors.New("Key not found")
+	return nil, newErrKeyNotFound()
 }
 
 func rangeDataBlocks(startKey, endKey string, index []byte) (startBlock, endBlock uint32) {
@@ -224,8 +183,8 @@ func rangeDataBlocks(startKey, endKey string, index []byte) (startBlock, endBloc
 	return startBlock, block - 1
 }
 
-func findKeysInBlocks(startKey, endKey string, data []byte) ([]*LSMFind, error) {
-	result := []*LSMFind{}
+func findKeysInBlocks(startKey, endKey string, data []byte) []*LSMDataEntry {
+	result := []*LSMDataEntry{}
 
 	for i := 0; i < len(data); i += blockSize {
 		block := data[i : i+blockSize]
@@ -239,26 +198,21 @@ func findKeysInBlocks(startKey, endKey string, data []byte) ([]*LSMFind, error) 
 			if key < startKey {
 				j += 12
 			} else if startKey <= key && key <= endKey {
-				offset := binary.LittleEndian.Uint64(block[j : j+8])
+				vlogOffset := binary.LittleEndian.Uint64(block[j : j+8])
 				j += 8
-				size := binary.LittleEndian.Uint32(block[j : j+4])
+				vlogSize := binary.LittleEndian.Uint32(block[j : j+4])
 				j += 4
-				result = append(result, &LSMFind{
-					offset: offset,
-					size:   size,
-					err:    nil,
+				result = append(result, &LSMDataEntry{
+					keySize:    keySize,
+					key:        key,
+					vlogOffset: vlogOffset,
+					vlogSize:   vlogSize,
 				})
 			} else {
-				if len(result) == 0 {
-					return nil, errors.New("No keys found")
-				}
-				return result, nil
+				return result
 			}
 		}
 	}
 
-	if len(result) == 0 {
-		return nil, errors.New("No keys found")
-	}
-	return result, nil
+	return result
 }

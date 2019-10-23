@@ -2,34 +2,34 @@ package db
 
 import "encoding/binary"
 
-type LinkedListNode struct {
-	next *LinkedListNode
-	prev *LinkedListNode
+type linkedListNode struct {
+	next *linkedListNode
+	prev *linkedListNode
 
 	value interface{}
 }
 
-func (n *LinkedListNode) Value() interface{} {
+func (n *linkedListNode) Value() interface{} {
 	return n.value
 }
 
-type LinkedList struct {
-	head *LinkedListNode
-	tail *LinkedListNode
+type linkedList struct {
+	head *linkedListNode
+	tail *linkedListNode
 }
 
-func NewLinkedList() *LinkedList {
-	list := &LinkedList{
-		head: &LinkedListNode{value: nil},
-		tail: &LinkedListNode{value: nil},
+func newLinkedList() *linkedList {
+	list := &linkedList{
+		head: &linkedListNode{value: nil},
+		tail: &linkedListNode{value: nil},
 	}
 	list.head.next = list.tail
 	list.tail.prev = list.head
 	return list
 }
 
-func (l *LinkedList) Append(value interface{}) *LinkedListNode {
-	n := &LinkedListNode{
+func (l *linkedList) Append(value interface{}) *linkedListNode {
+	n := &linkedListNode{
 		prev:  l.tail.prev,
 		next:  l.tail,
 		value: value,
@@ -41,7 +41,7 @@ func (l *LinkedList) Append(value interface{}) *LinkedListNode {
 	return n
 }
 
-func (l *LinkedList) Remove(n *LinkedListNode) bool {
+func (l *linkedList) Remove(n *linkedListNode) bool {
 	if n == l.head || n == l.tail {
 		return false
 	}
@@ -52,8 +52,8 @@ func (l *LinkedList) Remove(n *LinkedListNode) bool {
 	return true
 }
 
-func (l *LinkedList) Iterate() chan *LinkedListNode {
-	ch := make(chan *LinkedListNode)
+func (l *linkedList) Iterate() chan *linkedListNode {
+	ch := make(chan *linkedListNode)
 
 	go func() {
 		n := l.head
@@ -69,21 +69,21 @@ func (l *LinkedList) Iterate() chan *LinkedListNode {
 	return ch
 }
 
-type OrderedDict struct {
-	lookup map[string]*LinkedListNode
-	list   *LinkedList
+type orderedDict struct {
+	lookup map[string]*linkedListNode
+	list   *linkedList
 	size   int
 }
 
-func NewOrderedDict() *OrderedDict {
-	return &OrderedDict{
-		lookup: make(map[string]*LinkedListNode),
-		list:   NewLinkedList(),
+func newOrderedDict() *orderedDict {
+	return &orderedDict{
+		lookup: make(map[string]*linkedListNode),
+		list:   newLinkedList(),
 		size:   0,
 	}
 }
 
-func (d *OrderedDict) Set(key string, value interface{}) {
+func (d *orderedDict) Set(key string, value interface{}) {
 	if n, ok := d.lookup[key]; ok {
 		n.value = value
 	} else {
@@ -92,14 +92,14 @@ func (d *OrderedDict) Set(key string, value interface{}) {
 	}
 }
 
-func (d *OrderedDict) Get(key string) (interface{}, bool) {
+func (d *orderedDict) Get(key string) (interface{}, bool) {
 	if n, ok := d.lookup[key]; ok {
 		return n.Value(), true
 	}
 	return nil, false
 }
 
-func (d *OrderedDict) Remove(key string) bool {
+func (d *orderedDict) Remove(key string) bool {
 	if n, ok := d.lookup[key]; ok {
 		if ok := d.list.Remove(n); !ok {
 			return false
@@ -111,7 +111,7 @@ func (d *OrderedDict) Remove(key string) bool {
 	return false
 }
 
-func (d *OrderedDict) Iterate() chan interface{} {
+func (d *orderedDict) Iterate() chan interface{} {
 	ch := make(chan interface{})
 
 	go func() {
@@ -149,7 +149,7 @@ func (e *offsetEntry) Entry() []byte {
 	return e.entry
 }
 
-func NewODValue(input []byte) odValue {
+func newODValue(input []byte) odValue {
 	keySize := uint8(input[0])
 	key := string(input[1 : 1+keySize])
 	offsetBytes := input[1+keySize : 1+keySize+8]

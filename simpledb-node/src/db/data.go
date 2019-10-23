@@ -28,14 +28,14 @@ func createVlogEntry(key, value string) ([]byte, error) {
 	return data, nil
 }
 
-func createLsmEntry(key string, offset, size int) []byte {
+func createLsmEntry(key string, offset uint64, size uint32) []byte {
 	lsmEntry := make([]byte, 13+len(key))
 
 	offsetBytes := make([]byte, 8)
-	binary.LittleEndian.PutUint64(offsetBytes, uint64(offset))
+	binary.LittleEndian.PutUint64(offsetBytes, offset)
 
 	dataSizeBytes := make([]byte, 4)
-	binary.LittleEndian.PutUint32(dataSizeBytes, uint32(size))
+	binary.LittleEndian.PutUint32(dataSizeBytes, size)
 
 	copy(lsmEntry[0:], []byte{uint8(len(key))})
 	copy(lsmEntry[1:], key)
@@ -96,7 +96,7 @@ func appendDataBlock(block, input []byte) (oldBlock, newBlock []byte) {
 	offset := binary.LittleEndian.Uint64(input[1+keySize : 1+keySize+8])
 	size := binary.LittleEndian.Uint32(input[1+keySize+8 : 1+keySize+8+4])
 
-	entry := createLsmEntry(key, int(offset), int(size))
+	entry := createLsmEntry(key, offset, size)
 
 	if len(block)+len(entry) > blockSize {
 		appendBlock = []byte{}
