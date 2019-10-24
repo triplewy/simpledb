@@ -30,3 +30,13 @@ func newErrKeyNotFound() *errKeyNotFound {
 func (e *errKeyNotFound) Error() string {
 	return "Key not found"
 }
+
+type errIncorrectBlockSize struct{}
+
+func newErrIncorrectBlockSize() *errIncorrectBlockSize {
+	return &errIncorrectBlockSize{}
+}
+
+func (e *errIncorrectBlockSize) Error() string {
+	return "Data block does not match block size"
+}

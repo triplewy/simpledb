@@ -59,13 +59,10 @@ func NewLSM(directory string) (*LSM, error) {
 // Append takes data blocks, an index block, and a key range as input and writes an SST File to level 0.
 // It then adds this new file to level 0's manifest
 func (lsm *LSM) Append(blocks, index []byte, startKey, endKey string) error {
-	var f *os.File
-	var err error
-
 	level := lsm.levels[0]
 	filename := level.getUniqueID()
 
-	f, err = os.OpenFile(filepath.Join(level.directory, filename+".sst"), os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(filepath.Join(level.directory, filename+".sst"), os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
 	defer f.Close()
 
 	if err != nil {
@@ -117,9 +114,7 @@ func (lsm *LSM) Find(key string, levelNum int) (*LSMDataEntry, error) {
 
 	wg.Add(len(filenames))
 	for _, filename := range filenames {
-		go func(filename string) {
-			fileFind(filename, key, replyChan, errChan)
-		}(filename)
+		go fileFind(filename, key, replyChan, errChan)
 	}
 
 	go func() {

@@ -155,12 +155,12 @@ func TestDBPutUpdate(t *testing.T) {
 		value string
 	}
 
-	numCmds := 200000
+	numCmds := 100000
 	commands := []*command{}
 
 	for i := 0; i < numCmds; i++ {
 		key := string(rand.Intn(10000))
-		value := uuid.New().String()
+		value := strconv.Itoa(i)
 
 		memoryKV[key] = value
 		commands = append(commands, &command{key: key, value: value})
@@ -272,10 +272,10 @@ func TestDBDelete(t *testing.T) {
 				}
 			} else {
 				numWrong++
-				if val, ok := errors[err.Error()]; !ok {
-					errors[err.Error()] = 1
+				if val, ok := errors["Incorrect result for get"]; !ok {
+					errors["Incorrect result for get"] = 1
 				} else {
-					errors[err.Error()] = val + 1
+					errors["Incorrect result for get"] = val + 1
 				}
 			}
 		} else {
@@ -320,7 +320,7 @@ func TestDBTinyBenchmark(t *testing.T) {
 	}
 
 	memoryKV := make(map[string]string)
-	numItems := 500000
+	numItems := 100000
 
 	startInsertTime := time.Now()
 	for i := 0; i < numItems; i++ {
@@ -430,7 +430,7 @@ func TestDBRange(t *testing.T) {
 	}
 
 	memoryKV := make(map[string]string)
-	numItems := 300000
+	numItems := 100000
 
 	startInsertTime := time.Now()
 	for i := 0; i < numItems; i++ {

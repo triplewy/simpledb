@@ -211,14 +211,14 @@ func (db *DB) flush(entries []*LSMDataEntry) error {
 	lsmBlock := []byte{}
 	currBlock := uint32(0)
 
-	for _, req := range entries {
-		// Create new block if current KVPair overflows block
-		if len(lsmBlock)+13+len(req.key) > blockSize {
+	for _, entry := range entries {
+		// Create new block if current entry overflows block
+		if len(lsmBlock)+13+len(entry.key) > blockSize {
 			filler := make([]byte, blockSize-len(lsmBlock))
 			lsmBlock = append(lsmBlock, filler...)
 
 			if len(lsmBlock) != blockSize {
-				return errors.New("LSM data block does not match block size")
+				return newErrIncorrectBlockSize()
 			}
 
 			lsmBlocks = append(lsmBlocks, lsmBlock...)
@@ -228,12 +228,12 @@ func (db *DB) flush(entries []*LSMDataEntry) error {
 
 		// Create lsmIndex entry if block is empty
 		if len(lsmBlock) == 0 {
-			indexEntry := createLsmIndex(req.key, currBlock)
+			indexEntry := createLsmIndex(entry.key, currBlock)
 			lsmIndex = append(lsmIndex, indexEntry...)
 		}
 
 		// Add lsmEntry to current block
-		lsmEntry := createLsmEntry(req.key, req.vlogOffset, req.vlogSize)
+		lsmEntry := createLsmEntry(entry.key, entry.vlogOffset, entry.vlogSize)
 		lsmBlock = append(lsmBlock, lsmEntry...)
 	}
 
@@ -242,7 +242,7 @@ func (db *DB) flush(entries []*LSMDataEntry) error {
 		lsmBlock = append(lsmBlock, filler...)
 
 		if len(lsmBlock) != blockSize {
-			return errors.New("LSM data block does not match block size")
+			return newErrIncorrectBlockSize()
 		}
 
 		lsmBlocks = append(lsmBlocks, lsmBlock...)

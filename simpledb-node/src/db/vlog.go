@@ -63,27 +63,6 @@ func NewVLog(directory string) (*VLog, error) {
 	return vLog, nil
 }
 
-func (vlog *VLog) run() {
-	for {
-		select {
-		case req := <-vlog.appendChan:
-			keySize := uint8(len(req.key))
-			key := req.key
-			vlogOffset, vlogSize, err := vlog.append(req.key, req.value)
-			if err != nil {
-				req.errChan <- err
-			} else {
-				req.replyChan <- &LSMDataEntry{
-					keySize:    keySize,
-					key:        key,
-					vlogOffset: vlogOffset,
-					vlogSize:   vlogSize,
-				}
-			}
-		}
-	}
-}
-
 // Append sends an append request to VLog channel to guarantee non-concurrent writes to file
 func (vlog *VLog) Append(key, value string) (*LSMDataEntry, error) {
 	replyChan := make(chan *LSMDataEntry, 1)
@@ -97,47 +76,60 @@ func (vlog *VLog) Append(key, value string) (*LSMDataEntry, error) {
 		errChan:   errChan,
 	}
 
+	var entry *LSMDataEntry
+	var err error
+
 	select {
 	case reply := <-replyChan:
+		entry = reply
 		return reply, nil
-	case err := <-errChan:
+	case reply := <-errChan:
+		err = reply
+	}
+
+	if err != nil {
 		return nil, err
 	}
+	return entry, nil
 }
 
-func (vlog *VLog) append(key, value string) (offset uint64, size uint32, err error) {
+func (vlog *VLog) append(key, value string) (*LSMDataEntry, error) {
 	startOpen := time.Now()
 	f, err := os.OpenFile(vlog.fileName, os.O_APPEND|os.O_WRONLY, 0644)
 	defer f.Close()
 	vlog.openTime += time.Since(startOpen)
 	if err != nil {
-		return 0, 0, err
+		return nil, err
 	}
 
 	data, err := createVlogEntry(key, value)
 	if err != nil {
-		return 0, 0, err
+		return nil, err
 	}
 
 	numBytes, err := f.Write(data)
 	if err != nil {
-		return 0, 0, err
+		return nil, err
 	}
 	if numBytes != len(data) {
-		return 0, 0, newErrWriteUnexpectedBytes("vlog")
+		return nil, newErrWriteUnexpectedBytes("vlog")
 	}
 
 	err = f.Sync()
 	if err != nil {
-		return 0, 0, err
+		return nil, err
 	}
 
-	offset = vlog.head
-	size = uint32(numBytes)
+	result := &LSMDataEntry{
+		keySize:    uint8(len(key)),
+		key:        key,
+		vlogOffset: vlog.head,
+		vlogSize:   uint32(numBytes),
+	}
 
 	vlog.head += uint64(numBytes)
 
-	return offset, size, nil
+	return result, nil
 }
 
 // Get gets a KVPair from the vlog
@@ -161,9 +153,9 @@ func (vlog *VLog) Get(query *LSMDataEntry) (*KVPair, error) {
 	}
 
 	keySize := uint8(data[0])
-	key := data[1 : 1+keySize]
-	value := data[3+keySize:]
-	return &KVPair{key: string(key), value: string(value)}, nil
+	key := string(data[1 : 1+keySize])
+	value := string(data[3+keySize:])
+	return &KVPair{key: key, value: value}, nil
 }
 
 // Range takes a list of queries and reads the corresponding key-value pairs from the vlog
@@ -228,4 +220,18 @@ func parallelRead(f *os.File, offset uint64, size uint32, replyChan chan *KVPair
 	value := string(data[3+keySize:])
 
 	replyChan <- &KVPair{key: key, value: value}
+}
+
+func (vlog *VLog) run() {
+	for {
+		select {
+		case req := <-vlog.appendChan:
+			result, err := vlog.append(req.key, req.value)
+			if err != nil {
+				req.errChan <- err
+			} else {
+				req.replyChan <- result
+			}
+		}
+	}
 }
