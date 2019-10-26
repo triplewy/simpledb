@@ -43,6 +43,9 @@ type Level struct {
 	manifestSync map[string]*keyRange
 	manifestLock sync.RWMutex
 
+	blooms    map[string]*Bloom
+	bloomLock sync.RWMutex
+
 	compactReqChan   chan []*merge
 	compactReplyChan chan *compactReply
 
@@ -67,6 +70,8 @@ func NewLevel(level, capacity int, directory string) (*Level, error) {
 
 		manifest:     make(map[string]*keyRange),
 		manifestSync: make(map[string]*keyRange),
+
+		blooms: make(map[string]*Bloom),
 
 		compactReqChan:   make(chan []*merge, 16),
 		compactReplyChan: make(chan *compactReply, 16),
@@ -114,13 +119,20 @@ func (level *Level) Merge(below string, above []string) {
 		}
 
 		level.manifestLock.Lock()
+		level.bloomLock.Lock()
 		level.above.manifestLock.Lock()
+		level.above.bloomLock.Lock()
 
 		level.manifest[fileID] = level.above.manifest[aboveID]
+		level.blooms[fileID] = level.above.blooms[aboveID]
+
 		delete(level.above.manifest, aboveID)
+		delete(level.above.blooms, aboveID)
 
 		level.manifestLock.Unlock()
+		level.bloomLock.Unlock()
 		level.above.manifestLock.Unlock()
+		level.above.bloomLock.Unlock()
 
 		level.size += size
 		level.above.compactReplyChan <- &compactReply{mergedFiles: []string{}, err: nil}
@@ -152,7 +164,6 @@ func (level *Level) Merge(below string, above []string) {
 		level.compactReplyChan <- &compactReply{mergedFiles: nil, err: err}
 		return
 	}
-
 	level.above.compactReplyChan <- &compactReply{mergedFiles: above, err: nil}
 }
 
@@ -164,6 +175,8 @@ func (level *Level) writeMerge(below string, values [][]byte) error {
 	endItem := values[len(values)-1]
 	endKeySize := uint8(endItem[0])
 	endKey := string(endItem[1 : 1+endKeySize])
+
+	bloom := NewBloom(len(values))
 
 	indexBlock := []byte{}
 	dataBlocks := []byte{}
@@ -178,21 +191,22 @@ func (level *Level) writeMerge(below string, values [][]byte) error {
 			i = 0
 		}
 
+		keySize := uint8(item[0])
+		key := string(item[1 : 1+keySize])
+
 		if i == 0 {
-			keySize := uint8(item[0])
-			key := item[1 : 1+keySize]
-			indexEntry := createLsmIndex(string(key), currBlock)
+			indexEntry := createLsmIndex(key, currBlock)
 			indexBlock = append(indexBlock, indexEntry...)
 
 			currBlock++
 		}
-
+		bloom.Insert(key)
 		i += copy(block[i:], item)
 	}
 
 	dataBlocks = append(dataBlocks, block...)
-	header := createHeader(len(dataBlocks), len(indexBlock))
-	data := append(header, append(dataBlocks, indexBlock...)...)
+	header := createHeader(len(dataBlocks), len(indexBlock), len(bloom.bits))
+	data := append(header, append(append(dataBlocks, indexBlock...), bloom.bits...)...)
 
 	var fileID string
 	var filename string
@@ -239,8 +253,11 @@ func (level *Level) writeMerge(below string, values [][]byte) error {
 		level.manifestLock.Lock()
 		level.manifest[fileID] = &keyRange{startKey: startKey, endKey: endKey}
 		level.manifestLock.Unlock()
+		level.bloomLock.Lock()
+		level.blooms[fileID] = bloom
+		level.bloomLock.Unlock()
 	} else {
-		level.NewSSTFile(fileID, startKey, endKey)
+		level.NewSSTFile(fileID, startKey, endKey, bloom)
 	}
 
 	level.size += len(data)

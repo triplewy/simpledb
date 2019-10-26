@@ -44,6 +44,7 @@ func TestFileRange(t *testing.T) {
 		t.Fatalf("Error opening file: %v\n", err)
 	}
 
+	bloom := NewBloom(len(values))
 	indexBlock := []byte{}
 	dataBlocks := []byte{}
 	block := make([]byte, blockSize)
@@ -57,21 +58,22 @@ func TestFileRange(t *testing.T) {
 			i = 0
 		}
 
-		if i == 0 {
-			keySize := uint8(item[0])
-			key := item[1 : 1+keySize]
-			indexEntry := createLsmIndex(string(key), currBlock)
-			indexBlock = append(indexBlock, indexEntry...)
+		keySize := uint8(item[0])
+		key := string(item[1 : 1+keySize])
 
+		if i == 0 {
+			indexEntry := createLsmIndex(key, currBlock)
+			indexBlock = append(indexBlock, indexEntry...)
 			currBlock++
 		}
 
+		bloom.Insert(key)
 		i += copy(block[i:], item)
 	}
 
 	dataBlocks = append(dataBlocks, block...)
-	header := createHeader(len(dataBlocks), len(indexBlock))
-	data := append(header, append(dataBlocks, indexBlock...)...)
+	header := createHeader(len(dataBlocks), len(indexBlock), len(bloom.bits))
+	data := append(header, append(append(dataBlocks, indexBlock...), bloom.bits...)...)
 
 	numBytes, err := f.Write(data)
 	if err != nil {

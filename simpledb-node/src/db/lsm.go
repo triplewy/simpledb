@@ -58,7 +58,7 @@ func NewLSM(directory string) (*LSM, error) {
 
 // Append takes data blocks, an index block, and a key range as input and writes an SST File to level 0.
 // It then adds this new file to level 0's manifest
-func (lsm *LSM) Append(blocks, index []byte, startKey, endKey string) error {
+func (lsm *LSM) Append(blocks, index []byte, bloom *Bloom, startKey, endKey string) error {
 	level := lsm.levels[0]
 	filename := level.getUniqueID()
 
@@ -69,8 +69,8 @@ func (lsm *LSM) Append(blocks, index []byte, startKey, endKey string) error {
 		return err
 	}
 
-	header := createHeader(len(blocks), len(index))
-	data := append(header, append(blocks, index...)...)
+	header := createHeader(len(blocks), len(index), len(bloom.bits))
+	data := append(header, append(append(blocks, index...), bloom.bits...)...)
 
 	numBytes, err := f.Write(data)
 	if err != nil {
@@ -85,7 +85,7 @@ func (lsm *LSM) Append(blocks, index []byte, startKey, endKey string) error {
 		return err
 	}
 
-	level.NewSSTFile(filename, startKey, endKey)
+	level.NewSSTFile(filename, startKey, endKey, bloom)
 
 	return nil
 }

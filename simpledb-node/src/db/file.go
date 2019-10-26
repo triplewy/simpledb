@@ -14,14 +14,14 @@ func fileFind(filename, key string, replyChan chan *LSMDataEntry, errChan chan e
 		return
 	}
 
-	dataSize, indexSize, err := readHeader(f)
+	dataSize, indexSize, _, err := readHeader(f)
 	if err != nil {
 		errChan <- err
 		return
 	}
 
 	index := make([]byte, indexSize)
-	numBytes, err := f.ReadAt(index, 16+int64(dataSize))
+	numBytes, err := f.ReadAt(index, headerSize+int64(dataSize))
 	if err != nil {
 		errChan <- err
 		return
@@ -35,7 +35,7 @@ func fileFind(filename, key string, replyChan chan *LSMDataEntry, errChan chan e
 	blockIndex := findDataBlock(key, index)
 
 	block := make([]byte, blockSize)
-	numBytes, err = f.ReadAt(block, 16+int64(blockSize*int(blockIndex)))
+	numBytes, err = f.ReadAt(block, headerSize+int64(blockSize*int(blockIndex)))
 	if err != nil {
 		errChan <- err
 		return
@@ -62,14 +62,14 @@ func fileRangeQuery(filename, startKey, endKey string, replyChan chan []*LSMData
 		return
 	}
 
-	dataSize, indexSize, err := readHeader(f)
+	dataSize, indexSize, _, err := readHeader(f)
 	if err != nil {
 		errChan <- err
 		return
 	}
 
 	index := make([]byte, indexSize)
-	numBytes, err := f.ReadAt(index, 16+int64(dataSize))
+	numBytes, err := f.ReadAt(index, headerSize+int64(dataSize))
 	if err != nil {
 		errChan <- err
 		return
@@ -84,7 +84,7 @@ func fileRangeQuery(filename, startKey, endKey string, replyChan chan []*LSMData
 	size := int(endBlock+1)*blockSize - int(startBlock)*blockSize
 	blocks := make([]byte, size)
 
-	numBytes, err = f.ReadAt(blocks, 16+int64(blockSize*int(startBlock)))
+	numBytes, err = f.ReadAt(blocks, headerSize+int64(blockSize*int(startBlock)))
 	if err != nil {
 		errChan <- err
 		return

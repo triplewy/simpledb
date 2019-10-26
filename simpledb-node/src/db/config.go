@@ -11,3 +11,5 @@ const compactThreshold = 4
 const multiplier = 10240
 
 const gcThreshold = 4 * 1024 * 1024
+
+const headerSize = 24

@@ -58,33 +58,36 @@ func createLsmIndex(key string, block uint32) []byte {
 	return indexEntry
 }
 
-func createHeader(dataSize, indexSize int) []byte {
+func createHeader(dataSize, indexSize, bloomSize int) []byte {
 	dataSizeBytes := make([]byte, 8)
 	indexSizeBytes := make([]byte, 8)
+	bloomSizeBytes := make([]byte, 8)
 
 	binary.LittleEndian.PutUint64(dataSizeBytes, uint64(dataSize))
 	binary.LittleEndian.PutUint64(indexSizeBytes, uint64(indexSize))
+	binary.LittleEndian.PutUint64(bloomSizeBytes, uint64(bloomSize))
 
-	header := append(dataSizeBytes, indexSizeBytes...)
+	header := append(append(dataSizeBytes, indexSizeBytes...), bloomSizeBytes...)
 
 	return header
 }
 
-func readHeader(f *os.File) (dataSize, indexSize uint64, err error) {
-	header := make([]byte, 16)
+func readHeader(f *os.File) (dataSize, indexSize, bloomSize uint64, err error) {
+	header := make([]byte, 24)
 
 	numBytes, err := f.Read(header)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, 0, err
 	}
 	if numBytes != len(header) {
-		return 0, 0, errors.New("Num bytes read does nat match expect header size")
+		return 0, 0, 0, newErrReadUnexpectedBytes("Header")
 	}
 
 	dataSize = binary.LittleEndian.Uint64(header[:8])
-	indexSize = binary.LittleEndian.Uint64(header[8:])
+	indexSize = binary.LittleEndian.Uint64(header[8:16])
+	bloomSize = binary.LittleEndian.Uint64(header[16:])
 
-	return dataSize, indexSize, nil
+	return dataSize, indexSize, bloomSize, nil
 }
 
 func appendDataBlock(block, input []byte) (oldBlock, newBlock []byte) {

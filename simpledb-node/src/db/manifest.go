@@ -7,10 +7,14 @@ import (
 )
 
 // NewSSTFile adds new SST file to in-memory manifest and sends update request to manifest channel
-func (level *Level) NewSSTFile(filename, startKey, endKey string) {
+func (level *Level) NewSSTFile(filename, startKey, endKey string, bloom *Bloom) {
 	level.manifestLock.Lock()
 	level.manifest[filename] = &keyRange{startKey: startKey, endKey: endKey}
 	level.manifestLock.Unlock()
+
+	level.bloomLock.Lock()
+	level.blooms[filename] = bloom
+	level.bloomLock.Unlock()
 
 	if level.level == 0 && len(level.manifest)%compactThreshold == 0 {
 		compact := level.mergeManifest()
@@ -21,11 +25,15 @@ func (level *Level) NewSSTFile(filename, startKey, endKey string) {
 // FindSSTFile finds files in level where key falls in their key range
 func (level *Level) FindSSTFile(key string) (filenames []string) {
 	level.manifestLock.RLock()
+	level.bloomLock.RLock()
 	defer level.manifestLock.RUnlock()
+	defer level.bloomLock.RUnlock()
 
 	for filename, item := range level.manifest {
 		if item.startKey <= key && key <= item.endKey {
-			filenames = append(filenames, filepath.Join(level.directory, filename+".sst"))
+			if level.blooms[filename].Check(key) {
+				filenames = append(filenames, filepath.Join(level.directory, filename+".sst"))
+			}
 		}
 	}
 	return filenames
@@ -48,6 +56,7 @@ func (level *Level) RangeSSTFiles(startKey, endKey string) (filenames []string) 
 func (level *Level) DeleteSSTFiles(files []string) error {
 	level.manifestLock.Lock()
 	level.mergeLock.Lock()
+	level.bloomLock.Lock()
 
 	for _, file := range files {
 		arr := strings.Split(file, "/")
@@ -55,10 +64,12 @@ func (level *Level) DeleteSSTFiles(files []string) error {
 
 		delete(level.manifest, id)
 		delete(level.merging, id)
+		delete(level.blooms, id)
 	}
 
 	level.manifestLock.Unlock()
 	level.mergeLock.Unlock()
+	level.bloomLock.Unlock()
 
 	for _, file := range files {
 		err := os.Remove(file)

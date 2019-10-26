@@ -134,6 +134,7 @@ func put(root, newNode *AVLNode) (*AVLNode, error) {
 		return newNode, nil
 	} else if newNode.key == root.key {
 		root.value = newNode.value
+		root.entry = newNode.entry
 		return root, nil
 	} else if newNode.key < root.key {
 		node, err := put(root.left, newNode)

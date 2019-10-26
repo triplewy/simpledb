@@ -22,7 +22,7 @@ func TestDBPutOnly(t *testing.T) {
 		t.Fatalf("Error creating LSM: %v\n", err)
 	}
 
-	numItems := 200000
+	numItems := 50000
 
 	startInsertTime := time.Now()
 	for i := 0; i < numItems; i++ {
@@ -81,7 +81,7 @@ func TestDBOverlapPut(t *testing.T) {
 		t.Fatalf("Error creating LSM: %v\n", err)
 	}
 
-	numItems := 100000
+	numItems := 50000
 
 	startInsertTime := time.Now()
 	for i := 0; i < numItems; i++ {
@@ -148,21 +148,21 @@ func TestDBPutUpdate(t *testing.T) {
 		t.Fatalf("Error creating LSM: %v\n", err)
 	}
 
-	memoryKV := make(map[string]string)
+	memoryKV := make(map[string][]string)
 
 	type command struct {
 		key   string
 		value string
 	}
 
-	numCmds := 100000
+	numCmds := 50000
 	commands := []*command{}
 
 	for i := 0; i < numCmds; i++ {
-		key := string(rand.Intn(10000))
+		key := strconv.Itoa(rand.Intn(1000))
 		value := strconv.Itoa(i)
 
-		memoryKV[key] = value
+		memoryKV[key] = append(memoryKV[key], value)
 		commands = append(commands, &command{key: key, value: value})
 	}
 
@@ -190,8 +190,8 @@ func TestDBPutUpdate(t *testing.T) {
 				errors[err.Error()] = val + 1
 			}
 		}
-		if result != value {
-			t.Errorf("Incorrect result. Expected: %v, Got: %v\n", value, result)
+		if result != value[len(value)-1] {
+			t.Errorf("Incorrect result for key: %v. Expected: %v, Got: %v\n", key, value[len(value)-1], result)
 			numWrong++
 			if val, ok := errors["Incorrect result for get"]; !ok {
 				errors["Incorrect result for get"] = 1
@@ -204,11 +204,11 @@ func TestDBPutUpdate(t *testing.T) {
 	fmt.Printf("Duration reading %d items: %v\n", numCmds, duration)
 
 	fmt.Printf("Correct: %f%%\n", float64(10000-numWrong)/float64(10000)*float64(100))
+	fmt.Printf("Total LSM Read duration: %v\nTotal Vlog Read duration: %v\n", db.totalLsmReadDuration, db.totalVlogReadDuration)
+
 	if len(errors) > 0 {
 		t.Fatalf("Encountered errors during read: %v\n", errors)
 	}
-
-	fmt.Printf("Total LSM Read duration: %v\nTotal Vlog Read duration: %v\n", db.totalLsmReadDuration, db.totalVlogReadDuration)
 }
 
 func TestDBDelete(t *testing.T) {
@@ -223,7 +223,7 @@ func TestDBDelete(t *testing.T) {
 	}
 
 	memoryKV := make(map[string]string)
-	numItems := 100000
+	numItems := 50000
 
 	startInsertTime := time.Now()
 	for i := 0; i < numItems; i++ {
@@ -430,7 +430,7 @@ func TestDBRange(t *testing.T) {
 	}
 
 	memoryKV := make(map[string]string)
-	numItems := 100000
+	numItems := 50000
 
 	startInsertTime := time.Now()
 	for i := 0; i < numItems; i++ {

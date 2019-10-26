@@ -205,6 +205,8 @@ func (db *DB) flush(entries []*LSMDataEntry) error {
 	startKey := entries[0].key
 	endKey := entries[len(entries)-1].key
 
+	bloom := NewBloom(len(entries))
+
 	lsmBlocks := []byte{}
 	lsmIndex := []byte{}
 
@@ -225,16 +227,16 @@ func (db *DB) flush(entries []*LSMDataEntry) error {
 			lsmBlock = []byte{}
 			currBlock++
 		}
-
 		// Create lsmIndex entry if block is empty
 		if len(lsmBlock) == 0 {
 			indexEntry := createLsmIndex(entry.key, currBlock)
 			lsmIndex = append(lsmIndex, indexEntry...)
 		}
-
 		// Add lsmEntry to current block
 		lsmEntry := createLsmEntry(entry.key, entry.vlogOffset, entry.vlogSize)
 		lsmBlock = append(lsmBlock, lsmEntry...)
+		// Insert into bloom filter
+		bloom.Insert(entry.key)
 	}
 
 	if len(lsmBlock) > 0 {
@@ -249,7 +251,7 @@ func (db *DB) flush(entries []*LSMDataEntry) error {
 	}
 
 	// Flush to LSM
-	err := db.lsm.Append(lsmBlocks, lsmIndex, startKey, endKey)
+	err := db.lsm.Append(lsmBlocks, lsmIndex, bloom, startKey, endKey)
 	if err != nil {
 		return err
 	}
@@ -257,6 +259,7 @@ func (db *DB) flush(entries []*LSMDataEntry) error {
 	return nil
 }
 
+// GC is Garbage Collection on Vlog. Runs whenever size between vlog head and vlog tail reaches a certain threshold
 func (db *DB) GC() error {
 	f, err := os.OpenFile(db.vlog.fileName, os.O_RDONLY, 0644)
 	defer f.Close()

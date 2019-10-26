@@ -1,7 +1,6 @@
 package db
 
 import (
-	"errors"
 	"os"
 )
 
@@ -96,20 +95,20 @@ func mmap(filename string) ([][]byte, error) {
 		return nil, err
 	}
 
-	dataSize, _, err := readHeader(f)
+	dataSize, _, _, err := readHeader(f)
 	if err != nil {
 		return nil, err
 	}
 
 	buffer := make([]byte, dataSize)
 
-	numBytes, err := f.ReadAt(buffer, 16)
+	numBytes, err := f.ReadAt(buffer, headerSize)
 	if err != nil {
 		return nil, err
 	}
 
 	if numBytes != len(buffer) {
-		return nil, errors.New("Num bytes read from file does not match expected data block size")
+		return nil, newErrReadUnexpectedBytes("Data Block")
 	}
 
 	keys := [][]byte{}
