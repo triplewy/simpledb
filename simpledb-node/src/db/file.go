@@ -5,6 +5,76 @@ import (
 	"os"
 )
 
+func writeNewFile(filename string, data []byte) error {
+	f, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
+	defer f.Close()
+
+	if err != nil {
+		return err
+	}
+
+	numBytes, err := f.Write(data)
+	if err != nil {
+		return err
+	}
+	if numBytes != len(data) {
+		return newErrWriteUnexpectedBytes(filename)
+	}
+
+	err = f.Sync()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// RecoverFile reads a file and returns all index entries, a bloom filter, and total size of the file
+func RecoverFile(filename string) (entries []*LSMIndexEntry, bloom *Bloom, size int, err error) {
+	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
+	defer f.Close()
+
+	if err != nil {
+		return nil, nil, 0, err
+	}
+
+	dataSize, indexSize, bloomSize, err := readHeader(f)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+
+	indexAndBloom := make([]byte, indexSize+bloomSize)
+
+	numBytes, err := f.ReadAt(indexAndBloom, int64(headerSize+dataSize))
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	if numBytes != len(indexAndBloom) {
+		return nil, nil, 0, newErrWriteUnexpectedBytes(filename)
+	}
+
+	index := indexAndBloom[:indexSize]
+	i := 0
+	for i < len(index) {
+		keySize := uint8(index[i])
+		i++
+		key := string(index[i : i+int(keySize)])
+		i += int(keySize)
+		block := binary.LittleEndian.Uint32(index[i : i+4])
+		i += 4
+		entries = append(entries, &LSMIndexEntry{
+			keySize: keySize,
+			key:     key,
+			block:   block,
+		})
+	}
+
+	bits := indexAndBloom[indexSize:]
+	bloom = RecoverBloom(bits)
+
+	return entries, bloom, int(dataSize + indexSize + bloomSize), nil
+}
+
 func fileFind(filename, key string, replyChan chan *LSMDataEntry, errChan chan error) {
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	defer f.Close()

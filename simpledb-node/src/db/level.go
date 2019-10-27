@@ -1,7 +1,6 @@
 package db
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,7 +12,8 @@ import (
 	"github.com/google/uuid"
 )
 
-type keyRange struct {
+// KeyRange represents struct for range of keys
+type KeyRange struct {
 	startKey string
 	endKey   string
 }
@@ -21,7 +21,7 @@ type keyRange struct {
 type merge struct {
 	aboveFiles []string
 	belowFile  string
-	keyRange   *keyRange
+	keyRange   *KeyRange
 }
 
 type compactReply struct {
@@ -39,8 +39,8 @@ type Level struct {
 	merging   map[string]struct{}
 	mergeLock sync.RWMutex
 
-	manifest     map[string]*keyRange
-	manifestSync map[string]*keyRange
+	manifest     map[string]*KeyRange
+	manifestSync map[string]*KeyRange
 	manifestLock sync.RWMutex
 
 	blooms    map[string]*Bloom
@@ -68,8 +68,8 @@ func NewLevel(level, capacity int, directory string) (*Level, error) {
 
 		merging: make(map[string]struct{}),
 
-		manifest:     make(map[string]*keyRange),
-		manifestSync: make(map[string]*keyRange),
+		manifest:     make(map[string]*KeyRange),
+		manifestSync: make(map[string]*KeyRange),
 
 		blooms: make(map[string]*Bloom),
 
@@ -78,6 +78,11 @@ func NewLevel(level, capacity int, directory string) (*Level, error) {
 
 		above: nil,
 		below: nil,
+	}
+
+	err = lvl.RecoverLevel()
+	if err != nil {
+		return nil, err
 	}
 
 	go lvl.run()
@@ -118,21 +123,17 @@ func (level *Level) Merge(below string, above []string) {
 			return
 		}
 
-		level.manifestLock.Lock()
-		level.bloomLock.Lock()
 		level.above.manifestLock.Lock()
 		level.above.bloomLock.Lock()
-
-		level.manifest[fileID] = level.above.manifest[aboveID]
-		level.blooms[fileID] = level.above.blooms[aboveID]
-
+		startKey := level.above.manifest[aboveID].startKey
+		endKey := level.above.manifest[aboveID].endKey
+		bloom := level.above.blooms[aboveID]
 		delete(level.above.manifest, aboveID)
 		delete(level.above.blooms, aboveID)
-
-		level.manifestLock.Unlock()
-		level.bloomLock.Unlock()
 		level.above.manifestLock.Unlock()
 		level.above.bloomLock.Unlock()
+
+		level.NewSSTFile(fileID, startKey, endKey, bloom)
 
 		level.size += size
 		level.above.compactReplyChan <- &compactReply{mergedFiles: []string{}, err: nil}
@@ -165,6 +166,9 @@ func (level *Level) Merge(below string, above []string) {
 		return
 	}
 	level.above.compactReplyChan <- &compactReply{mergedFiles: above, err: nil}
+	if below != "" {
+		level.compactReplyChan <- &compactReply{mergedFiles: []string{below}, err: nil}
+	}
 }
 
 func (level *Level) writeMerge(below string, values [][]byte) error {
@@ -211,54 +215,15 @@ func (level *Level) writeMerge(below string, values [][]byte) error {
 	var fileID string
 	var filename string
 
-	if below != "" {
-		filenameArr := strings.Split(below, ".")
-		if len(filenameArr) != 2 {
-			return errors.New("Improper format of sst file")
-		}
-		directoryArr := strings.Split(filenameArr[0], "/")
+	fileID = level.getUniqueID()
+	filename = filepath.Join(level.directory, fileID+".sst")
 
-		fileID = directoryArr[len(directoryArr)-1]
-		filename = filenameArr[0] + "_new.sst"
-	} else {
-		fileID = level.getUniqueID()
-		filename = filepath.Join(level.directory, fileID+".sst")
-	}
-
-	f, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
-	defer f.Close()
-
+	err := writeNewFile(filename, data)
 	if err != nil {
 		return err
 	}
 
-	numBytes, err := f.Write(data)
-	if err != nil {
-		return err
-	}
-	if numBytes != len(data) {
-		return newErrWriteUnexpectedBytes("SST File, Merge")
-	}
-
-	err = f.Sync()
-	if err != nil {
-		return err
-	}
-
-	if below != "" {
-		err := os.Rename(filename, below)
-		if err != nil {
-			return err
-		}
-		level.manifestLock.Lock()
-		level.manifest[fileID] = &keyRange{startKey: startKey, endKey: endKey}
-		level.manifestLock.Unlock()
-		level.bloomLock.Lock()
-		level.blooms[fileID] = bloom
-		level.bloomLock.Unlock()
-	} else {
-		level.NewSSTFile(fileID, startKey, endKey, bloom)
-	}
+	level.NewSSTFile(fileID, startKey, endKey, bloom)
 
 	level.size += len(data)
 
@@ -384,7 +349,7 @@ func (level *Level) run() {
 				fmt.Println(err)
 			}
 		case <-exceedCapacity.C:
-			if level.size > level.capacity {
+			if level.size > level.capacity && level.below != nil {
 				level.size = 0
 				compact := level.mergeManifest()
 				level.below.compactReqChan <- compact

@@ -2,7 +2,6 @@ package db
 
 import (
 	"math"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -60,32 +59,17 @@ func NewLSM(directory string) (*LSM, error) {
 // It then adds this new file to level 0's manifest
 func (lsm *LSM) Append(blocks, index []byte, bloom *Bloom, startKey, endKey string) error {
 	level := lsm.levels[0]
-	filename := level.getUniqueID()
-
-	f, err := os.OpenFile(filepath.Join(level.directory, filename+".sst"), os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
-	defer f.Close()
-
-	if err != nil {
-		return err
-	}
+	fileID := level.getUniqueID()
 
 	header := createHeader(len(blocks), len(index), len(bloom.bits))
 	data := append(header, append(append(blocks, index...), bloom.bits...)...)
 
-	numBytes, err := f.Write(data)
-	if err != nil {
-		return err
-	}
-	if numBytes != len(data) {
-		return newErrWriteUnexpectedBytes("SST File")
-	}
-
-	err = f.Sync()
+	err := writeNewFile(filepath.Join(level.directory, fileID+".sst"), data)
 	if err != nil {
 		return err
 	}
 
-	level.NewSSTFile(filename, startKey, endKey, bloom)
+	level.NewSSTFile(fileID, startKey, endKey, bloom)
 
 	return nil
 }

@@ -1,6 +1,7 @@
 package db
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,7 +10,7 @@ import (
 // NewSSTFile adds new SST file to in-memory manifest and sends update request to manifest channel
 func (level *Level) NewSSTFile(filename, startKey, endKey string, bloom *Bloom) {
 	level.manifestLock.Lock()
-	level.manifest[filename] = &keyRange{startKey: startKey, endKey: endKey}
+	level.manifest[filename] = &KeyRange{startKey: startKey, endKey: endKey}
 	level.manifestLock.Unlock()
 
 	level.bloomLock.Lock()
@@ -99,44 +100,31 @@ func (level *Level) UpdateManifest() error {
 		}
 	}
 
-	if !hasUpdated {
-		return nil
+	for filename := range level.manifestSync {
+		if _, ok := level.manifest[filename]; !ok {
+			delete(level.manifestSync, filename)
+			hasUpdated = true
+		}
 	}
 
-	f, err := os.OpenFile(filepath.Join(level.directory, "manifest_new"), os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
-	defer f.Close()
-
-	if err != nil {
-		return err
+	if !hasUpdated {
+		return nil
 	}
 
 	manifest := []byte{}
 
 	for filename, item := range level.manifest {
-		data := make([]byte, filenameLength+keySize*2+2)
-		startKeyBytes := make([]byte, keySize)
-		endKeyBytes := make([]byte, keySize)
+		data := []byte{}
+		data = append(data, []byte(filename)...)
+		data = append(data, uint8(len(item.startKey)))
+		data = append(data, []byte(item.startKey)...)
+		data = append(data, uint8(len(item.endKey)))
+		data = append(data, []byte(item.endKey)...)
 
-		copy(startKeyBytes[0:], []byte(item.startKey))
-		copy(endKeyBytes[0:], []byte(item.endKey))
-
-		copy(data[0:], []byte(filename))
-		copy(data[filenameLength:], startKeyBytes)
-		copy(data[filenameLength+keySize:], endKeyBytes)
-		copy(data[len(data)-2:], []byte("\r\n"))
-		manifest = append(manifest, data[:]...)
+		manifest = append(manifest, data...)
 	}
 
-	numBytes, err := f.Write(manifest)
-	if err != nil {
-		return err
-	}
-
-	if numBytes != len(level.manifest)*(filenameLength+keySize*2+2) {
-		return newErrWriteUnexpectedBytes("manifest")
-	}
-
-	err = f.Sync()
+	err := writeNewFile(filepath.Join(level.directory, "manifest_new"), manifest)
 	if err != nil {
 		return err
 	}
@@ -147,6 +135,33 @@ func (level *Level) UpdateManifest() error {
 	}
 
 	return nil
+}
+
+// ReadManifest reads manifest file and updates in-memory manifest
+func (level *Level) ReadManifest(filename string) (map[string]*KeyRange, error) {
+	data, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	manifest := make(map[string]*KeyRange)
+	i := 0
+	for i < len(data) {
+		fileID := string(data[i : i+8])
+		i += 8
+		startKeyLength := uint8(data[i])
+		i++
+		startKey := string(data[i : i+int(startKeyLength)])
+		i += int(startKeyLength)
+		endKeyLength := uint8(data[i])
+		i++
+		endKey := string(data[i : i+int(endKeyLength)])
+		i += int(endKeyLength)
+
+		manifest[fileID] = &KeyRange{startKey: startKey, endKey: endKey}
+	}
+
+	return manifest, nil
 }
 
 func (level *Level) mergeManifest() []*merge {

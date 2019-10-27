@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -18,6 +20,7 @@ type DB struct {
 	immLock   sync.Mutex
 
 	flushChan chan []*LSMDataEntry
+	flushWAL  string
 
 	lsm  *LSM
 	vlog *VLog
@@ -29,6 +32,11 @@ type DB struct {
 // NewDB creates a new database by instantiating the LSM and Value Log
 func NewDB(directory string) (*DB, error) {
 	err := os.MkdirAll(directory, os.ModePerm)
+	if err != nil {
+		return nil, err
+	}
+
+	err = os.MkdirAll(filepath.Join(directory, "metadata"), os.ModePerm)
 	if err != nil {
 		return nil, err
 	}
@@ -48,12 +56,26 @@ func NewDB(directory string) (*DB, error) {
 		immutable: NewAVLTree(),
 
 		flushChan: make(chan []*LSMDataEntry),
+		flushWAL:  filepath.Join(directory, "metadata", "FLUSH_WAL"),
 
 		lsm:  lsm,
 		vlog: vlog,
 
 		totalLsmReadDuration:  0 * time.Second,
 		totalVlogReadDuration: 0 * time.Second,
+	}
+
+	f, err := os.OpenFile(filepath.Join(directory, "metadata", "FLUSH_WAL"), os.O_CREATE|os.O_EXCL, os.ModePerm)
+	if err != nil {
+		if !strings.HasSuffix(err.Error(), "file exists") {
+			return nil, err
+		}
+	} else {
+		f.Close()
+		err = db.RecoverMemTables()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	go db.run()
@@ -205,6 +227,8 @@ func (db *DB) flush(entries []*LSMDataEntry) error {
 	startKey := entries[0].key
 	endKey := entries[len(entries)-1].key
 
+	offset := uint64(0)
+
 	bloom := NewBloom(len(entries))
 
 	lsmBlocks := []byte{}
@@ -237,6 +261,10 @@ func (db *DB) flush(entries []*LSMDataEntry) error {
 		lsmBlock = append(lsmBlock, lsmEntry...)
 		// Insert into bloom filter
 		bloom.Insert(entry.key)
+		// Check if max offset
+		if entry.vlogOffset+uint64(entry.vlogSize) > offset {
+			offset = entry.vlogOffset + uint64(entry.vlogSize)
+		}
 	}
 
 	if len(lsmBlock) > 0 {
@@ -252,6 +280,38 @@ func (db *DB) flush(entries []*LSMDataEntry) error {
 
 	// Flush to LSM
 	err := db.lsm.Append(lsmBlocks, lsmIndex, bloom, startKey, endKey)
+	if err != nil {
+		return err
+	}
+	// Write to FLUSH_WAL
+	err = db.appendFlushWAL(offset)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (db *DB) appendFlushWAL(offset uint64) error {
+	f, err := os.OpenFile(db.flushWAL, os.O_APPEND|os.O_WRONLY, os.ModePerm)
+	defer f.Close()
+
+	if err != nil {
+		return err
+	}
+
+	offsetBytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(offsetBytes, offset)
+
+	nnumBytes, err := f.Write(offsetBytes)
+	if err != nil {
+		return err
+	}
+	if nnumBytes != len(offsetBytes) {
+		return newErrWriteUnexpectedBytes("FLUSH_WAL")
+	}
+
+	err = f.Sync()
 	if err != nil {
 		return err
 	}
@@ -275,16 +335,16 @@ func (db *DB) GC() error {
 		return err
 	}
 	if numBytes != len(data) {
-		return errors.New("Num bytes read does not match expected length of data")
+		return newErrReadUnexpectedBytes("vlog")
 	}
 
-	type gcStruct struct {
+	type gcEntry struct {
 		offset uint64
 		key    string
 		value  string
 	}
 
-	gcStructs := []*gcStruct{}
+	gcEntries := []*gcEntry{}
 
 	i := 0
 	for i < len(data) {
@@ -309,23 +369,29 @@ func (db *DB) GC() error {
 		value := string(data[i : i+int(valueSize)])
 		i += int(valueSize)
 
-		gcStructs = append(gcStructs, &gcStruct{
+		gcEntries = append(gcEntries, &gcEntry{
 			offset: offset,
 			key:    key,
 			value:  value,
 		})
 	}
 
-	for _, gcs := range gcStructs {
-		entry, err := db.lsm.Find(gcs.key, 0)
+	for _, item := range gcEntries {
+		entry, err := db.lsm.Find(item.key, 0)
 		if err != nil {
-			continue
-		} else if entry.vlogOffset == gcs.offset {
-			err := db.Put(gcs.key, gcs.value)
+			switch err.(type) {
+			case *errKeyNotFound:
+				continue
+			default:
+				return err
+			}
+		} else if entry.vlogOffset == item.offset {
+			err := db.Put(item.key, item.value)
 			if err != nil {
 				return err
 			}
 		}
+
 	}
 
 	db.vlog.tail += uint64(i)
@@ -334,6 +400,16 @@ func (db *DB) GC() error {
 		return err
 	}
 
+	return nil
+}
+
+// Close gracefully closes the database
+func (db *DB) Close() error {
+	return nil
+}
+
+// ForceClose immediately shuts down the database. Good for testing
+func (db *DB) ForceClose() error {
 	return nil
 }
 
@@ -349,7 +425,9 @@ func (db *DB) run() {
 			}
 			// case <-gcTicker.C:
 			// 	if db.vlog.tail+gcThreshold < db.vlog.head {
+			// 		fmt.Println("Garbage Collecting...")
 			// 		err := db.GC()
+			// 		fmt.Println("Finished Garbage Collecting")
 			// 		if err != nil {
 			// 			fmt.Printf("error garbage collecting vlog: %v\n", err)
 			// 		}

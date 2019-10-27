@@ -3,6 +3,7 @@ package db
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -45,8 +46,14 @@ func NewVLog(directory string) (*VLog, error) {
 		openTime: 0 * time.Second,
 	}
 
-	f, err := os.OpenFile(vLog.fileName, os.O_CREATE|os.O_TRUNC, 0644)
-	defer f.Close()
+	f, err := os.OpenFile(vLog.fileName, os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		if !strings.HasSuffix(err.Error(), "file exists") {
+			return nil, err
+		}
+	} else {
+		f.Close()
+	}
 
 	info, err := os.Stat(vLog.fileName)
 	if err != nil {
