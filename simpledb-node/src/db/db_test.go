@@ -96,7 +96,7 @@ func TestDBOverlapPut(t *testing.T) {
 		value := strconv.Itoa(i + 1)
 		err = db.Put(key, value)
 		if err != nil {
-			t.Fatalf("Error Puting into LSM: %v\n", err)
+			t.Fatalf("Error Putting into LSM: %v\n", err)
 		}
 	}
 	duration := time.Since(startInsertTime)

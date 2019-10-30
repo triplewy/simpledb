@@ -19,14 +19,13 @@ type KeyRange struct {
 }
 
 type merge struct {
-	aboveFiles []string
-	belowFile  string
-	keyRange   *KeyRange
+	files    []string
+	keyRange *KeyRange
 }
 
 type compactReply struct {
-	mergedFiles []string
-	err         error
+	files []string
+	err   error
 }
 
 // Level represents struct for level in LSM tree
@@ -51,6 +50,8 @@ type Level struct {
 
 	above *Level
 	below *Level
+
+	close chan struct{}
 }
 
 // NewLevel creates a new level in the LSM tree
@@ -78,6 +79,8 @@ func NewLevel(level, capacity int, directory string) (*Level, error) {
 
 		above: nil,
 		below: nil,
+
+		close: make(chan struct{}),
 	}
 
 	err = lvl.RecoverLevel()
@@ -102,76 +105,76 @@ func (level *Level) getUniqueID() string {
 }
 
 // Merge takes an empty or existing file at the current level and merges it with file(s) from the level above
-func (level *Level) Merge(below string, above []string) {
-	if below == "" && len(above) == 1 {
-		info, err := os.Stat(above[0])
+func (level *Level) Merge(files []string) {
+	if len(files) == 1 {
+		file := files[0]
+		info, err := os.Stat(file)
 		if err != nil {
-			level.compactReplyChan <- &compactReply{mergedFiles: nil, err: err}
+			level.compactReplyChan <- &compactReply{files: nil, err: err}
 			return
 		}
 
 		size := int(info.Size())
 
-		aboveArr := strings.Split(above[0], "/")
-		aboveID := strings.Split(aboveArr[len(aboveArr)-1], ".")[0]
+		fileArr := strings.Split(file, "/")
+		oldFileID := strings.Split(fileArr[len(fileArr)-1], ".")[0]
 
-		fileID := level.getUniqueID()
+		newFileID := level.getUniqueID()
 
-		err = os.Rename(above[0], filepath.Join(level.directory, fileID+".sst"))
+		err = os.Rename(file, filepath.Join(level.directory, newFileID+".sst"))
 		if err != nil {
-			level.compactReplyChan <- &compactReply{mergedFiles: nil, err: err}
+			level.compactReplyChan <- &compactReply{files: nil, err: err}
 			return
 		}
 
 		level.above.manifestLock.Lock()
 		level.above.bloomLock.Lock()
-		startKey := level.above.manifest[aboveID].startKey
-		endKey := level.above.manifest[aboveID].endKey
-		bloom := level.above.blooms[aboveID]
-		delete(level.above.manifest, aboveID)
-		delete(level.above.blooms, aboveID)
+		level.above.mergeLock.Lock()
+		startKey := level.above.manifest[oldFileID].startKey
+		endKey := level.above.manifest[oldFileID].endKey
+		bloom := level.above.blooms[oldFileID]
+		delete(level.above.manifest, oldFileID)
+		delete(level.above.blooms, oldFileID)
+		delete(level.above.merging, oldFileID)
 		level.above.manifestLock.Unlock()
 		level.above.bloomLock.Unlock()
+		level.above.mergeLock.Unlock()
 
-		level.NewSSTFile(fileID, startKey, endKey, bloom)
+		level.NewSSTFile(newFileID, startKey, endKey, bloom)
 
 		level.size += size
-		level.above.compactReplyChan <- &compactReply{mergedFiles: []string{}, err: nil}
+		level.above.compactReplyChan <- &compactReply{files: []string{}, err: nil}
 		return
 	}
 
-	var values [][]byte
-
-	mergedAbove, err := mergeAbove(above)
+	values, err := mergeSort(files)
 	if err != nil {
-		level.compactReplyChan <- &compactReply{mergedFiles: nil, err: err}
+		level.compactReplyChan <- &compactReply{files: nil, err: err}
 		return
 	}
 
-	if below != "" {
-		belowValues, err := mmap(below)
-		if err != nil {
-			level.compactReplyChan <- &compactReply{mergedFiles: nil, err: err}
-			return
+	err = level.writeMerge(values)
+	if err != nil {
+		level.compactReplyChan <- &compactReply{files: nil, err: err}
+		return
+	}
+
+	aboveFiles := []string{}
+	belowFiles := []string{}
+
+	for _, file := range files {
+		if strings.Contains(file, "L"+strconv.Itoa(level.level)) {
+			belowFiles = append(belowFiles, file)
+		} else {
+			aboveFiles = append(aboveFiles, file)
 		}
-
-		values = mergeHelper(belowValues, mergedAbove)
-	} else {
-		values = mergedAbove
 	}
 
-	err = level.writeMerge(below, values)
-	if err != nil {
-		level.compactReplyChan <- &compactReply{mergedFiles: nil, err: err}
-		return
-	}
-	level.above.compactReplyChan <- &compactReply{mergedFiles: above, err: nil}
-	if below != "" {
-		level.compactReplyChan <- &compactReply{mergedFiles: []string{below}, err: nil}
-	}
+	level.above.compactReplyChan <- &compactReply{files: aboveFiles, err: nil}
+	level.compactReplyChan <- &compactReply{files: belowFiles, err: nil}
 }
 
-func (level *Level) writeMerge(below string, values [][]byte) error {
+func (level *Level) writeMerge(values [][]byte) error {
 	startItem := values[0]
 	startKeySize := uint8(startItem[0])
 	startKey := string(startItem[1 : 1+startKeySize])
@@ -209,8 +212,9 @@ func (level *Level) writeMerge(below string, values [][]byte) error {
 	}
 
 	dataBlocks = append(dataBlocks, block...)
-	header := createHeader(len(dataBlocks), len(indexBlock), len(bloom.bits))
-	data := append(header, append(append(dataBlocks, indexBlock...), bloom.bits...)...)
+	keyRangeEntry := createKeyRangeEntry(startKey, endKey)
+	header := createHeader(len(dataBlocks), len(indexBlock), len(bloom.bits), len(keyRangeEntry))
+	data := append(header, append(append(append(dataBlocks, indexBlock...), bloom.bits...), keyRangeEntry...)...)
 
 	var fileID string
 	var filename string
@@ -269,68 +273,43 @@ func (level *Level) Range(startKey, endKey string, replyChan chan []*LSMDataEntr
 	replyChan <- result
 }
 
+// Close closes all level's operations including merging, compacting, and adding SST files.
+func (level *Level) Close() {
+	level.close <- struct{}{}
+}
+
 func (level *Level) run() {
-	updateManifest := time.NewTicker(1 * time.Second)
-	exceedCapacity := time.NewTicker(500 * time.Millisecond)
+	exceedCapacity := time.NewTicker(1 * time.Second)
 
 	for {
 		select {
 		case compact := <-level.compactReqChan:
-			merging := []*merge{}
-
-			// Place manifest into merging array
+			var merged bool
 			level.manifestLock.RLock()
-			level.mergeLock.RLock()
-			for filename, keyRange := range level.manifest {
-				if _, ok := level.merging[filename]; !ok {
-					merging = append(merging, &merge{
-						aboveFiles: []string{},
-						belowFile:  filepath.Join(level.directory, filename+".sst"),
-						keyRange:   keyRange,
-					})
+			level.mergeLock.Lock()
+			for fileID, keyRange := range level.manifest {
+				if _, ok := level.merging[fileID]; !ok {
+					merge := &merge{
+						files:    []string{filepath.Join(level.directory, fileID+".sst")},
+						keyRange: keyRange,
+					}
+					merged, compact = mergeInterval(compact, merge)
+					if merged {
+						level.merging[fileID] = struct{}{}
+					}
 				}
 			}
 			level.manifestLock.RUnlock()
-			level.mergeLock.RUnlock()
-
-			for _, m1 := range compact {
-				sk1 := m1.keyRange.startKey
-				ek1 := m1.keyRange.endKey
-				merged := false
-
-				for i, m2 := range merging {
-					sk2 := m2.keyRange.startKey
-					ek2 := m2.keyRange.endKey
-
-					if (sk1 >= sk2 && sk1 <= ek2) || (ek1 >= sk2 && ek1 <= ek2) {
-						merging[i].aboveFiles = append(merging[i].aboveFiles, m1.aboveFiles...)
-
-						if sk1 < sk2 {
-							merging[i].keyRange.startKey = sk1
-						}
-						if ek1 > ek2 {
-							merging[i].keyRange.endKey = ek1
-						}
-
-						merged = true
-						break
-					}
-				}
-				if !merged {
-					merging = append(merging, m1)
-				}
-			}
+			level.mergeLock.Unlock()
 
 			var wg sync.WaitGroup
 
-			for _, mergeStruct := range merging {
-				if len(mergeStruct.aboveFiles) > 0 {
-					wg.Add(1)
-					go func(filename string, files []string) {
-						defer wg.Done()
-						level.Merge(filename, files)
-					}(mergeStruct.belowFile, mergeStruct.aboveFiles)
-				}
+			for _, merge := range compact {
+				wg.Add(1)
+				go func(files []string) {
+					defer wg.Done()
+					level.Merge(files)
+				}(merge.files)
 			}
 
 			wg.Wait()
@@ -338,15 +317,10 @@ func (level *Level) run() {
 			if reply.err != nil {
 				fmt.Println(reply.err)
 			} else {
-				err := level.DeleteSSTFiles(reply.mergedFiles)
+				err := level.DeleteSSTFiles(reply.files)
 				if err != nil {
 					fmt.Println(err)
 				}
-			}
-		case <-updateManifest.C:
-			err := level.UpdateManifest()
-			if err != nil {
-				fmt.Println(err)
 			}
 		case <-exceedCapacity.C:
 			if level.size > level.capacity && level.below != nil {
@@ -354,6 +328,8 @@ func (level *Level) run() {
 				compact := level.mergeManifest()
 				level.below.compactReqChan <- compact
 			}
+		case <-level.close:
+			return
 		}
 	}
 }

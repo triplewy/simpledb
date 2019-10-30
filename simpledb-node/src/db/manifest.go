@@ -8,13 +8,13 @@ import (
 )
 
 // NewSSTFile adds new SST file to in-memory manifest and sends update request to manifest channel
-func (level *Level) NewSSTFile(filename, startKey, endKey string, bloom *Bloom) {
+func (level *Level) NewSSTFile(fileID, startKey, endKey string, bloom *Bloom) {
 	level.manifestLock.Lock()
-	level.manifest[filename] = &KeyRange{startKey: startKey, endKey: endKey}
+	level.manifest[fileID] = &KeyRange{startKey: startKey, endKey: endKey}
 	level.manifestLock.Unlock()
 
 	level.bloomLock.Lock()
-	level.blooms[filename] = bloom
+	level.blooms[fileID] = bloom
 	level.bloomLock.Unlock()
 
 	if level.level == 0 && len(level.manifest)%compactThreshold == 0 {
@@ -165,48 +165,22 @@ func (level *Level) ReadManifest(filename string) (map[string]*KeyRange, error) 
 }
 
 func (level *Level) mergeManifest() []*merge {
-	level.manifestLock.RLock()
 	level.mergeLock.Lock()
-	defer level.manifestLock.RUnlock()
+	level.manifestLock.RLock()
 	defer level.mergeLock.Unlock()
+	defer level.manifestLock.RUnlock()
 
 	compact := []*merge{}
 
-	for filename, keyRange := range level.manifest {
-		if _, ok := level.merging[filename]; !ok {
-			sk1 := keyRange.startKey
-			ek1 := keyRange.endKey
-			merged := false
-
-			for i, mergeStruct := range compact {
-				sk2 := mergeStruct.keyRange.startKey
-				ek2 := mergeStruct.keyRange.endKey
-
-				if (sk1 >= sk2 && sk1 <= ek2) || (ek1 >= sk2 && ek1 <= ek2) {
-					compact[i].aboveFiles = append(compact[i].aboveFiles, filepath.Join(level.directory, filename+".sst"))
-
-					if sk1 < sk2 {
-						compact[i].keyRange.startKey = sk1
-					}
-					if ek1 > ek2 {
-						compact[i].keyRange.endKey = ek1
-					}
-					merged = true
-					break
-				}
+	for fileID, keyRange := range level.manifest {
+		if _, ok := level.merging[fileID]; !ok {
+			merge := &merge{
+				files:    []string{filepath.Join(level.directory, fileID+".sst")},
+				keyRange: keyRange,
 			}
-
-			if !merged {
-				compact = append(compact, &merge{
-					aboveFiles: []string{filepath.Join(level.directory, filename+".sst")},
-					belowFile:  "",
-					keyRange:   keyRange,
-				})
-			}
-
-			level.merging[filename] = struct{}{}
+			compact = append(compact, merge)
+			level.merging[fileID] = struct{}{}
 		}
 	}
-
-	return compact
+	return mergeIntervals(compact)
 }

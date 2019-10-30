@@ -27,6 +27,8 @@ type DB struct {
 
 	totalLsmReadDuration  time.Duration
 	totalVlogReadDuration time.Duration
+
+	close chan struct{}
 }
 
 // NewDB creates a new database by instantiating the LSM and Value Log
@@ -63,6 +65,8 @@ func NewDB(directory string) (*DB, error) {
 
 		totalLsmReadDuration:  0 * time.Second,
 		totalVlogReadDuration: 0 * time.Second,
+
+		close: make(chan struct{}, 1),
 	}
 
 	f, err := os.OpenFile(filepath.Join(directory, "metadata", "FLUSH_WAL"), os.O_CREATE|os.O_EXCL, os.ModePerm)
@@ -227,8 +231,6 @@ func (db *DB) flush(entries []*LSMDataEntry) error {
 	startKey := entries[0].key
 	endKey := entries[len(entries)-1].key
 
-	offset := uint64(0)
-
 	bloom := NewBloom(len(entries))
 
 	lsmBlocks := []byte{}
@@ -261,10 +263,6 @@ func (db *DB) flush(entries []*LSMDataEntry) error {
 		lsmBlock = append(lsmBlock, lsmEntry...)
 		// Insert into bloom filter
 		bloom.Insert(entry.key)
-		// Check if max offset
-		if entry.vlogOffset+uint64(entry.vlogSize) > offset {
-			offset = entry.vlogOffset + uint64(entry.vlogSize)
-		}
 	}
 
 	if len(lsmBlock) > 0 {
@@ -280,11 +278,6 @@ func (db *DB) flush(entries []*LSMDataEntry) error {
 
 	// Flush to LSM
 	err := db.lsm.Append(lsmBlocks, lsmIndex, bloom, startKey, endKey)
-	if err != nil {
-		return err
-	}
-	// Write to FLUSH_WAL
-	err = db.appendFlushWAL(offset)
 	if err != nil {
 		return err
 	}
@@ -404,13 +397,13 @@ func (db *DB) GC() error {
 }
 
 // Close gracefully closes the database
-func (db *DB) Close() error {
-	return nil
+func (db *DB) Close() {
+	db.close <- struct{}{}
 }
 
 // ForceClose immediately shuts down the database. Good for testing
-func (db *DB) ForceClose() error {
-	return nil
+func (db *DB) ForceClose() {
+	os.Exit(0)
 }
 
 func (db *DB) run() {
@@ -423,6 +416,10 @@ func (db *DB) run() {
 			if err != nil {
 				fmt.Printf("error flushing data from immutable table: %v\n", err)
 			}
+		case <-db.close:
+			db.lsm.Close()
+			db.vlog.Close()
+			return
 			// case <-gcTicker.C:
 			// 	if db.vlog.tail+gcThreshold < db.vlog.head {
 			// 		fmt.Println("Garbage Collecting...")

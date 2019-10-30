@@ -17,61 +17,64 @@ func (level *Level) RecoverLevel() error {
 		return err
 	}
 
-	foundManifestNew := false
-	manifest := make(map[string]*KeyRange)
+	// foundManifestNew := false
+	// manifest := make(map[string]*KeyRange)
 	filenames := make(map[string]string)
 
 	for _, fileInfo := range entries {
 		filename := fileInfo.Name()
 		if strings.HasSuffix(filename, ".sst") {
-			fmt.Println(filename)
 			fileID := strings.Split(filename, ".")[0]
 			filenames[fileID] = filepath.Join(level.directory, filename)
-		} else if filename == "manifest" && !foundManifestNew {
-			manifest, err = level.ReadManifest(filename)
-			if err != nil {
-				return err
-			}
-		} else if filename == "manifest_new" {
-			manifest, err = level.ReadManifest(filename)
-			if err != nil {
-				return err
-			}
-			foundManifestNew = true
 		}
+		// else if filename == "manifest" && !foundManifestNew {
+		// 	manifest, err = level.ReadManifest(filepath.Join(level.directory, filename))
+		// 	if err != nil {
+		// 		return err
+		// 	}
+		// } else if filename == "manifest_new" {
+		// 	manifest, err = level.ReadManifest(filepath.Join(level.directory, filename))
+		// 	if err != nil {
+		// 		return err
+		// 	}
+		// 	foundManifestNew = true
+		// }
 	}
 
 	// Delete missing files from manifest
-	for fileID := range manifest {
-		if _, ok := filenames[fileID]; !ok {
-			delete(manifest, fileID)
-		}
-	}
+	// for fileID := range manifest {
+	// 	if _, ok := filenames[fileID]; !ok {
+	// 		delete(manifest, fileID)
+	// 	}
+	// }
 
-	totalSize := 0
-	blooms := make(map[string]*Bloom)
+	// totalSize := 0
+	// blooms := make(map[string]*Bloom)
+
 	// Add files that are not in manifest
 	for fileID, filename := range filenames {
-		if _, ok := manifest[fileID]; !ok {
-			entries, bloom, size, err := RecoverFile(filename)
-			if err != nil {
-				return err
-			}
-			if len(entries) > 0 {
-				startKey := entries[0].key
-				endKey := entries[len(entries)-1].key
-				manifest[fileID] = &KeyRange{startKey: startKey, endKey: endKey}
-				// Only add to blooms map if file has any entries in the first place
-				blooms[fileID] = bloom
-				// Only add size if file has any entries
-				totalSize += size
-			}
+		entries, bloom, size, err := RecoverFile(filename)
+		if err != nil {
+			return err
+		}
+		// if _, ok := manifest[fileID]; !ok {
+		// 	if len(entries) > 0 {
+
+		// 	}
+		// }
+		if len(entries) > 0 {
+			fmt.Println(filename, len(entries))
+			startKey := entries[0].key
+			endKey := entries[len(entries)-1].key
+			level.manifest[fileID] = &KeyRange{startKey: startKey, endKey: endKey}
+			level.blooms[fileID] = bloom
+			level.size += size
 		}
 	}
 
-	level.manifest = manifest
-	level.blooms = blooms
-	level.size = totalSize
+	// level.manifest = manifest
+	// level.blooms = blooms
+	// level.size = totalSize
 	return nil
 }
 

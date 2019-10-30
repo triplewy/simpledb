@@ -44,6 +44,10 @@ func TestFileRange(t *testing.T) {
 		t.Fatalf("Error opening file: %v\n", err)
 	}
 
+	startKeySize := uint8(values[0][0])
+	startKey := string(values[0][1 : 1+startKeySize])
+	endKeySize := uint8(values[len(values)-1][0])
+	endKey := string(values[len(values)-1][1 : 1+endKeySize])
 	bloom := NewBloom(len(values))
 	indexBlock := []byte{}
 	dataBlocks := []byte{}
@@ -71,9 +75,10 @@ func TestFileRange(t *testing.T) {
 		i += copy(block[i:], item)
 	}
 
+	keyRangeEntry := createKeyRangeEntry(startKey, endKey)
 	dataBlocks = append(dataBlocks, block...)
-	header := createHeader(len(dataBlocks), len(indexBlock), len(bloom.bits))
-	data := append(header, append(append(dataBlocks, indexBlock...), bloom.bits...)...)
+	header := createHeader(len(dataBlocks), len(indexBlock), len(bloom.bits), len(keyRangeEntry))
+	data := append(header, append(append(append(dataBlocks, indexBlock...), bloom.bits...), keyRangeEntry...)...)
 
 	numBytes, err := f.Write(data)
 	if err != nil {

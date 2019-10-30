@@ -12,4 +12,4 @@ const multiplier = 10240
 
 const gcThreshold = 4 * 1024 * 1024
 
-const headerSize = 24
+const headerSize = 32

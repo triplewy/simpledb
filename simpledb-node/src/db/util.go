@@ -65,7 +65,7 @@ func populateSSTFile(keys []string, filename string) error {
 		}
 	}
 
-	header := createHeader(len(data), 0, 0)
+	header := createHeader(len(data), 0, 0, 0)
 
 	numBytes, err := f.Write(append(header, data...))
 	if err != nil {

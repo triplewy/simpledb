@@ -2,6 +2,7 @@ package db
 
 import (
 	"encoding/binary"
+	"fmt"
 	"os"
 )
 
@@ -38,11 +39,12 @@ func RecoverFile(filename string) (entries []*LSMIndexEntry, bloom *Bloom, size 
 		return nil, nil, 0, err
 	}
 
-	dataSize, indexSize, bloomSize, err := readHeader(f)
+	dataSize, indexSize, bloomSize, _, err := readHeader(f)
 	if err != nil {
 		return nil, nil, 0, err
 	}
 
+	fmt.Println("RecoverFile:", filename, indexSize, bloomSize)
 	indexAndBloom := make([]byte, indexSize+bloomSize)
 
 	numBytes, err := f.ReadAt(indexAndBloom, int64(headerSize+dataSize))
@@ -84,7 +86,7 @@ func fileFind(filename, key string, replyChan chan *LSMDataEntry, errChan chan e
 		return
 	}
 
-	dataSize, indexSize, _, err := readHeader(f)
+	dataSize, indexSize, _, _, err := readHeader(f)
 	if err != nil {
 		errChan <- err
 		return
@@ -132,7 +134,7 @@ func fileRangeQuery(filename, startKey, endKey string, replyChan chan []*LSMData
 		return
 	}
 
-	dataSize, indexSize, _, err := readHeader(f)
+	dataSize, indexSize, _, _, err := readHeader(f)
 	if err != nil {
 		errChan <- err
 		return

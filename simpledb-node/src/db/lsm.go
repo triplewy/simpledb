@@ -61,8 +61,9 @@ func (lsm *LSM) Append(blocks, index []byte, bloom *Bloom, startKey, endKey stri
 	level := lsm.levels[0]
 	fileID := level.getUniqueID()
 
-	header := createHeader(len(blocks), len(index), len(bloom.bits))
-	data := append(header, append(append(blocks, index...), bloom.bits...)...)
+	keyRangeEntry := createKeyRangeEntry(startKey, endKey)
+	header := createHeader(len(blocks), len(index), len(bloom.bits), len(keyRangeEntry))
+	data := append(header, append(append(append(blocks, index...), bloom.bits...), keyRangeEntry...)...)
 
 	err := writeNewFile(filepath.Join(level.directory, fileID+".sst"), data)
 	if err != nil {
@@ -177,4 +178,11 @@ func (lsm *LSM) Range(startKey, endKey string) ([]*LSMDataEntry, error) {
 	}
 
 	return result, nil
+}
+
+// Close closes all levels in the LSM
+func (lsm *LSM) Close() {
+	for _, level := range lsm.levels {
+		level.Close()
+	}
 }

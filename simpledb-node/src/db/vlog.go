@@ -18,6 +18,8 @@ type VLog struct {
 	appendChan chan *appendRequest
 
 	openTime time.Duration
+
+	close chan struct{}
 }
 
 type appendRequest struct {
@@ -44,6 +46,8 @@ func NewVLog(directory string) (*VLog, error) {
 		appendChan: make(chan *appendRequest),
 
 		openTime: 0 * time.Second,
+
+		close: make(chan struct{}),
 	}
 
 	f, err := os.OpenFile(vLog.fileName, os.O_CREATE|os.O_EXCL, 0644)
@@ -83,21 +87,12 @@ func (vlog *VLog) Append(key, value string) (*LSMDataEntry, error) {
 		errChan:   errChan,
 	}
 
-	var entry *LSMDataEntry
-	var err error
-
 	select {
 	case reply := <-replyChan:
-		entry = reply
 		return reply, nil
-	case reply := <-errChan:
-		err = reply
-	}
-
-	if err != nil {
+	case err := <-errChan:
 		return nil, err
 	}
-	return entry, nil
 }
 
 func (vlog *VLog) append(key, value string) (*LSMDataEntry, error) {
@@ -209,6 +204,11 @@ func (vlog *VLog) Range(queries []*LSMDataEntry) ([]*KVPair, error) {
 	return result, nil
 }
 
+// Close closes the vlog by blocking append requests
+func (vlog *VLog) Close() {
+	vlog.close <- struct{}{}
+}
+
 func parallelRead(f *os.File, offset uint64, size uint32, replyChan chan *KVPair, errChan chan error) {
 	data := make([]byte, size)
 
@@ -239,6 +239,8 @@ func (vlog *VLog) run() {
 			} else {
 				req.replyChan <- result
 			}
+		case <-vlog.close:
+			return
 		}
 	}
 }
