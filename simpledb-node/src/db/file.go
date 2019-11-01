@@ -9,24 +9,20 @@ import (
 func writeNewFile(filename string, data []byte) error {
 	f, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
 	defer f.Close()
-
 	if err != nil {
 		return err
 	}
-
 	numBytes, err := f.Write(data)
 	if err != nil {
 		return err
 	}
 	if numBytes != len(data) {
-		return newErrWriteUnexpectedBytes(filename)
+		return ErrWriteUnexpectedBytes(filename)
 	}
-
 	err = f.Sync()
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -52,7 +48,7 @@ func RecoverFile(filename string) (entries []*LSMIndexEntry, bloom *Bloom, size 
 		return nil, nil, 0, err
 	}
 	if numBytes != len(indexAndBloom) {
-		return nil, nil, 0, newErrWriteUnexpectedBytes(filename)
+		return nil, nil, 0, ErrWriteUnexpectedBytes(filename)
 	}
 
 	index := indexAndBloom[:indexSize]
@@ -100,20 +96,24 @@ func fileFind(filename, key string, replyChan chan *LSMDataEntry, errChan chan e
 	}
 
 	if numBytes != int(indexSize) {
-		errChan <- newErrReadUnexpectedBytes("SST File, Index Block")
+		errChan <- ErrReadUnexpectedBytes("SST File, Index Block")
 		return
 	}
 
-	blockIndex := findDataBlock(key, index)
-
-	block := make([]byte, blockSize)
-	numBytes, err = f.ReadAt(block, headerSize+int64(blockSize*int(blockIndex)))
+	blockIndex, err := findDataBlock(key, index)
 	if err != nil {
 		errChan <- err
 		return
 	}
-	if numBytes != blockSize {
-		errChan <- newErrReadUnexpectedBytes("SST File, Data Block")
+
+	block := make([]byte, BlockSize)
+	numBytes, err = f.ReadAt(block, headerSize+int64(BlockSize*int(blockIndex)))
+	if err != nil {
+		errChan <- err
+		return
+	}
+	if numBytes != BlockSize {
+		errChan <- ErrReadUnexpectedBytes("SST File, Data Block")
 		return
 	}
 
@@ -147,22 +147,22 @@ func fileRangeQuery(filename, startKey, endKey string, replyChan chan []*LSMData
 		return
 	}
 	if numBytes != int(indexSize) {
-		errChan <- newErrReadUnexpectedBytes("SST File, Index Block")
+		errChan <- ErrReadUnexpectedBytes("SST File, Index Block")
 		return
 	}
 
 	startBlock, endBlock := rangeDataBlocks(startKey, endKey, index)
 
-	size := int(endBlock+1)*blockSize - int(startBlock)*blockSize
+	size := int(endBlock+1)*BlockSize - int(startBlock)*BlockSize
 	blocks := make([]byte, size)
 
-	numBytes, err = f.ReadAt(blocks, headerSize+int64(blockSize*int(startBlock)))
+	numBytes, err = f.ReadAt(blocks, headerSize+int64(BlockSize*int(startBlock)))
 	if err != nil {
 		errChan <- err
 		return
 	}
 	if numBytes != size {
-		errChan <- newErrReadUnexpectedBytes("SST File, Data Block")
+		errChan <- ErrReadUnexpectedBytes("SST File, Data Block")
 		return
 	}
 
@@ -170,121 +170,102 @@ func fileRangeQuery(filename, startKey, endKey string, replyChan chan []*LSMData
 	replyChan <- lsmEntries
 }
 
-func findDataBlock(key string, index []byte) uint32 {
+func findDataBlock(key string, index []byte) (uint32, error) {
 	i := 0
-	block := uint32(0)
 	for i < len(index) {
 		size := uint8(index[i])
 		i++
 		indexKey := string(index[i : i+int(size)])
 		i += int(size)
-
-		if key < indexKey {
-			return binary.LittleEndian.Uint32(index[i:i+4]) - 1
-		} else if key == indexKey {
-			return binary.LittleEndian.Uint32(index[i : i+4])
+		if key <= indexKey {
+			return binary.LittleEndian.Uint32(index[i : i+4]), nil
 		}
 		i += 4
-		block++
 	}
-
-	return block - 1
+	return 0, ErrKeyNotFound()
 }
 
 func findKeyInBlock(key string, block []byte) (*LSMDataEntry, error) {
 	i := 0
-
-	for i < len(block) && block[i] != byte(0) {
+	for i < len(block) {
+		seqID := binary.LittleEndian.Uint64(block[i : i+8])
+		i += 8
 		keySize := uint8(block[i])
 		i++
 		foundKey := string(block[i : i+int(keySize)])
 		i += int(keySize)
+		valueType := uint8(block[i])
+		i++
+		valueSize := binary.LittleEndian.Uint16(block[i : i+2])
+		i += 2
+		value := block[i : i+int(valueSize)]
+		i += int(valueSize)
+
 		if key == foundKey {
-			vlogOffset := binary.LittleEndian.Uint64(block[i : i+8])
-			i += 8
-			vlogSize := binary.LittleEndian.Uint32(block[i : i+4])
-			i += 4
 			return &LSMDataEntry{
-				keySize:    keySize,
-				key:        key,
-				vlogOffset: vlogOffset,
-				vlogSize:   vlogSize,
+				seqID:     seqID,
+				keySize:   keySize,
+				key:       key,
+				valueType: valueType,
+				valueSize: valueSize,
+				value:     value,
 			}, nil
 		}
-		i += 12
 	}
-
-	return nil, newErrKeyNotFound()
+	return nil, ErrKeyNotFound()
 }
 
 func rangeDataBlocks(startKey, endKey string, index []byte) (startBlock, endBlock uint32) {
-	foundStart := false
-
 	i := 0
-	block := uint32(0)
-
 	for i < len(index) {
 		size := uint8(index[i])
 		i++
 		indexKey := string(index[i : i+int(size)])
 		i += int(size)
-
-		if indexKey == startKey {
-			startBlock = binary.LittleEndian.Uint32(index[i : i+4])
-			foundStart = true
-		} else if indexKey == endKey {
-			endBlock = binary.LittleEndian.Uint32(index[i : i+4])
-			return startBlock, endBlock
-		} else if startKey < indexKey && indexKey < endKey {
-			if !foundStart {
-				start := binary.LittleEndian.Uint32(index[i : i+4])
-				if start == 0 {
-					startBlock = uint32(0)
-				} else {
-					startBlock = start - 1
-				}
-				foundStart = true
-			}
-		} else if indexKey > endKey {
-			endBlock = binary.LittleEndian.Uint32(index[i:i+4]) - 1
+		block := binary.LittleEndian.Uint32(index[i : i+4])
+		i += 4
+		if startKey <= indexKey {
+			startBlock = block
+		}
+		if endKey <= indexKey {
+			endBlock = block
 			return startBlock, endBlock
 		}
-		i += 4
-		block++
 	}
-	return startBlock, block - 1
+	return startBlock, endBlock
 }
 
-func findKeysInBlocks(startKey, endKey string, data []byte) []*LSMDataEntry {
-	result := []*LSMDataEntry{}
-
-	for i := 0; i < len(data); i += blockSize {
-		block := data[i : i+blockSize]
+func findKeysInBlocks(startKey, endKey string, data []byte) (entries []*LSMDataEntry) {
+	for i := 0; i < len(data); i += BlockSize {
+		block := data[i : i+BlockSize]
 		j := 0
-		for j < len(block) && block[j] != byte(0) {
-			keySize := uint8(block[j])
-			j++
-			key := string(block[j : j+int(keySize)])
-			j += int(keySize)
+		for j < len(block) {
+			seqID := binary.LittleEndian.Uint64(block[i : i+8])
+			i += 8
+			keySize := uint8(block[i])
+			i++
+			key := string(block[i : i+int(keySize)])
+			i += int(keySize)
+			valueType := uint8(block[i])
+			i++
+			valueSize := binary.LittleEndian.Uint16(block[i : i+2])
+			i += 2
+			value := block[i : i+int(valueSize)]
+			i += int(valueSize)
 
-			if key < startKey {
-				j += 12
-			} else if startKey <= key && key <= endKey {
-				vlogOffset := binary.LittleEndian.Uint64(block[j : j+8])
-				j += 8
-				vlogSize := binary.LittleEndian.Uint32(block[j : j+4])
-				j += 4
-				result = append(result, &LSMDataEntry{
-					keySize:    keySize,
-					key:        key,
-					vlogOffset: vlogOffset,
-					vlogSize:   vlogSize,
+			if startKey <= key && key <= endKey {
+				entries = append(entries, &LSMDataEntry{
+					seqID:     seqID,
+					keySize:   keySize,
+					key:       key,
+					valueType: valueType,
+					valueSize: valueSize,
+					value:     value,
 				})
-			} else {
-				return result
+			} else if key > endKey {
+				return entries
 			}
 		}
 	}
-
-	return result
+	return entries
 }

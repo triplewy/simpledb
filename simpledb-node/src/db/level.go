@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -118,7 +119,6 @@ func (level *Level) Merge(files []string) {
 
 		fileArr := strings.Split(file, "/")
 		oldFileID := strings.Split(fileArr[len(fileArr)-1], ".")[0]
-
 		newFileID := level.getUniqueID()
 
 		err = os.Rename(file, filepath.Join(level.directory, newFileID+".sst"))
@@ -130,8 +130,7 @@ func (level *Level) Merge(files []string) {
 		level.above.manifestLock.Lock()
 		level.above.bloomLock.Lock()
 		level.above.mergeLock.Lock()
-		startKey := level.above.manifest[oldFileID].startKey
-		endKey := level.above.manifest[oldFileID].endKey
+		keyRange := level.above.manifest[oldFileID]
 		bloom := level.above.blooms[oldFileID]
 		delete(level.above.manifest, oldFileID)
 		delete(level.above.blooms, oldFileID)
@@ -140,20 +139,18 @@ func (level *Level) Merge(files []string) {
 		level.above.bloomLock.Unlock()
 		level.above.mergeLock.Unlock()
 
-		level.NewSSTFile(newFileID, startKey, endKey, bloom)
-
+		level.NewSSTFile(newFileID, keyRange, bloom)
 		level.size += size
-		level.above.compactReplyChan <- &compactReply{files: []string{}, err: nil}
 		return
 	}
 
-	values, err := mergeSort(files)
+	entries, err := mergeSort(files)
 	if err != nil {
 		level.compactReplyChan <- &compactReply{files: nil, err: err}
 		return
 	}
 
-	err = level.writeMerge(values)
+	err = level.writeMerge(entries)
 	if err != nil {
 		level.compactReplyChan <- &compactReply{files: nil, err: err}
 		return
@@ -174,61 +171,25 @@ func (level *Level) Merge(files []string) {
 	level.compactReplyChan <- &compactReply{files: belowFiles, err: nil}
 }
 
-func (level *Level) writeMerge(values [][]byte) error {
-	startItem := values[0]
-	startKeySize := uint8(startItem[0])
-	startKey := string(startItem[1 : 1+startKeySize])
-
-	endItem := values[len(values)-1]
-	endKeySize := uint8(endItem[0])
-	endKey := string(endItem[1 : 1+endKeySize])
-
-	bloom := NewBloom(len(values))
-
-	indexBlock := []byte{}
-	dataBlocks := []byte{}
-	block := make([]byte, blockSize)
-	currBlock := uint32(0)
-
-	i := 0
-	for _, item := range values {
-		if i+len(item) > blockSize {
-			dataBlocks = append(dataBlocks, block...)
-			block = make([]byte, blockSize)
-			i = 0
-		}
-
-		keySize := uint8(item[0])
-		key := string(item[1 : 1+keySize])
-
-		if i == 0 {
-			indexEntry := createLsmIndex(key, currBlock)
-			indexBlock = append(indexBlock, indexEntry...)
-
-			currBlock++
-		}
-		bloom.Insert(key)
-		i += copy(block[i:], item)
-	}
-
-	dataBlocks = append(dataBlocks, block...)
-	keyRangeEntry := createKeyRangeEntry(startKey, endKey)
-	header := createHeader(len(dataBlocks), len(indexBlock), len(bloom.bits), len(keyRangeEntry))
-	data := append(header, append(append(append(dataBlocks, indexBlock...), bloom.bits...), keyRangeEntry...)...)
-
-	var fileID string
-	var filename string
-
-	fileID = level.getUniqueID()
-	filename = filepath.Join(level.directory, fileID+".sst")
-
-	err := writeNewFile(filename, data)
+func (level *Level) writeMerge(entries []*LSMDataEntry) error {
+	dataBlocks, indexBlock, bloom, keyRange, err := writeDataEntries(entries)
 	if err != nil {
 		return err
 	}
 
-	level.NewSSTFile(fileID, startKey, endKey, bloom)
+	keyRangeEntry := createKeyRangeEntry(keyRange)
+	header := createHeader(len(dataBlocks), len(indexBlock), len(bloom.bits), len(keyRangeEntry))
+	data := append(header, append(append(append(dataBlocks, indexBlock...), bloom.bits...), keyRangeEntry...)...)
 
+	fileID := level.getUniqueID()
+	filename := filepath.Join(level.directory, fileID+".sst")
+
+	err = writeNewFile(filename, data)
+	if err != nil {
+		return err
+	}
+
+	level.NewSSTFile(fileID, keyRange, bloom)
 	level.size += len(data)
 
 	return nil
@@ -271,6 +232,42 @@ func (level *Level) Range(startKey, endKey string, replyChan chan []*LSMDataEntr
 		return
 	}
 	replyChan <- result
+}
+
+// RecoverLevel reads all files at a level's directory and updates all necessary in-memory data for the level.
+// In particular, it updates the level's total size, manifest, and bloom filters.
+func (level *Level) RecoverLevel() error {
+	entries, err := ioutil.ReadDir(level.directory)
+	if err != nil {
+		return err
+	}
+
+	filenames := make(map[string]string)
+
+	for _, fileInfo := range entries {
+		filename := fileInfo.Name()
+		if strings.HasSuffix(filename, ".sst") {
+			fileID := strings.Split(filename, ".")[0]
+			filenames[fileID] = filepath.Join(level.directory, filename)
+		}
+	}
+
+	for fileID, filename := range filenames {
+		entries, bloom, size, err := RecoverFile(filename)
+		if err != nil {
+			return err
+		}
+		if len(entries) > 0 {
+			fmt.Println(filename, len(entries))
+			startKey := entries[0].key
+			endKey := entries[len(entries)-1].key
+			level.manifest[fileID] = &KeyRange{startKey: startKey, endKey: endKey}
+			level.blooms[fileID] = bloom
+			level.size += size
+		}
+	}
+
+	return nil
 }
 
 // Close closes all level's operations including merging, compacting, and adding SST files.

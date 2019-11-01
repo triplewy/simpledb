@@ -32,7 +32,6 @@ func TestRecoverLevels(t *testing.T) {
 	}
 	duration := time.Since(startInsertTime)
 	fmt.Printf("Duration inserting %d items: %v\n", numItems, duration)
-	fmt.Printf("Duration opening vlog: %v\n", db.vlog.openTime)
 
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(1000000000000000000 + i)

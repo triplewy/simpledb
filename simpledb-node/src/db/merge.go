@@ -1,11 +1,12 @@
 package db
 
 import (
+	"encoding/binary"
 	"os"
 	"sort"
 )
 
-func mergeSort(files []string) ([][]byte, error) {
+func mergeSort(files []string) ([]*LSMDataEntry, error) {
 	if len(files) > 1 {
 		mid := len(files) / 2
 
@@ -26,109 +27,113 @@ func mergeSort(files []string) ([][]byte, error) {
 	return mmap(files[0])
 }
 
-func mergeHelper(left, right [][]byte) [][]byte {
+func mergeHelper(left, right []*LSMDataEntry) (entries []*LSMDataEntry) {
 	od := newOrderedDict()
 	i, j := 0, 0
 
 	for i < len(left) && j < len(right) {
-		leftEntry := newODValue(left[i])
-		rightEntry := newODValue(right[j])
+		leftEntry := left[i]
+		rightEntry := right[j]
 
-		if val, ok := od.Get(leftEntry.Key()); ok {
-			if val.(odValue).Offset() < leftEntry.Offset() {
-				od.Set(leftEntry.Key(), leftEntry)
+		if val, ok := od.Get(leftEntry.key); ok {
+			if val.(*LSMDataEntry).seqID < leftEntry.seqID {
+				od.Set(leftEntry.key, leftEntry)
 			}
 			i++
 			continue
 		}
 
-		if val, ok := od.Get(rightEntry.Key()); ok {
-			if val.(odValue).Offset() < rightEntry.Offset() {
-				od.Set(rightEntry.Key(), rightEntry)
+		if val, ok := od.Get(rightEntry.key); ok {
+			if val.(*LSMDataEntry).seqID < rightEntry.seqID {
+				od.Set(rightEntry.key, rightEntry)
 			}
 			j++
 			continue
 		}
 
-		if leftEntry.Key() < rightEntry.Key() {
-			od.Set(leftEntry.Key(), leftEntry)
+		if leftEntry.key < rightEntry.key {
+			od.Set(leftEntry.key, leftEntry)
 			i++
-		} else if leftEntry.Key() == rightEntry.Key() {
-			if leftEntry.Offset() > rightEntry.Offset() {
-				od.Set(leftEntry.Key(), leftEntry)
+		} else if leftEntry.key == rightEntry.key {
+			if leftEntry.seqID > rightEntry.seqID {
+				od.Set(leftEntry.key, leftEntry)
 			} else {
-				od.Set(rightEntry.Key(), rightEntry)
+				od.Set(rightEntry.key, rightEntry)
 			}
 			i++
 			j++
 		} else {
-			od.Set(rightEntry.Key(), rightEntry)
+			od.Set(rightEntry.key, rightEntry)
 			j++
 		}
 	}
 
 	for i < len(left) {
-		leftEntry := newODValue(left[i])
-		od.Set(leftEntry.Key(), leftEntry)
+		leftEntry := left[i]
+		od.Set(leftEntry.key, leftEntry)
 		i++
 	}
 
 	for j < len(right) {
-		rightEntry := newODValue(right[j])
-		od.Set(rightEntry.Key(), rightEntry)
+		rightEntry := right[j]
+		od.Set(rightEntry.key, rightEntry)
 		j++
 	}
 
-	result := [][]byte{}
-
 	for val := range od.Iterate() {
-		result = append(result, val.(odValue).Entry())
+		entries = append(entries, val.(*LSMDataEntry))
 	}
 
-	return result
+	return entries
 }
 
-func mmap(filename string) ([][]byte, error) {
+func mmap(filename string) (entries []*LSMDataEntry, err error) {
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	defer f.Close()
-
 	if err != nil {
 		return nil, err
 	}
-
 	dataSize, _, _, _, err := readHeader(f)
 	if err != nil {
 		return nil, err
 	}
-
-	buffer := make([]byte, dataSize)
-
-	numBytes, err := f.ReadAt(buffer, headerSize)
+	data := make([]byte, dataSize)
+	numBytes, err := f.ReadAt(data, headerSize)
 	if err != nil {
 		return nil, err
 	}
-
-	if numBytes != len(buffer) {
-		return nil, newErrReadUnexpectedBytes("Data Block")
+	if numBytes != len(data) {
+		return nil, ErrReadUnexpectedBytes("SST File")
 	}
 
-	keys := [][]byte{}
-
-	for i := 0; i < len(buffer); i += blockSize {
-		block := buffer[i : i+blockSize]
+	for i := 0; i < len(data); i += BlockSize {
+		block := data[i : i+BlockSize]
 		j := 0
-		for j < len(block) && block[j] != byte(0) {
-			keySize := uint8(block[j])
-			j++
-			entry := make([]byte, 13+int(keySize))
-			copy(entry[0:], []byte{keySize})
-			copy(entry[1:], block[j:j+int(keySize)+12])
-			j += int(keySize) + 12
-			keys = append(keys, entry)
+		for j < len(block) {
+			seqID := binary.LittleEndian.Uint64(block[i : i+8])
+			i += 8
+			keySize := uint8(block[i])
+			i++
+			key := string(block[i : i+int(keySize)])
+			i += int(keySize)
+			valueType := uint8(block[i])
+			i++
+			valueSize := binary.LittleEndian.Uint16(block[i : i+2])
+			i += 2
+			value := block[i : i+int(valueSize)]
+			i += int(valueSize)
+
+			entries = append(entries, &LSMDataEntry{
+				seqID:     seqID,
+				keySize:   keySize,
+				key:       key,
+				valueType: valueType,
+				valueSize: valueSize,
+				value:     value,
+			})
 		}
 	}
-
-	return keys, nil
+	return entries, nil
 }
 
 func mergeIntervals(intervals []*merge) []*merge {
@@ -152,7 +157,6 @@ func mergeIntervals(intervals []*merge) []*merge {
 			} else {
 				if nextEnd > currEnd {
 					curr.keyRange.endKey = nextEnd
-					curr.files = append(curr.files, interval.files...)
 				}
 				curr.files = append(curr.files, interval.files...)
 			}

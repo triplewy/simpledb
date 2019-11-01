@@ -1,7 +1,5 @@
 package db
 
-import "encoding/binary"
-
 type linkedListNode struct {
 	next *linkedListNode
 	prev *linkedListNode
@@ -123,39 +121,4 @@ func (d *orderedDict) Iterate() chan interface{} {
 	}()
 
 	return ch
-}
-
-type odValue interface {
-	Offset() uint64
-	Key() string
-	Entry() []byte
-}
-
-type offsetEntry struct {
-	offset uint64
-	key    string
-	entry  []byte
-}
-
-func (e *offsetEntry) Offset() uint64 {
-	return e.offset
-}
-
-func (e *offsetEntry) Key() string {
-	return e.key
-}
-
-func (e *offsetEntry) Entry() []byte {
-	return e.entry
-}
-
-func newODValue(input []byte) odValue {
-	keySize := uint8(input[0])
-	key := string(input[1 : 1+keySize])
-	offsetBytes := input[1+keySize : 1+keySize+8]
-	offset := binary.LittleEndian.Uint64(offsetBytes)
-
-	var result odValue
-	result = &offsetEntry{offset: offset, key: key, entry: input}
-	return result
 }

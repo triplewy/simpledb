@@ -108,17 +108,14 @@ func readAllSSTs() ([]map[string]bool, error) {
 }
 
 func readAllKeys(filename string) ([]string, error) {
-	values, err := mmap(filename)
+	entries, err := mmap(filename)
 	if err != nil {
 		return nil, err
 	}
+	result := make([]string, len(entries))
 
-	result := make([]string, len(values))
-
-	for i, val := range values {
-		keySize := uint8(val[0])
-		result[i] = string(val[1 : 1+keySize])
+	for i, entry := range entries {
+		result[i] = entry.key
 	}
-
 	return result, nil
 }

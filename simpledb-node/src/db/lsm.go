@@ -12,21 +12,6 @@ type LSM struct {
 	levels []*Level
 }
 
-// LSMDataEntry is struct that represents an entry into an LSM Data Block
-type LSMDataEntry struct {
-	keySize    uint8
-	key        string
-	vlogOffset uint64
-	vlogSize   uint32
-}
-
-// LSMIndexEntry is struct that represents an entry into an LSM Index Block
-type LSMIndexEntry struct {
-	keySize uint8
-	key     string
-	block   uint32
-}
-
 // NewLSM instatiates all levels for a new LSM tree
 func NewLSM(directory string) (*LSM, error) {
 	levels := []*Level{}
@@ -57,20 +42,21 @@ func NewLSM(directory string) (*LSM, error) {
 
 // Append takes data blocks, an index block, and a key range as input and writes an SST File to level 0.
 // It then adds this new file to level 0's manifest
-func (lsm *LSM) Append(blocks, index []byte, bloom *Bloom, startKey, endKey string) error {
+func (lsm *LSM) Append(blocks, index []byte, bloom *Bloom, keyRange *KeyRange) error {
 	level := lsm.levels[0]
 	fileID := level.getUniqueID()
+	filename := filepath.Join(level.directory, fileID+".sst")
 
-	keyRangeEntry := createKeyRangeEntry(startKey, endKey)
+	keyRangeEntry := createKeyRangeEntry(keyRange)
 	header := createHeader(len(blocks), len(index), len(bloom.bits), len(keyRangeEntry))
 	data := append(header, append(append(append(blocks, index...), bloom.bits...), keyRangeEntry...)...)
 
-	err := writeNewFile(filepath.Join(level.directory, fileID+".sst"), data)
+	err := writeNewFile(filename, data)
 	if err != nil {
 		return err
 	}
 
-	level.NewSSTFile(fileID, startKey, endKey, bloom)
+	level.NewSSTFile(fileID, keyRange, bloom)
 
 	return nil
 }
@@ -79,7 +65,7 @@ func (lsm *LSM) Append(blocks, index []byte, bloom *Bloom, startKey, endKey stri
 // returns if a result is found for the given key. If no result is found, Find throws an error
 func (lsm *LSM) Find(key string, levelNum int) (*LSMDataEntry, error) {
 	if levelNum > 6 {
-		return nil, newErrKeyNotFound()
+		return nil, ErrKeyNotFound()
 	}
 
 	level := lsm.levels[levelNum]
@@ -121,7 +107,7 @@ func (lsm *LSM) Find(key string, levelNum int) (*LSMDataEntry, error) {
 		if len(replies) > 1 {
 			latestUpdate := replies[0]
 			for i := 1; i < len(replies); i++ {
-				if replies[i].vlogOffset > latestUpdate.vlogOffset {
+				if replies[i].seqID > latestUpdate.seqID {
 					latestUpdate = replies[i]
 				}
 			}
@@ -177,6 +163,22 @@ func (lsm *LSM) Range(startKey, endKey string) ([]*LSMDataEntry, error) {
 		return result, errs[0]
 	}
 
+	// resultMap := make(map[string]*LSMDataEntry)
+
+	// for _, entry := range all {
+	// 	if value, ok := resultMap[entry.key]; !ok {
+	// 		resultMap[entry.key] = entry
+	// 	} else {
+	// 		if value.seqID < entry.seqID {
+	// 			resultMap[entry.key] = entry
+	// 		}
+	// 	}
+	// }
+
+	// result := []*LSMDataEntry{}
+	// for _, entry := range resultMap {
+
+	// }
 	return result, nil
 }
 

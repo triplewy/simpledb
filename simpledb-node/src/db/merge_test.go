@@ -47,16 +47,15 @@ func TestMergeAbove1(t *testing.T) {
 		t.Errorf("Error populating file: %v\n", err)
 	}
 
-	result, err := mergeSort([]string{"data/L0/test2", "data/L0/test1", "data/L0/test3", "data/L0/test4"})
+	entries, err := mergeSort([]string{"data/L0/test2", "data/L0/test1", "data/L0/test3", "data/L0/test4"})
 	if err != nil {
 		t.Errorf("Error merge sorting files: %v\n", err)
 	}
 
 	i := 0
-	for _, item := range result {
-		keySize := uint(item[0])
-		key := item[1 : 1+keySize]
-		if string(key) != strconv.Itoa(1000000000000000000+i) {
+	for _, entry := range entries {
+		key := entry.key
+		if key != strconv.Itoa(1000000000000000000+i) {
 			t.Errorf("Did not sort files properly. Expected: %s, Got: %s\n", strconv.Itoa(1000000000000000000+i), string(key))
 		}
 		i++
@@ -97,16 +96,15 @@ func TestMergeAbove2(t *testing.T) {
 		t.Errorf("Error populating file: %v\n", err)
 	}
 
-	result, err := mergeSort([]string{"data/L0/test2", "data/L0/test1", "data/L0/test3"})
+	entries, err := mergeSort([]string{"data/L0/test2", "data/L0/test1", "data/L0/test3"})
 	if err != nil {
 		t.Errorf("Error merge sorting files: %v\n", err)
 	}
 
 	i := 0
-	for _, item := range result {
-		keySize := uint(item[0])
-		key := item[1 : 1+keySize]
-		if string(key) != strconv.Itoa(1000000000000000000+i) {
+	for _, entry := range entries {
+		key := entry.key
+		if key != strconv.Itoa(1000000000000000000+i) {
 			t.Errorf("Did not sort files properly. Expected: %s, Got: %s\n", strconv.Itoa(1000000000000000000+i), string(key))
 		}
 		i++

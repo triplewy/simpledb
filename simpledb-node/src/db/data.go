@@ -58,16 +58,16 @@ func createLsmIndex(key string, block uint32) []byte {
 	return indexEntry
 }
 
-func createKeyRangeEntry(startKey, endKey string) []byte {
+func createKeyRangeEntry(keyRange *KeyRange) []byte {
 	data := []byte{}
 
-	startKeySize := uint8(len(startKey))
-	endKeySize := uint8(len(endKey))
+	startKeySize := uint8(len(keyRange.startKey))
+	endKeySize := uint8(len(keyRange.endKey))
 
 	data = append(data, startKeySize)
-	data = append(data, []byte(startKey)...)
+	data = append(data, []byte(keyRange.startKey)...)
 	data = append(data, endKeySize)
-	data = append(data, []byte(endKey)...)
+	data = append(data, []byte(keyRange.endKey)...)
 	return data
 }
 
@@ -95,7 +95,7 @@ func readHeader(f *os.File) (dataSize, indexSize, bloomSize, keyRangeSize uint64
 		return 0, 0, 0, 0, err
 	}
 	if numBytes != len(header) {
-		return 0, 0, 0, 0, newErrReadUnexpectedBytes("Header")
+		return 0, 0, 0, 0, ErrReadUnexpectedBytes("Header")
 	}
 
 	dataSize = binary.LittleEndian.Uint64(header[:8])
@@ -117,7 +117,7 @@ func appendDataBlock(block, input []byte) (oldBlock, newBlock []byte) {
 
 	entry := createLsmEntry(key, offset, size)
 
-	if len(block)+len(entry) > blockSize {
+	if len(block)+len(entry) > BlockSize {
 		appendBlock = []byte{}
 		createdNewBlock = true
 	} else {

@@ -1,7 +1,6 @@
 package db
 
 import (
-	"encoding/binary"
 	"math"
 	"os"
 	"strconv"
@@ -15,68 +14,29 @@ func TestFileRange(t *testing.T) {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
 
-	values := [][]byte{}
+	entries := []*LSMDataEntry{}
 
 	for i := 0; i < 10000; i++ {
-		value := strconv.Itoa(int(math.Pow10(9)) + i)
-		valueSize := uint8(len(value))
-		offset := uint64(i)
-		size := uint32(0)
+		key := strconv.Itoa(int(math.Pow10(9)) + i)
+		entry, err := createDataEntry(uint64(i), key, key)
+		if err != nil {
+			t.Fatalf("Error creating data entry: %v\n", err)
+		}
+		entries = append(entries, entry)
+	}
 
-		offsetBytes := make([]byte, 8)
-		sizeBytes := make([]byte, 4)
-
-		binary.LittleEndian.PutUint64(offsetBytes, offset)
-		binary.LittleEndian.PutUint32(sizeBytes, size)
-
-		entry := []byte{valueSize}
-		entry = append(entry, value...)
-		entry = append(entry, offsetBytes...)
-		entry = append(entry, sizeBytes...)
-
-		values = append(values, entry)
+	dataBlocks, indexBlock, bloom, keyRange, err := writeDataEntries(entries)
+	if err != nil {
+		t.Fatalf("Error writing data entries: %v\n", err)
 	}
 
 	f, err := os.OpenFile("data/L0/test.sst", os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
-
 	if err != nil {
 		f.Close()
 		t.Fatalf("Error opening file: %v\n", err)
 	}
 
-	startKeySize := uint8(values[0][0])
-	startKey := string(values[0][1 : 1+startKeySize])
-	endKeySize := uint8(values[len(values)-1][0])
-	endKey := string(values[len(values)-1][1 : 1+endKeySize])
-	bloom := NewBloom(len(values))
-	indexBlock := []byte{}
-	dataBlocks := []byte{}
-	block := make([]byte, blockSize)
-	currBlock := uint32(0)
-
-	i := 0
-	for _, item := range values {
-		if i+len(item) > blockSize {
-			dataBlocks = append(dataBlocks, block...)
-			block = make([]byte, blockSize)
-			i = 0
-		}
-
-		keySize := uint8(item[0])
-		key := string(item[1 : 1+keySize])
-
-		if i == 0 {
-			indexEntry := createLsmIndex(key, currBlock)
-			indexBlock = append(indexBlock, indexEntry...)
-			currBlock++
-		}
-
-		bloom.Insert(key)
-		i += copy(block[i:], item)
-	}
-
-	keyRangeEntry := createKeyRangeEntry(startKey, endKey)
-	dataBlocks = append(dataBlocks, block...)
+	keyRangeEntry := createKeyRangeEntry(keyRange)
 	header := createHeader(len(dataBlocks), len(indexBlock), len(bloom.bits), len(keyRangeEntry))
 	data := append(header, append(append(append(dataBlocks, indexBlock...), bloom.bits...), keyRangeEntry...)...)
 
@@ -104,8 +64,8 @@ func TestFileRange(t *testing.T) {
 			case reply := <-replyChan:
 				for i := 0; i < len(reply); i++ {
 					item := reply[i]
-					if uint64(i) != item.vlogOffset {
-						t.Errorf("Offset expected: %d, got :%d\n", i, item.vlogOffset)
+					if string(item.value) != item.key {
+						t.Errorf("Value expected: %v, got :%v\n", item.key, string(item.value))
 					}
 				}
 				wg.Done()
