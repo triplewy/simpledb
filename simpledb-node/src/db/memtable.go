@@ -10,14 +10,13 @@ import (
 
 // MemTable is struct for Write-Ahead-Log and memtable
 type MemTable struct {
-	lsm   *LSM
 	table *AVLTree
 	wal   string
 	size  int
 }
 
 // NewMemTable creates a file for the WAL and a new Memtable
-func NewMemTable(lsm *LSM, directory string, id string) (*MemTable, error) {
+func NewMemTable(directory string, id string) (*MemTable, error) {
 	err := os.MkdirAll(filepath.Join(directory, "memtables"), os.ModePerm)
 	if err != nil {
 		return nil, err
@@ -26,7 +25,6 @@ func NewMemTable(lsm *LSM, directory string, id string) (*MemTable, error) {
 	filename := "WAL_" + id
 
 	mt := &MemTable{
-		lsm:   lsm,
 		table: NewAVLTree(),
 		wal:   filepath.Join(directory, "memtables", filename),
 		size:  0,
@@ -55,42 +53,22 @@ func (mt *MemTable) Put(entry *LSMDataEntry) error {
 		return err
 	}
 	mt.table.Put(entry)
+	mt.size += sizeDataEntry(entry)
 	return nil
 }
 
 // Get searches in-memory table for key
 func (mt *MemTable) Get(key string) *LSMDataEntry {
-	return mt.table.Find(key).entry
+	node := mt.table.Find(key)
+	if node != nil {
+		return mt.table.Find(key).entry
+	}
+	return nil
 }
 
 // Range searches in-memory table for keys within key range
 func (mt *MemTable) Range(startKey, endKey string) []*LSMDataEntry {
 	return mt.table.Range(startKey, endKey)
-}
-
-// Flush takes all entries from the in-memory table and sends them to LSM
-func (mt *MemTable) Flush(errChan chan error) {
-	entries := mt.table.Inorder()
-	dataBlocks, indexBlock, bloom, keyRange, err := writeDataEntries(entries)
-	if err != nil {
-		errChan <- err
-		return
-	}
-	// Flush to LSM
-	err = mt.lsm.Append(dataBlocks, indexBlock, bloom, keyRange)
-	if err != nil {
-		errChan <- err
-		return
-	}
-	// Truncate the WAL
-	err = os.Truncate(mt.wal, 0)
-	if err != nil {
-		errChan <- err
-		return
-	}
-
-	mt.table = NewAVLTree()
-	mt.size = 0
 }
 
 // AppendWAL encodes an LSMDataEntry into bytes and appends to the WAL

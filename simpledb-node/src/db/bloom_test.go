@@ -7,7 +7,7 @@ import (
 )
 
 func TestBloom(t *testing.T) {
-	n := 1000
+	n := 100000
 	bloom := NewBloom(n)
 
 	for i := 0; i < n; i++ {

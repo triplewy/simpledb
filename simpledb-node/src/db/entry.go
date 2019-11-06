@@ -88,8 +88,8 @@ func decodeDataEntry(data []byte) *LSMDataEntry {
 	return nil
 }
 
-func parseDataEntry(entry *LSMDataEntry) (kv *KV, err error) {
-	kv.key = entry.key
+func parseDataEntry(entry *LSMDataEntry) (*KV, error) {
+	kv := &KV{key: entry.key}
 	value := entry.value
 	switch entry.valueType {
 	case Bool:
@@ -131,9 +131,10 @@ func sizeDataEntry(entry *LSMDataEntry) int {
 }
 
 func writeDataEntries(entries []*LSMDataEntry) (dataBlocks, indexBlock []byte, bloom *Bloom, keyRange *KeyRange, err error) {
-	keyRange.startKey = entries[0].key
-	keyRange.endKey = entries[len(entries)-1].key
-
+	keyRange = &KeyRange{
+		startKey: entries[0].key,
+		endKey:   entries[len(entries)-1].key,
+	}
 	bloom = NewBloom(len(entries))
 
 	block := make([]byte, BlockSize)
@@ -144,8 +145,8 @@ func writeDataEntries(entries []*LSMDataEntry) (dataBlocks, indexBlock []byte, b
 		if i+sizeDataEntry(entry) >= BlockSize {
 			dataBlocks = append(dataBlocks, block...)
 			indexEntry := encodeIndexEntry(&LSMIndexEntry{
-				keySize: entry.keySize,
-				key:     entry.key,
+				keySize: entries[index-1].keySize,
+				key:     entries[index-1].key,
 				block:   currBlock,
 			})
 			indexBlock = append(indexBlock, indexEntry...)
@@ -154,10 +155,10 @@ func writeDataEntries(entries []*LSMDataEntry) (dataBlocks, indexBlock []byte, b
 			currBlock++
 			i = 0
 		}
-		// Add lsmEntry to current block
+
 		entryData := encodeDataEntry(entry)
 		i += copy(block[i:], entryData)
-		// Insert into bloom filter
+
 		bloom.Insert(entry.key)
 
 		if index == len(entries)-1 {

@@ -4,45 +4,52 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
-func TestMergeAbove1(t *testing.T) {
+func TestMerge(t *testing.T) {
 	err := DeleteData()
 	if err != nil {
 		t.Errorf("Error deleting data: %v\n", err)
 	}
 
-	keys1 := []string{}
-	keys2 := []string{}
-	keys3 := []string{}
-	keys4 := []string{}
+	entries1 := []*LSMDataEntry{}
+	entries2 := []*LSMDataEntry{}
+	entries3 := []*LSMDataEntry{}
+	entries4 := []*LSMDataEntry{}
 
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < 50000; i++ {
 		key := strconv.Itoa(1000000000000000000 + i)
-		if 1000000000000000000+i%4 == 0 {
-			keys1 = append(keys1, key)
-		} else if 1000000000000000000+i-1%4 == 0 {
-			keys2 = append(keys2, key)
-		} else if 1000000000000000000+i-2%4 == 0 {
-			keys3 = append(keys3, key)
+		entry, err := createDataEntry(uint64(i), key, key)
+		if err != nil {
+			t.Fatalf("Error creating data entry: %v\n", err)
+		}
+
+		if (1000000000000000000+i)%4 == 0 {
+			entries1 = append(entries1, entry)
+		} else if (1000000000000000000+i-1)%4 == 0 {
+			entries2 = append(entries2, entry)
+		} else if (1000000000000000000+i-2)%4 == 0 {
+			entries3 = append(entries3, entry)
 		} else {
-			keys4 = append(keys4, key)
+			entries4 = append(entries4, entry)
 		}
 	}
 
-	err = populateSSTFile(keys1, "data/L0/test1")
+	err = writeEntriesToFile("data/L0/test1", entries1)
 	if err != nil {
 		t.Errorf("Error populating file: %v\n", err)
 	}
-	err = populateSSTFile(keys2, "data/L0/test2")
+	err = writeEntriesToFile("data/L0/test2", entries2)
 	if err != nil {
 		t.Errorf("Error populating file: %v\n", err)
 	}
-	err = populateSSTFile(keys3, "data/L0/test3")
+	err = writeEntriesToFile("data/L0/test3", entries3)
 	if err != nil {
 		t.Errorf("Error populating file: %v\n", err)
 	}
-	err = populateSSTFile(keys4, "data/L0/test4")
+	err = writeEntriesToFile("data/L0/test4", entries4)
 	if err != nil {
 		t.Errorf("Error populating file: %v\n", err)
 	}
@@ -52,62 +59,69 @@ func TestMergeAbove1(t *testing.T) {
 		t.Errorf("Error merge sorting files: %v\n", err)
 	}
 
-	i := 0
-	for _, entry := range entries {
+	if len(entries) != 50000 {
+		t.Fatalf("Length of entries expected: %d, Got: %d\n", 50000, len(entries))
+	}
+
+	for i, entry := range entries {
 		key := entry.key
 		if key != strconv.Itoa(1000000000000000000+i) {
 			t.Errorf("Did not sort files properly. Expected: %s, Got: %s\n", strconv.Itoa(1000000000000000000+i), string(key))
 		}
-		i++
 	}
 }
 
-func TestMergeAbove2(t *testing.T) {
+func TestMergeMMap(t *testing.T) {
 	err := DeleteData()
 	if err != nil {
-		t.Errorf("Error deleting data: %v\n", err)
+		t.Fatalf("Error deleting data: %v\n", err)
 	}
 
-	keys1 := []string{}
-	keys2 := []string{}
-	keys3 := []string{}
+	memoryKV := make(map[string]string)
+	entries := []*LSMDataEntry{}
 
-	for i := 0; i < 1000; i++ {
-		key := strconv.Itoa(1000000000000000000 + i)
-		if 1000000000000000000+i%4 == 0 {
-			keys1 = append(keys1, key)
-		} else if 1000000000000000000+i-1%4 == 0 {
-			keys2 = append(keys2, key)
-		} else {
-			keys3 = append(keys3, key)
+	for i := 10000; i < 50000; i++ {
+		key := strconv.Itoa(i)
+		value := uuid.New().String()
+		memoryKV[key] = value
+		entry, err := createDataEntry(uint64(i), key, value)
+		if err != nil {
+			t.Fatalf("Error creating data entry: %v\n", err)
 		}
+		entries = append(entries, entry)
 	}
 
-	err = populateSSTFile(keys1, "data/L0/test1")
+	dataBlocks, indexBlock, bloom, keyRange, err := writeDataEntries(entries)
 	if err != nil {
-		t.Errorf("Error populating file: %v\n", err)
-	}
-	err = populateSSTFile(keys2, "data/L0/test2")
-	if err != nil {
-		t.Errorf("Error populating file: %v\n", err)
-	}
-	err = populateSSTFile(keys3, "data/L0/test3")
-	if err != nil {
-		t.Errorf("Error populating file: %v\n", err)
+		t.Fatalf("Error writing data entries: %v\n", err)
 	}
 
-	entries, err := mergeSort([]string{"data/L0/test2", "data/L0/test1", "data/L0/test3"})
+	keyRangeEntry := createKeyRangeEntry(keyRange)
+	header := createHeader(len(dataBlocks), len(indexBlock), len(bloom.bits), len(keyRangeEntry))
+	data := append(header, append(append(append(dataBlocks, indexBlock...), bloom.bits...), keyRangeEntry...)...)
+
+	err = writeNewFile("data/L0/test.sst", data)
 	if err != nil {
-		t.Errorf("Error merge sorting files: %v\n", err)
+		t.Fatalf("Error writing to file: %v\n", err)
 	}
 
-	i := 0
-	for _, entry := range entries {
-		key := entry.key
-		if key != strconv.Itoa(1000000000000000000+i) {
-			t.Errorf("Did not sort files properly. Expected: %s, Got: %s\n", strconv.Itoa(1000000000000000000+i), string(key))
+	entries, err = mmap("data/L0/test.sst")
+	if err != nil {
+		t.Fatalf("Error mmaping file: %v\n", err)
+	}
+	if len(entries) != 40000 {
+		t.Fatalf("Expected length of entries: %d, Got %d\n", 40000, len(entries))
+	}
+
+	for i, entry := range entries {
+		key := strconv.Itoa(i + 10000)
+		kv, err := parseDataEntry(entry)
+		if err != nil {
+			t.Fatalf("Error parsing data entry: %v\n", err)
 		}
-		i++
+		if kv.key != key || kv.value.(string) != memoryKV[key] {
+			t.Fatalf("Key or value expected: %v, Got key: %v value: %v\n", key, kv.key, kv.value.(string))
+		}
 	}
 }
 

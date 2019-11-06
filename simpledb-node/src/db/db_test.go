@@ -22,7 +22,7 @@ func TestDBPutOnly(t *testing.T) {
 		t.Fatalf("Error creating LSM: %v\n", err)
 	}
 
-	numItems := 50000
+	numItems := 100000
 	memoryKV := make(map[string]string)
 	keys := []string{}
 	values := []interface{}{}
@@ -34,13 +34,13 @@ func TestDBPutOnly(t *testing.T) {
 		values = append(values, key)
 	}
 
-	err = asyncPuts(db, keys, values)
+	err = syncPuts(db, keys, values)
 	if err != nil {
 		t.Fatalf("Error inserting into LSM: %v\n", err)
 	}
 
 	keys = []string{}
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < 50000; i++ {
 		key := strconv.Itoa(1000000000000000000 + rand.Intn(numItems))
 		keys = append(keys, key)
 	}
@@ -65,133 +65,49 @@ func TestDBOverlapPut(t *testing.T) {
 	}
 
 	numItems := 50000
+	memoryKV := make(map[string]string)
+	keys := []string{}
+	values := []interface{}{}
 
-	startInsertTime := time.Now()
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(i)
-		err = db.Put(key, key)
-		if err != nil {
-			t.Fatalf("Error Puting into LSM: %v\n", err)
-		}
+		memoryKV[key] = key
+		keys = append(keys, key)
+		values = append(values, key)
 	}
+
+	err = syncPuts(db, keys, values)
+	if err != nil {
+		t.Fatalf("Error inserting into LSM: %v\n", err)
+	}
+
+	keys = []string{}
+	values = []interface{}{}
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(i)
 		value := strconv.Itoa(i + 1)
-		err = db.Put(key, value)
-		if err != nil {
-			t.Fatalf("Error Putting into LSM: %v\n", err)
-		}
+		memoryKV[key] = value
+		keys = append(keys, key)
+		values = append(values, value)
 	}
-	duration := time.Since(startInsertTime)
-	fmt.Printf("Duration inserting %d items: %v\n", numItems*2, duration)
 
-	numWrong := 0
-	errors := make(map[string]int)
+	err = syncPuts(db, keys, values)
+	if err != nil {
+		t.Fatalf("Error inserting into LSM: %v\n", err)
+	}
 
-	startReadTime := time.Now()
+	keys = []string{}
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(i)
-		result, err := db.Get(key)
-		if err != nil {
-			numWrong++
-			if val, ok := errors[err.Error()]; !ok {
-				errors[err.Error()] = 1
-			} else {
-				errors[err.Error()] = val + 1
-			}
-		}
-		if strconv.Itoa(i+1) != result {
-			numWrong++
-			if val, ok := errors["Incorrect result for get"]; !ok {
-				errors["Incorrect result for get"] = 1
-			} else {
-				errors["Incorrect result for get"] = val + 1
-			}
-		}
+		keys = append(keys, key)
 	}
-	duration = time.Since(startReadTime)
-	fmt.Printf("Duration reading %d items: %v\n", numItems, duration)
 
-	fmt.Printf("Correct: %f%%\n", float64(10000-numWrong)/float64(10000)*float64(100))
-	if len(errors) > 0 {
-		t.Fatalf("Encountered errors during read: %v\n", errors)
+	err = syncGets(db, keys, memoryKV)
+	if err != nil {
+		t.Fatalf("Error getting from LSM: %v\n", err)
 	}
 
 	// fmt.Printf("Total LSM Read duration: %v\nTotal Vlog Read duration: %v\n", db.totalLsmReadDuration, db.totalVlogReadDuration)
-}
-
-func TestDBPutUpdate(t *testing.T) {
-	err := DeleteData()
-	if err != nil {
-		t.Fatalf("Error deleting data: %v\n", err)
-	}
-
-	db, err := NewDB("data")
-	if err != nil {
-		t.Fatalf("Error creating LSM: %v\n", err)
-	}
-
-	memoryKV := make(map[string][]string)
-
-	type command struct {
-		key   string
-		value string
-	}
-
-	numCmds := 50000
-	commands := []*command{}
-
-	for i := 0; i < numCmds; i++ {
-		key := strconv.Itoa(rand.Intn(1000))
-		value := strconv.Itoa(i)
-
-		memoryKV[key] = append(memoryKV[key], value)
-		commands = append(commands, &command{key: key, value: value})
-	}
-
-	startInsertTime := time.Now()
-	for _, cmd := range commands {
-		err := db.Put(cmd.key, cmd.value)
-		if err != nil {
-			t.Fatalf("Error putting data: %v\n", err)
-		}
-	}
-	duration := time.Since(startInsertTime)
-	fmt.Printf("Duration inserting %d items: %v\n", numCmds, duration)
-
-	numWrong := 0
-	errors := make(map[string]int)
-
-	startReadTime := time.Now()
-	for key, value := range memoryKV {
-		result, err := db.Get(key)
-		if err != nil {
-			numWrong++
-			if val, ok := errors[err.Error()]; !ok {
-				errors[err.Error()] = 1
-			} else {
-				errors[err.Error()] = val + 1
-			}
-		}
-		if result != value[len(value)-1] {
-			t.Errorf("Incorrect result for key: %v. Expected: %v, Got: %v\n", key, value[len(value)-1], result)
-			numWrong++
-			if val, ok := errors["Incorrect result for get"]; !ok {
-				errors["Incorrect result for get"] = 1
-			} else {
-				errors["Incorrect result for get"] = val + 1
-			}
-		}
-	}
-	duration = time.Since(startReadTime)
-	fmt.Printf("Duration reading %d items: %v\n", numCmds, duration)
-
-	fmt.Printf("Correct: %f%%\n", float64(10000-numWrong)/float64(10000)*float64(100))
-	// fmt.Printf("Total LSM Read duration: %v\nTotal Vlog Read duration: %v\n", db.totalLsmReadDuration, db.totalVlogReadDuration)
-
-	if len(errors) > 0 {
-		t.Fatalf("Encountered errors during read: %v\n", errors)
-	}
 }
 
 func TestDBDelete(t *testing.T) {
@@ -205,89 +121,46 @@ func TestDBDelete(t *testing.T) {
 		t.Fatalf("Error creating LSM: %v\n", err)
 	}
 
-	memoryKV := make(map[string]string)
 	numItems := 50000
+	memoryKV := make(map[string]string)
+	keys := []string{}
+	values := []interface{}{}
 
-	startInsertTime := time.Now()
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(i)
 		memoryKV[key] = key
-		err := db.Put(key, key)
-		if err != nil {
-			t.Fatalf("Error inserting into LSM: %v\n", key)
-		}
+		keys = append(keys, key)
+		values = append(values, key)
 	}
-	duration := time.Since(startInsertTime)
-	fmt.Printf("Duration inserting %d items: %v\n", numItems, duration)
+
+	err = syncPuts(db, keys, values)
+	if err != nil {
+		t.Fatalf("Error inserting into LSM: %v\n", err)
+	}
 
 	numCmds := 5000
-
-	startDeleteTime := time.Now()
+	keys = []string{}
 	for i := 0; i < numCmds; i++ {
 		key := strconv.Itoa(rand.Intn(numItems))
 		memoryKV[key] = "__delete__"
-		err := db.Delete(key)
-		if err != nil {
-			t.Fatalf("Error deleting from LSM: %v\n", key)
-		}
+		keys = append(keys, key)
 	}
-	duration = time.Since(startDeleteTime)
-	fmt.Printf("Duration deleting %d items: %v\n", numCmds, duration)
 
-	numWrong := 0
-	errors := make(map[string]int)
+	err = asyncDeletes(db, keys)
+	if err != nil {
+		t.Fatalf("Error deleting from LSM: %v\n", err)
+	}
 
-	startReadTime := time.Now()
+	keys = []string{}
 	for i := 0; i < numCmds; i++ {
 		key := strconv.Itoa(rand.Intn(numItems))
-		value := memoryKV[key]
-
-		result, err := db.Get(key)
-		if value == "__delete__" {
-			if err != nil {
-				if err.Error() != "Key not found" {
-					numWrong++
-					if val, ok := errors[err.Error()]; !ok {
-						errors[err.Error()] = 1
-					} else {
-						errors[err.Error()] = val + 1
-					}
-				}
-			} else {
-				numWrong++
-				if val, ok := errors["Incorrect result for get"]; !ok {
-					errors["Incorrect result for get"] = 1
-				} else {
-					errors["Incorrect result for get"] = val + 1
-				}
-			}
-		} else {
-			if err != nil {
-				numWrong++
-				if val, ok := errors[err.Error()]; !ok {
-					errors[err.Error()] = 1
-				} else {
-					errors[err.Error()] = val + 1
-				}
-			} else if value != result {
-				numWrong++
-				if val, ok := errors["Incorrect result for get"]; !ok {
-					errors["Incorrect result for get"] = 1
-				} else {
-					errors["Incorrect result for get"] = val + 1
-				}
-			}
-		}
-	}
-	duration = time.Since(startReadTime)
-
-	fmt.Printf("Correct: %f%%\n", float64(numCmds-numWrong)/float64(numCmds)*float64(100))
-
-	if len(errors) > 0 {
-		t.Fatalf("Encountered errors during read: %v\n", errors)
+		keys = append(keys, key)
 	}
 
-	fmt.Printf("Duration reading %d items: %v\n", numCmds, duration)
+	err = syncGets(db, keys, memoryKV)
+	if err != nil {
+		t.Fatalf("Error Reading from LSM: %v\n", err)
+	}
 	// fmt.Printf("Total LSM Read duration: %v\nTotal Vlog Read duration: %v\n", db.totalLsmReadDuration, db.totalVlogReadDuration)
 }
 
@@ -315,7 +188,7 @@ func TestDBTinyBenchmark(t *testing.T) {
 		values = append(values, value)
 	}
 
-	err = asyncPuts(db, keys, values)
+	err = syncPuts(db, keys, values)
 	if err != nil {
 		t.Fatalf("Error inserting into LSM: %v\n", err)
 	}
@@ -334,24 +207,26 @@ func TestDBTinyBenchmark(t *testing.T) {
 		t.Fatalf("Error deleting from LSM: %v\n", err)
 	}
 
+	numCmds = 5000
 	keys = []string{}
 	values = []interface{}{}
 	for i := 0; i < numCmds; i++ {
 		key := strconv.Itoa(rand.Intn(numItems))
 		value := uuid.New().String()
-		memoryKV[key] = value
 		keys = append(keys, key)
 		values = append(values, value)
+		memoryKV[key] = value
 	}
 
-	err = asyncPuts(db, keys, values)
+	err = syncPuts(db, keys, values)
 	if err != nil {
 		t.Fatalf("Error inserting into LSM: %v\n", err)
 	}
 
 	keys = []string{}
-	for i := 0; i < numCmds; i++ {
-		keys = append(keys, strconv.Itoa(rand.Intn(numItems)))
+	for i := 0; i < numItems; i++ {
+		key := strconv.Itoa(i)
+		keys = append(keys, key)
 	}
 
 	err = syncGets(db, keys, memoryKV)
@@ -373,59 +248,39 @@ func TestDBRange(t *testing.T) {
 		t.Fatalf("Error creating LSM: %v\n", err)
 	}
 
+	numItems := 30000
 	memoryKV := make(map[string]string)
-	numItems := 50000
+	keys := []string{}
+	values := []interface{}{}
 
-	startInsertTime := time.Now()
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(i)
 		value := uuid.New().String()
 		memoryKV[key] = value
-		err := db.Put(key, value)
-		if err != nil {
-			t.Fatalf("Error inserting into LSM: %v\n", key)
-		}
+		keys = append(keys, key)
+		values = append(values, value)
 	}
-	duration := time.Since(startInsertTime)
-	fmt.Printf("Duration inserting %d items: %v\n", numItems, duration)
 
-	errors := make(map[string]int)
-	numWrong := 0
+	err = syncPuts(db, keys, values)
+	if err != nil {
+		t.Fatalf("Error inserting into LSM: %v\n", err)
+	}
 
-	startReadTime := time.Now()
+	keys = []string{}
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(i)
-		value := memoryKV[key]
-		result, err := db.Get(key)
-		if err != nil {
-			numWrong++
-			if val, ok := errors[err.Error()]; !ok {
-				errors[err.Error()] = 1
-			} else {
-				errors[err.Error()] = val + 1
-			}
-		} else if result != value {
-			numWrong++
-			if val, ok := errors["Incorrect result for get"]; !ok {
-				errors["Incorrect result for get"] = 1
-			} else {
-				errors["Incorrect result for get"] = val + 1
-			}
-		}
+		keys = append(keys, key)
 	}
-	duration = time.Since(startReadTime)
-	fmt.Printf("Duration reading %d items: %v\n", numItems, duration)
 
-	fmt.Printf("Correct: %f%%\n", float64(numItems-numWrong)/float64(numItems)*float64(100))
-	if len(errors) > 0 {
-		t.Fatalf("Encountered errors during read: %v\n", errors)
+	err = syncGets(db, keys, memoryKV)
+	if err != nil {
+		t.Fatalf("Error Reading from LSM: %v\n", err)
 	}
-	// fmt.Printf("Total LSM Read duration: %v\nTotal Vlog Read duration: %v\n", db.totalLsmReadDuration, db.totalVlogReadDuration)
 
 	startKey := "0"
 	endKey := "9999"
 
-	keys := []string{}
+	keys = []string{}
 	for key := range memoryKV {
 		if startKey <= key && key <= endKey {
 			keys = append(keys, key)
@@ -434,18 +289,18 @@ func TestDBRange(t *testing.T) {
 
 	sort.Strings(keys)
 
-	startReadTime = time.Now()
+	startReadTime := time.Now()
 	result, err := db.Range(startKey, endKey)
 	if err != nil {
 		t.Fatalf("Error performing range query: %v\n", err)
 	}
-	duration = time.Since(startReadTime)
+	duration := time.Since(startReadTime)
 	fmt.Printf("Duration reading range: %v\n", duration)
 
 	if len(result) != len(keys) {
 		t.Fatalf("Expected range to return %d items, got %d items instead\n", len(keys), len(result))
 	}
-	numWrong = 0
+	numWrong := 0
 
 	for i := 0; i < len(result); i++ {
 		key := keys[i]
@@ -457,5 +312,45 @@ func TestDBRange(t *testing.T) {
 	}
 
 	fmt.Printf("Correct: %f%%\n", float64(numItems-numWrong)/float64(numItems)*float64(100))
-	// fmt.Printf("Total LSM Read duration: %v\nTotal Vlog Read duration: %v\n", db.totalLsmReadDuration, db.totalVlogReadDuration)
+}
+
+func TestDBRandom(t *testing.T) {
+	err := DeleteData()
+	if err != nil {
+		t.Fatalf("Error deleting data: %v\n", err)
+	}
+
+	db, err := NewDB("data")
+	if err != nil {
+		t.Fatalf("Error creating LSM: %v\n", err)
+	}
+
+	numItems := 10000
+	memoryKV := make(map[string]string)
+	keys := []string{}
+	values := []interface{}{}
+
+	for i := 0; i < numItems; i++ {
+		key := strconv.Itoa(rand.Intn(1000))
+		value := strconv.Itoa(i)
+		keys = append(keys, key)
+		values = append(values, value)
+		memoryKV[key] = value
+	}
+
+	err = syncPuts(db, keys, values)
+	if err != nil {
+		t.Fatalf("Error inserting into LSM: %v\n", err)
+	}
+
+	keys = []string{}
+	for i := 0; i < 1000; i++ {
+		key := strconv.Itoa(i)
+		keys = append(keys, key)
+	}
+
+	err = syncGets(db, keys, memoryKV)
+	if err != nil {
+		t.Fatalf("Error Reading from LSM: %v\n", err)
+	}
 }

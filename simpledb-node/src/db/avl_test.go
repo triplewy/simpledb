@@ -1,6 +1,8 @@
 package db
 
 import (
+	"math/rand"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -140,5 +142,61 @@ func TestAVLRange(t *testing.T) {
 
 	if strings.Join(result, ",") != "0,2,4,5,6,8,9" {
 		t.Fatalf("Expected: 0,2,4,5,6,8,9 Got: %s\n", strings.Join(result, ","))
+	}
+}
+
+func TestAVLBulk(t *testing.T) {
+	tree := NewAVLTree()
+	for i := 1000; i < 5000; i++ {
+		entry, err := createDataEntry(uint64(i), strconv.Itoa(i), int64(i))
+		if err != nil {
+			t.Fatalf("Error creating data entry: %v\n", err)
+		}
+		tree.Put(entry)
+	}
+
+	entries := tree.Inorder()
+	for i, entry := range entries {
+		kv, err := parseDataEntry(entry)
+		if err != nil {
+			t.Fatalf("Error parsing data entry: %v\n", err)
+		}
+		if kv.key != strconv.Itoa(i+1000) {
+			t.Fatalf("Expected Key: %v, Got %v\n", strconv.Itoa(i), kv.key)
+		}
+		if kv.value.(int64) != int64(i+1000) {
+			t.Fatalf("Expected Value: %d, Got %d\n", i, kv.value.(int64))
+		}
+	}
+}
+
+func TestAVLRandom(t *testing.T) {
+	tree := NewAVLTree()
+	memoryKV := make(map[string]string)
+
+	for i := 0; i < 1000; i++ {
+		key := strconv.Itoa(rand.Intn(100))
+		value := strconv.Itoa(i)
+		memoryKV[key] = value
+		entry, err := createDataEntry(uint64(i), key, value)
+		if err != nil {
+			t.Fatalf("Error creating data entry: %v\n", err)
+		}
+		tree.Put(entry)
+	}
+
+	for key, value := range memoryKV {
+		node := tree.Find(key)
+		if node == nil {
+			t.Fatalf("Key should be in the AVL Tree")
+		} else {
+			kv, err := parseDataEntry(node.entry)
+			if err != nil {
+				t.Fatalf("Error parsing data entry: %v\n", err)
+			}
+			if kv.value.(string) != value {
+				t.Fatalf("Expected: %v, Got: %v\n", value, kv.value.(string))
+			}
+		}
 	}
 }

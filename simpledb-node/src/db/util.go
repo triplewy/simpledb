@@ -27,7 +27,7 @@ func floor(x float64) (int64, error) {
 
 // DeleteData deletes all data from database
 func DeleteData() error {
-	dirs := []string{"data/L0", "data/L1", "data/L2", "data/L3", "data/L4", "data/L5", "data/L6", "data/VLog"}
+	dirs := []string{"data/L0", "data/L1", "data/L2", "data/L3", "data/L4", "data/L5", "data/L6", "data/memtables", "data/metadata"}
 
 	for _, dir := range dirs {
 		d, err := ioutil.ReadDir(dir)
@@ -38,41 +38,6 @@ func DeleteData() error {
 		for _, f := range d {
 			os.RemoveAll(path.Join([]string{dir, f.Name()}...))
 		}
-	}
-
-	return nil
-}
-
-func populateSSTFile(keys []string, filename string) error {
-	f, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
-	defer f.Close()
-
-	if err != nil {
-		return err
-	}
-
-	data := []byte{}
-	block := []byte{}
-
-	for _, key := range keys {
-		input := []byte{uint8(len(key))}
-		input = append(input, []byte(key)...)
-		input = append(input, []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}...)
-		block, newBlock := appendDataBlock(block, input)
-		if newBlock != nil {
-			data = append(data, block...)
-			block = newBlock
-		}
-	}
-
-	header := createHeader(len(data), 0, 0, 0)
-
-	numBytes, err := f.Write(append(header, data...))
-	if err != nil {
-		return err
-	}
-	if numBytes != len(data) {
-		return err
 	}
 
 	return nil

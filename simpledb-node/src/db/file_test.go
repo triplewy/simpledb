@@ -8,6 +8,84 @@ import (
 	"testing"
 )
 
+func TestFileGet(t *testing.T) {
+	err := DeleteData()
+	if err != nil {
+		t.Fatalf("Error deleting data: %v\n", err)
+	}
+
+	entries := []*LSMDataEntry{}
+
+	for i := 1000; i < 10000; i++ {
+		key := strconv.Itoa(i)
+		entry, err := createDataEntry(uint64(i), key, key)
+		if err != nil {
+			t.Fatalf("Error creating data entry: %v\n", err)
+		}
+		entries = append(entries, entry)
+	}
+
+	dataBlocks, indexBlock, bloom, keyRange, err := writeDataEntries(entries)
+	if err != nil {
+		t.Fatalf("Error writing data entries: %v\n", err)
+	}
+
+	keyRangeEntry := createKeyRangeEntry(keyRange)
+	header := createHeader(len(dataBlocks), len(indexBlock), len(bloom.bits), len(keyRangeEntry))
+	data := append(header, append(append(append(dataBlocks, indexBlock...), bloom.bits...), keyRangeEntry...)...)
+
+	err = writeNewFile("data/L0/test.sst", data)
+	if err != nil {
+		t.Fatalf("Error writing to file: %v\n", err)
+	}
+
+	var wg sync.WaitGroup
+	replyChan := make(chan *LSMDataEntry)
+	errChan := make(chan error)
+	errs := make(map[string]int)
+
+	go func() {
+		for {
+			select {
+			case entry := <-replyChan:
+				kv, err := parseDataEntry(entry)
+				if err != nil {
+					if _, ok := errs[err.Error()]; !ok {
+						errs[err.Error()] = 1
+					} else {
+						errs[err.Error()]++
+					}
+				} else if kv.key != kv.value.(string) {
+					if _, ok := errs["Incorrect Key Value"]; !ok {
+						errs["Incorrect Key Value"] = 1
+					} else {
+						errs["Incorrect Key Value"]++
+					}
+				}
+				wg.Done()
+			case err := <-errChan:
+				if _, ok := errs[err.Error()]; !ok {
+					errs[err.Error()] = 1
+				} else {
+					errs[err.Error()]++
+				}
+				wg.Done()
+			}
+		}
+	}()
+
+	for i := 1000; i < 10000; i++ {
+		wg.Add(1)
+		key := strconv.Itoa(i)
+		fileFind("data/L0/test.sst", key, replyChan, errChan)
+	}
+
+	wg.Wait()
+
+	if len(errs) > 0 {
+		t.Fatalf("Encountered errors during file get: %v\n", errs)
+	}
+}
 func TestFileRange(t *testing.T) {
 	err := DeleteData()
 	if err != nil {

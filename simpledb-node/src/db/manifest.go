@@ -1,8 +1,10 @@
 package db
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -16,7 +18,7 @@ func (level *Level) NewSSTFile(fileID string, keyRange *KeyRange, bloom *Bloom) 
 	level.blooms[fileID] = bloom
 	level.bloomLock.Unlock()
 
-	if level.level == 0 && len(level.manifest)%compactThreshold == 0 {
+	if level.level == 0 && len(level.manifest)-len(level.merging) > compactThreshold {
 		compact := level.mergeManifest()
 		level.below.compactReqChan <- compact
 	}
@@ -100,4 +102,23 @@ func (level *Level) mergeManifest() []*merge {
 		}
 	}
 	return mergeIntervals(compact)
+}
+
+func (level *Level) printManifest() {
+	type manifest struct {
+		fileID   string
+		keyRange *KeyRange
+	}
+	mfsts := []*manifest{}
+	for fileID, keyRange := range level.manifest {
+		mfsts = append(mfsts, &manifest{fileID: fileID, keyRange: keyRange})
+	}
+
+	sort.Slice(mfsts, func(i, j int) bool {
+		return mfsts[i].keyRange.startKey < mfsts[j].keyRange.endKey
+	})
+
+	for _, mfst := range mfsts {
+		fmt.Println(level.level, mfst.keyRange.startKey, mfst.keyRange.endKey)
+	}
 }

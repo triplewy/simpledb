@@ -39,7 +39,7 @@ func TestRecoverLevels(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Error Putting into LSM: %v\n", err)
 		}
-		if result != memoryKV[key] {
+		if result.value.(string) != memoryKV[key] {
 			t.Fatalf("Incorrect result from db Get")
 		}
 	}
@@ -61,7 +61,7 @@ func TestRecoverLevels(t *testing.T) {
 			fmt.Println(key)
 			t.Fatalf("Error Getting from LSM: %v\n", err)
 		}
-		if result != memoryKV[key] {
+		if result.value.(string) != memoryKV[key] {
 			t.Fatalf("Wrong result\n")
 		}
 	}

@@ -70,13 +70,25 @@ func mergeHelper(left, right []*LSMDataEntry) (entries []*LSMDataEntry) {
 
 	for i < len(left) {
 		leftEntry := left[i]
-		od.Set(leftEntry.key, leftEntry)
+		if val, ok := od.Get(leftEntry.key); ok {
+			if val.(*LSMDataEntry).seqID < leftEntry.seqID {
+				od.Set(leftEntry.key, leftEntry)
+			}
+		} else {
+			od.Set(leftEntry.key, leftEntry)
+		}
 		i++
 	}
 
 	for j < len(right) {
 		rightEntry := right[j]
-		od.Set(rightEntry.key, rightEntry)
+		if val, ok := od.Get(rightEntry.key); ok {
+			if val.(*LSMDataEntry).seqID < rightEntry.seqID {
+				od.Set(rightEntry.key, rightEntry)
+			}
+		} else {
+			od.Set(rightEntry.key, rightEntry)
+		}
 		j++
 	}
 
@@ -105,32 +117,48 @@ func mmap(filename string) (entries []*LSMDataEntry, err error) {
 	if numBytes != len(data) {
 		return nil, ErrReadUnexpectedBytes("SST File")
 	}
-
 	for i := 0; i < len(data); i += BlockSize {
 		block := data[i : i+BlockSize]
 		j := 0
-		for j < len(block) {
-			seqID := binary.LittleEndian.Uint64(block[i : i+8])
-			i += 8
-			keySize := uint8(block[i])
-			i++
-			key := string(block[i : i+int(keySize)])
-			i += int(keySize)
-			valueType := uint8(block[i])
-			i++
-			valueSize := binary.LittleEndian.Uint16(block[i : i+2])
-			i += 2
-			value := block[i : i+int(valueSize)]
-			i += int(valueSize)
+		for j+8 <= len(block) {
+			seqID := binary.LittleEndian.Uint64(block[j : j+8])
+			j += 8
+			if j >= len(block) {
+				break
+			}
+			keySize := uint8(block[j])
+			j++
+			if j+int(keySize)-1 >= len(block) {
+				break
+			}
+			key := string(block[j : j+int(keySize)])
+			j += int(keySize)
+			if j >= len(block) {
+				break
+			}
+			valueType := uint8(block[j])
+			j++
+			if j+1 >= len(block) {
+				break
+			}
+			valueSize := binary.LittleEndian.Uint16(block[j : j+2])
+			j += 2
+			if j+int(valueSize)-1 >= len(block) {
+				break
+			}
+			value := block[j : j+int(valueSize)]
+			j += int(valueSize)
 
-			entries = append(entries, &LSMDataEntry{
-				seqID:     seqID,
-				keySize:   keySize,
-				key:       key,
-				valueType: valueType,
-				valueSize: valueSize,
-				value:     value,
-			})
+			if key != "" {
+				entries = append(entries, &LSMDataEntry{
+					seqID:     seqID,
+					keySize:   keySize,
+					key:       key,
+					valueType: valueType,
+					valueSize: valueSize,
+					value:     value,
+				})
+			}
 		}
 	}
 	return entries, nil

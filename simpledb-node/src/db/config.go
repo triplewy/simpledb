@@ -1,9 +1,11 @@
 package db
 
 // BlockSize is size of each data block
-const BlockSize = 4 * 1024
+// const BlockSize = 4 * 1024
+const BlockSize = 1 * 1024
 
-const MemTableSize = 2 * 1024 * 1024
+// const MemTableSize = 2 * 1024 * 1024
+const MemTableSize = 4 * 1024
 
 // KeySize is max size for key
 const KeySize = 255

@@ -152,8 +152,7 @@ func fileRangeQuery(filename, startKey, endKey string, replyChan chan []*LSMData
 	}
 
 	startBlock, endBlock := rangeDataBlocks(startKey, endKey, index)
-
-	size := int(endBlock+1)*BlockSize - int(startBlock)*BlockSize
+	size := int(endBlock-startBlock+1) * BlockSize
 	blocks := make([]byte, size)
 
 	numBytes, err = f.ReadAt(blocks, headerSize+int64(BlockSize*int(startBlock)))
@@ -175,8 +174,14 @@ func findDataBlock(key string, index []byte) (uint32, error) {
 	for i < len(index) {
 		size := uint8(index[i])
 		i++
+		if i+int(size)-1 >= len(index) {
+			break
+		}
 		indexKey := string(index[i : i+int(size)])
 		i += int(size)
+		if i+3 >= len(index) {
+			break
+		}
 		if key <= indexKey {
 			return binary.LittleEndian.Uint32(index[i : i+4]), nil
 		}
@@ -187,17 +192,32 @@ func findDataBlock(key string, index []byte) (uint32, error) {
 
 func findKeyInBlock(key string, block []byte) (*LSMDataEntry, error) {
 	i := 0
-	for i < len(block) {
+	for i+8 <= len(block) {
 		seqID := binary.LittleEndian.Uint64(block[i : i+8])
 		i += 8
+		if i >= len(block) {
+			break
+		}
 		keySize := uint8(block[i])
 		i++
+		if i+int(keySize)-1 >= len(block) {
+			break
+		}
 		foundKey := string(block[i : i+int(keySize)])
 		i += int(keySize)
+		if i >= len(block) {
+			break
+		}
 		valueType := uint8(block[i])
 		i++
+		if i+1 >= len(block) {
+			break
+		}
 		valueSize := binary.LittleEndian.Uint16(block[i : i+2])
 		i += 2
+		if i+int(valueSize)-1 >= len(block) {
+			break
+		}
 		value := block[i : i+int(valueSize)]
 		i += int(valueSize)
 
@@ -216,42 +236,65 @@ func findKeyInBlock(key string, block []byte) (*LSMDataEntry, error) {
 }
 
 func rangeDataBlocks(startKey, endKey string, index []byte) (startBlock, endBlock uint32) {
+	foundStartBlock := false
+	block := uint32(0)
 	i := 0
 	for i < len(index) {
 		size := uint8(index[i])
 		i++
+		if i+int(size)-1 >= len(index) {
+			break
+		}
 		indexKey := string(index[i : i+int(size)])
 		i += int(size)
-		block := binary.LittleEndian.Uint32(index[i : i+4])
+		if i+3 >= len(index) {
+			break
+		}
+		block = binary.LittleEndian.Uint32(index[i : i+4])
 		i += 4
-		if startKey <= indexKey {
+		if !foundStartBlock && startKey <= indexKey {
 			startBlock = block
+			foundStartBlock = true
 		}
 		if endKey <= indexKey {
-			endBlock = block
-			return startBlock, endBlock
+			return startBlock, block
 		}
 	}
-	return startBlock, endBlock
+	return startBlock, block
 }
 
 func findKeysInBlocks(startKey, endKey string, data []byte) (entries []*LSMDataEntry) {
 	for i := 0; i < len(data); i += BlockSize {
 		block := data[i : i+BlockSize]
 		j := 0
-		for j < len(block) {
-			seqID := binary.LittleEndian.Uint64(block[i : i+8])
-			i += 8
-			keySize := uint8(block[i])
-			i++
-			key := string(block[i : i+int(keySize)])
-			i += int(keySize)
-			valueType := uint8(block[i])
-			i++
-			valueSize := binary.LittleEndian.Uint16(block[i : i+2])
-			i += 2
-			value := block[i : i+int(valueSize)]
-			i += int(valueSize)
+		for j+8 < len(block) {
+			seqID := binary.LittleEndian.Uint64(block[j : j+8])
+			j += 8
+			if j >= len(block) {
+				break
+			}
+			keySize := uint8(block[j])
+			j++
+			if j+int(keySize)-1 >= len(block) {
+				break
+			}
+			key := string(block[j : j+int(keySize)])
+			j += int(keySize)
+			if j >= len(block) {
+				break
+			}
+			valueType := uint8(block[j])
+			j++
+			if j+1 >= len(block) {
+				break
+			}
+			valueSize := binary.LittleEndian.Uint16(block[j : j+2])
+			j += 2
+			if j+int(valueSize)-1 >= len(block) {
+				break
+			}
+			value := block[j : j+int(valueSize)]
+			j += int(valueSize)
 
 			if startKey <= key && key <= endKey {
 				entries = append(entries, &LSMDataEntry{

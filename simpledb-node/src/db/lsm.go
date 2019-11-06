@@ -1,6 +1,7 @@
 package db
 
 import (
+	"fmt"
 	"math"
 	"path/filepath"
 	"strings"
@@ -120,6 +121,7 @@ func (lsm *LSM) Find(key string, levelNum int) (*LSMDataEntry, error) {
 		if _, ok := err.(*errKeyNotFound); ok {
 			continue
 		} else if strings.HasSuffix(err.Error(), "no such file or directory") {
+			fmt.Println(key, err)
 			continue
 		} else {
 			return nil, err
@@ -163,22 +165,6 @@ func (lsm *LSM) Range(startKey, endKey string) ([]*LSMDataEntry, error) {
 		return result, errs[0]
 	}
 
-	// resultMap := make(map[string]*LSMDataEntry)
-
-	// for _, entry := range all {
-	// 	if value, ok := resultMap[entry.key]; !ok {
-	// 		resultMap[entry.key] = entry
-	// 	} else {
-	// 		if value.seqID < entry.seqID {
-	// 			resultMap[entry.key] = entry
-	// 		}
-	// 	}
-	// }
-
-	// result := []*LSMDataEntry{}
-	// for _, entry := range resultMap {
-
-	// }
 	return result, nil
 }
 

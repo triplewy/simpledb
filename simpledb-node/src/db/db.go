@@ -17,7 +17,8 @@ type DB struct {
 
 	insertChan chan *insertRequest
 	getChan    chan *getRequest
-	errChan    chan error
+	rangeChan  chan *rangeRequest
+	flushChan  chan *MemTable
 
 	lsm *LSM
 
@@ -33,6 +34,13 @@ type insertRequest struct {
 type getRequest struct {
 	key       string
 	replyChan chan *LSMDataEntry
+	errChan   chan error
+}
+
+type rangeRequest struct {
+	startKey  string
+	endKey    string
+	replyChan chan []*LSMDataEntry
 	errChan   chan error
 }
 
@@ -55,11 +63,11 @@ func NewDB(directory string) (*DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	mutable, err := NewMemTable(lsm, directory, "1")
+	memtable1, err := NewMemTable(directory, "1")
 	if err != nil {
 		return nil, err
 	}
-	immutable, err := NewMemTable(lsm, directory, "2")
+	memtable2, err := NewMemTable(directory, "2")
 	if err != nil {
 		return nil, err
 	}
@@ -67,12 +75,13 @@ func NewDB(directory string) (*DB, error) {
 	db := &DB{
 		seqID: 0,
 
-		mutable:   mutable,
-		immutable: immutable,
+		mutable:   memtable1,
+		immutable: memtable2,
 
 		insertChan: make(chan *insertRequest),
 		getChan:    make(chan *getRequest),
-		errChan:    make(chan error),
+		rangeChan:  make(chan *rangeRequest),
+		flushChan:  make(chan *MemTable),
 
 		lsm: lsm,
 
@@ -80,6 +89,7 @@ func NewDB(directory string) (*DB, error) {
 	}
 
 	go db.run()
+	go db.runFlush()
 
 	return db, nil
 }
@@ -100,7 +110,7 @@ func (db *DB) Put(key string, value interface{}) error {
 }
 
 // Get retrieves value for a given key or returns key not found
-func (db *DB) Get(key string) (interface{}, error) {
+func (db *DB) Get(key string) (*KV, error) {
 	if len(key) > KeySize {
 		return nil, ErrExceedMaxKeySize(key)
 	}
@@ -164,25 +174,72 @@ func (db *DB) Range(startKey, endKey string) ([]*KV, error) {
 	all = append(all, db.mutable.Range(startKey, endKey)...)
 	all = append(all, db.immutable.Range(startKey, endKey)...)
 
-	entries, err := db.lsm.Range(startKey, endKey)
-	if err != nil {
+	replyChan := make(chan []*LSMDataEntry, 1)
+	errChan := make(chan error, 1)
+	rangeRequest := &rangeRequest{
+		startKey:  startKey,
+		endKey:    endKey,
+		replyChan: replyChan,
+		errChan:   errChan,
+	}
+	db.rangeChan <- rangeRequest
+
+	select {
+	case entries := <-replyChan:
+		all = append(all, entries...)
+	case err := <-errChan:
 		return nil, err
 	}
-	all = append(all, entries...)
+	resultMap := make(map[string]*LSMDataEntry)
 
-	sort.SliceStable(all, func(i, j int) bool {
-		return all[i].key < all[j].key
-	})
+	for _, entry := range all {
+		if value, ok := resultMap[entry.key]; !ok {
+			resultMap[entry.key] = entry
+		} else {
+			if value.seqID < entry.seqID {
+				resultMap[entry.key] = entry
+			}
+		}
+	}
 
-	result := make([]*KV, len(all))
-	for i, entry := range all {
+	result := []*KV{}
+	for _, entry := range resultMap {
 		data, err := parseDataEntry(entry)
 		if err != nil {
 			return nil, err
 		}
-		result[i] = data
+		result = append(result, data)
 	}
+
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].key < result[j].key
+	})
+
 	return result, nil
+}
+
+// Flush takes all entries from the in-memory table and sends them to LSM
+func (db *DB) Flush(mt *MemTable) error {
+	entries := mt.table.Inorder()
+
+	dataBlocks, indexBlock, bloom, keyRange, err := writeDataEntries(entries)
+	if err != nil {
+		return err
+	}
+	// Flush to LSM
+	err = db.lsm.Append(dataBlocks, indexBlock, bloom, keyRange)
+	if err != nil {
+		return err
+	}
+	// Truncate the WAL
+	err = os.Truncate(mt.wal, 0)
+	if err != nil {
+		return err
+	}
+
+	mt.table = NewAVLTree()
+	mt.size = 0
+	return nil
 }
 
 // Close gracefully closes the database
@@ -199,13 +256,14 @@ func (db *DB) run() {
 	for {
 		select {
 		case req := <-db.insertChan:
+			db.seqID++
 			entry, err := createDataEntry(db.seqID, req.key, req.value)
 			if err != nil {
 				req.errChan <- err
 			} else {
 				entrySize := sizeDataEntry(entry)
 				if db.mutable.size+entrySize > MemTableSize {
-					go db.mutable.Flush(db.errChan)
+					db.flushChan <- db.mutable
 					db.mutable, db.immutable = db.immutable, db.mutable
 				}
 				err = db.mutable.Put(entry)
@@ -222,11 +280,28 @@ func (db *DB) run() {
 			} else {
 				req.replyChan <- reply
 			}
-		case err := <-db.errChan:
-			fmt.Println(err)
+		case req := <-db.rangeChan:
+			entries, err := db.lsm.Range(req.startKey, req.endKey)
+			if err != nil {
+				req.errChan <- err
+			} else {
+				req.replyChan <- entries
+			}
 		case <-db.close:
 			db.lsm.Close()
 			return
+		}
+	}
+}
+
+func (db *DB) runFlush() {
+	for {
+		select {
+		case mt := <-db.flushChan:
+			err := db.Flush(mt)
+			if err != nil {
+				fmt.Println(err)
+			}
 		}
 	}
 }

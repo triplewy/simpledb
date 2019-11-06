@@ -207,9 +207,7 @@ func (level *Level) Range(startKey, endKey string, replyChan chan []*LSMDataEntr
 
 	wg.Add(len(filenames))
 	for _, filename := range filenames {
-		go func(filename string) {
-			fileRangeQuery(filename, startKey, endKey, replies, errs)
-		}(filename)
+		go fileRangeQuery(filename, startKey, endKey, replies, errs)
 	}
 
 	go func() {
