@@ -114,33 +114,41 @@ func (level *Level) Merge(files []string) {
 			level.compactReplyChan <- &compactReply{files: nil, err: err}
 			return
 		}
-
 		size := int(info.Size())
-
 		fileArr := strings.Split(file, "/")
 		oldFileID := strings.Split(fileArr[len(fileArr)-1], ".")[0]
 		newFileID := level.getUniqueID()
 
+		// Get key range and bloom filter
+		level.above.manifestLock.RLock()
+		level.above.bloomLock.RLock()
+		keyRange := level.above.manifest[oldFileID]
+		bloom := level.above.blooms[oldFileID]
+		level.above.manifestLock.RUnlock()
+		level.above.bloomLock.RUnlock()
+
+		level.NewSSTFile(newFileID, keyRange, bloom)
+		level.size += size
 		err = os.Rename(file, filepath.Join(level.directory, newFileID+".sst"))
 		if err != nil {
+			level.manifestLock.Lock()
+			delete(level.manifest, newFileID)
+			level.manifestLock.Unlock()
+			level.size -= size
 			level.compactReplyChan <- &compactReply{files: nil, err: err}
 			return
 		}
 
+		// Delete old key range and bloom filter
 		level.above.manifestLock.Lock()
-		level.above.bloomLock.Lock()
 		level.above.mergeLock.Lock()
-		keyRange := level.above.manifest[oldFileID]
-		bloom := level.above.blooms[oldFileID]
+		level.above.bloomLock.Lock()
 		delete(level.above.manifest, oldFileID)
 		delete(level.above.blooms, oldFileID)
 		delete(level.above.merging, oldFileID)
 		level.above.manifestLock.Unlock()
-		level.above.bloomLock.Unlock()
 		level.above.mergeLock.Unlock()
-
-		level.NewSSTFile(newFileID, keyRange, bloom)
-		level.size += size
+		level.above.bloomLock.Unlock()
 		return
 	}
 
@@ -149,7 +157,6 @@ func (level *Level) Merge(files []string) {
 		level.compactReplyChan <- &compactReply{files: nil, err: err}
 		return
 	}
-
 	err = level.writeMerge(entries)
 	if err != nil {
 		level.compactReplyChan <- &compactReply{files: nil, err: err}
@@ -166,7 +173,6 @@ func (level *Level) Merge(files []string) {
 			aboveFiles = append(aboveFiles, file)
 		}
 	}
-
 	level.above.compactReplyChan <- &compactReply{files: aboveFiles, err: nil}
 	level.compactReplyChan <- &compactReply{files: belowFiles, err: nil}
 }
@@ -188,7 +194,6 @@ func (level *Level) writeMerge(entries []*LSMDataEntry) error {
 	if err != nil {
 		return err
 	}
-
 	level.NewSSTFile(fileID, keyRange, bloom)
 	level.size += len(data)
 

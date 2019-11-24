@@ -12,6 +12,8 @@ import (
 type DB struct {
 	seqID uint64
 
+	numWorkers int
+
 	mutable   *MemTable
 	immutable *MemTable
 
@@ -44,6 +46,7 @@ type rangeRequest struct {
 	errChan   chan error
 }
 
+// KV is struct for Key-Value pair
 type KV struct {
 	key   string
 	value interface{}
@@ -74,6 +77,8 @@ func NewDB(directory string) (*DB, error) {
 
 	db := &DB{
 		seqID: 0,
+
+		numWorkers: 32,
 
 		mutable:   memtable1,
 		immutable: memtable2,
@@ -253,6 +258,23 @@ func (db *DB) ForceClose() {
 }
 
 func (db *DB) run() {
+	// Spawn read workers
+	for i := 0; i < db.numWorkers; i++ {
+		go func() {
+			for {
+				select {
+				case req := <-db.getChan:
+					reply, err := db.lsm.Find(req.key, 0)
+					if err != nil {
+						req.errChan <- err
+					} else {
+						req.replyChan <- reply
+					}
+				}
+			}
+		}()
+	}
+
 	for {
 		select {
 		case req := <-db.insertChan:
@@ -272,13 +294,6 @@ func (db *DB) run() {
 				} else {
 					req.errChan <- nil
 				}
-			}
-		case req := <-db.getChan:
-			reply, err := db.lsm.Find(req.key, 0)
-			if err != nil {
-				req.errChan <- err
-			} else {
-				req.replyChan <- reply
 			}
 		case req := <-db.rangeChan:
 			entries, err := db.lsm.Range(req.startKey, req.endKey)

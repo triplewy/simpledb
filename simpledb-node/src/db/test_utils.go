@@ -123,8 +123,8 @@ func asyncGets(db *DB, keys []string, memoryKV map[string]string) error {
 		go func(key, value string) {
 			result, err := db.Get(key)
 			if err != nil {
-				if !(value == "__delete__" && err.Error() == "Key not found") {
-					fmt.Printf("Expected: %v, Got: %v\n", value, "Key not found")
+				if value != "__delete__" && err.Error() == "Key not found" {
+					fmt.Printf("Key: %v, Expected: %v, Got: %v\n", key, value, "Key not found")
 					errChan <- err
 				} else {
 					errChan <- nil
@@ -132,9 +132,10 @@ func asyncGets(db *DB, keys []string, memoryKV map[string]string) error {
 			} else {
 				if result.value.(string) != value {
 					if value == "__delete__" {
+						fmt.Printf("Key: %v, Expected: Key not found, Got: %v\n", key, result.value.(string))
 						errChan <- errors.New("Key should have been deleted")
 					} else {
-						fmt.Printf("Expected: %v, Got: %v\n", value, result.value.(string))
+						fmt.Printf("Key: %v, Expected: %v, Got: %v\n", key, value, result.value.(string))
 						errChan <- errors.New("Incorrect result for get")
 					}
 				} else {
@@ -153,10 +154,10 @@ func asyncGets(db *DB, keys []string, memoryKV map[string]string) error {
 			case err := <-errChan:
 				if err != nil {
 					wrong++
-					if count, ok := errs[err.Error()]; !ok {
+					if _, ok := errs[err.Error()]; !ok {
 						errs[err.Error()] = 1
 					} else {
-						errs[err.Error()] = count + 1
+						errs[err.Error()]++
 					}
 				}
 				wg.Done()

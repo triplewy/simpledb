@@ -45,7 +45,7 @@ func TestDBPutOnly(t *testing.T) {
 		keys = append(keys, key)
 	}
 
-	err = syncGets(db, keys, memoryKV)
+	err = asyncGets(db, keys, memoryKV)
 	if err != nil {
 		t.Fatalf("Error getting from LSM: %v\n", err)
 	}
@@ -229,7 +229,7 @@ func TestDBTinyBenchmark(t *testing.T) {
 		keys = append(keys, key)
 	}
 
-	err = syncGets(db, keys, memoryKV)
+	err = asyncGets(db, keys, memoryKV)
 	if err != nil {
 		t.Fatalf("Error Reading from LSM: %v\n", err)
 	}

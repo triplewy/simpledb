@@ -130,3 +130,15 @@ func ErrExceedMaxValueSize() *errExceedMaxValueSize {
 func (e *errExceedMaxValueSize) Error() string {
 	return fmt.Sprintf("Value size has exceeded max value size: %d", ValueSize)
 }
+
+type errDuplicateKey struct {
+	key string
+}
+
+func ErrDuplicateKey(key string) *errDuplicateKey {
+	return &errDuplicateKey{key: key}
+}
+
+func (e *errDuplicateKey) Error() string {
+	return fmt.Sprintf("Primary key already exists: %v", e.key)
+}

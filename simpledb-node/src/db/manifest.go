@@ -59,22 +59,19 @@ func (level *Level) DeleteSSTFiles(files []string) error {
 	level.manifestLock.Lock()
 	level.mergeLock.Lock()
 	level.bloomLock.Lock()
-
 	for _, file := range files {
 		arr := strings.Split(file, "/")
 		id := strings.Split(arr[len(arr)-1], ".")[0]
-
 		delete(level.manifest, id)
 		delete(level.merging, id)
 		delete(level.blooms, id)
 	}
-
 	level.manifestLock.Unlock()
 	level.mergeLock.Unlock()
 	level.bloomLock.Unlock()
 
 	for _, file := range files {
-		err := os.Remove(file)
+		err := os.RemoveAll(file)
 		if err != nil {
 			return err
 		}

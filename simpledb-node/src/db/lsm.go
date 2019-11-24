@@ -122,7 +122,13 @@ func (lsm *LSM) Find(key string, levelNum int) (*LSMDataEntry, error) {
 			continue
 		} else if strings.HasSuffix(err.Error(), "no such file or directory") {
 			fmt.Println(key, err)
-			continue
+			filename := strings.Fields(err.Error())[1]
+			filename = filename[:len(filename)-1]
+			err := level.DeleteSSTFiles([]string{filename})
+			if err != nil {
+				fmt.Println(err)
+			}
+			return lsm.Find(key, levelNum)
 		} else {
 			return nil, err
 		}
@@ -166,6 +172,64 @@ func (lsm *LSM) Range(startKey, endKey string) ([]*LSMDataEntry, error) {
 	}
 
 	return result, nil
+}
+
+// CheckPrimaryKey traverses through LSM and checks if key exists
+func (lsm *LSM) CheckPrimaryKey(key string, levelNum int) (bool, error) {
+	if levelNum > 6 {
+		return false, nil
+	}
+
+	level := lsm.levels[levelNum]
+
+	filenames := level.FindSSTFile(key)
+	if len(filenames) == 0 {
+		return lsm.CheckPrimaryKey(key, levelNum+1)
+	}
+
+	replyChan := make(chan *LSMDataEntry)
+	errChan := make(chan error)
+
+	replies := []*LSMDataEntry{}
+
+	var wg sync.WaitGroup
+	var errs []error
+
+	wg.Add(len(filenames))
+	for _, filename := range filenames {
+		go fileFind(filename, key, replyChan, errChan)
+	}
+
+	go func() {
+		for {
+			select {
+			case reply := <-replyChan:
+				replies = append(replies, reply)
+				wg.Done()
+			case err := <-errChan:
+				errs = append(errs, err)
+				wg.Done()
+			}
+		}
+	}()
+
+	wg.Wait()
+
+	if len(replies) > 0 {
+		return true, nil
+	}
+
+	for _, err := range errs {
+		if _, ok := err.(*errKeyNotFound); ok {
+			continue
+		} else if strings.HasSuffix(err.Error(), "no such file or directory") {
+			fmt.Println(key, err)
+		} else {
+			return true, err
+		}
+	}
+
+	return lsm.CheckPrimaryKey(key, levelNum+1)
 }
 
 // Close closes all levels in the LSM
