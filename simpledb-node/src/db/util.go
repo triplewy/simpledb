@@ -27,18 +27,22 @@ func floor(x float64) (int64, error) {
 
 // DeleteData deletes all data from database
 func DeleteData() error {
-	dirs := []string{"data/L0", "data/L1", "data/L2", "data/L3", "data/L4", "data/L5", "data/L6", "data/memtables", "data/metadata"}
-
-	for _, dir := range dirs {
-		d, err := ioutil.ReadDir(dir)
-		if err != nil {
-			return err
-		}
-
-		for _, f := range d {
-			os.RemoveAll(path.Join([]string{dir, f.Name()}...))
-		}
+	err := os.RemoveAll("data")
+	if err != nil {
+		return err
 	}
+	// dirs := []string{"data/L0", "data/L1", "data/L2", "data/L3", "data/L4", "data/L5", "data/L6", "data/memtables", "data/metadata"}
+
+	// for _, dir := range dirs {
+	// 	d, err := ioutil.ReadDir(dir)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+
+	// 	for _, f := range d {
+	// 		os.RemoveAll(path.Join([]string{dir, f.Name()}...))
+	// 	}
+	// }
 
 	return nil
 }

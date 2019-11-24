@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 )
 
@@ -55,10 +54,6 @@ type KV struct {
 // NewDB creates a new database by instantiating the LSM and Value Log
 func NewDB(directory string) (*DB, error) {
 	err := os.MkdirAll(directory, os.ModePerm)
-	if err != nil {
-		return nil, err
-	}
-	err = os.MkdirAll(filepath.Join(directory, "metadata"), os.ModePerm)
 	if err != nil {
 		return nil, err
 	}

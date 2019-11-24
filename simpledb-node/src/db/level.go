@@ -83,13 +83,12 @@ func NewLevel(level, capacity int, directory string) (*Level, error) {
 
 		close: make(chan struct{}),
 	}
+	go lvl.run()
 
 	err = lvl.RecoverLevel()
 	if err != nil {
 		return nil, err
 	}
-
-	go lvl.run()
 
 	return lvl, nil
 }
@@ -249,25 +248,17 @@ func (level *Level) RecoverLevel() error {
 
 	for _, fileInfo := range entries {
 		filename := fileInfo.Name()
-		if strings.HasSuffix(filename, ".sst") {
-			fileID := strings.Split(filename, ".")[0]
-			filenames[fileID] = filepath.Join(level.directory, filename)
-		}
+		fileID := strings.Split(filename, ".")[0]
+		filenames[fileID] = filepath.Join(level.directory, filename)
 	}
 
 	for fileID, filename := range filenames {
-		entries, bloom, size, err := RecoverFile(filename)
+		keyRange, bloom, size, err := RecoverFile(filename)
 		if err != nil {
 			return err
 		}
-		if len(entries) > 0 {
-			fmt.Println(filename, len(entries))
-			startKey := entries[0].key
-			endKey := entries[len(entries)-1].key
-			level.manifest[fileID] = &KeyRange{startKey: startKey, endKey: endKey}
-			level.blooms[fileID] = bloom
-			level.size += size
-		}
+		level.NewSSTFile(fileID, keyRange, bloom)
+		level.size += size
 	}
 
 	return nil

@@ -31,18 +31,16 @@ func NewMemTable(directory string, id string) (*MemTable, error) {
 	}
 
 	f, err := os.OpenFile(mt.wal, os.O_CREATE|os.O_EXCL, os.ModePerm)
+	defer f.Close()
 	if err != nil {
 		if !strings.HasSuffix(err.Error(), "file exists") {
 			return nil, err
 		}
-	} else {
-		f.Close()
 		err := mt.RecoverWAL()
 		if err != nil {
 			return nil, err
 		}
 	}
-
 	return mt, nil
 }
 
@@ -100,7 +98,6 @@ func (mt *MemTable) RecoverWAL() error {
 	if err != nil {
 		return err
 	}
-
 	i := 0
 	for i < len(data) {
 		seqID := binary.LittleEndian.Uint64(data[i : i+8])

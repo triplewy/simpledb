@@ -123,7 +123,7 @@ func asyncGets(db *DB, keys []string, memoryKV map[string]string) error {
 		go func(key, value string) {
 			result, err := db.Get(key)
 			if err != nil {
-				if value != "__delete__" && err.Error() == "Key not found" {
+				if err.Error() == "Key not found" && !(value == "__delete__" || value == "") {
 					fmt.Printf("Key: %v, Expected: %v, Got: %v\n", key, value, "Key not found")
 					errChan <- err
 				} else {

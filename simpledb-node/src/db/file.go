@@ -2,7 +2,6 @@ package db
 
 import (
 	"encoding/binary"
-	"fmt"
 	"os"
 )
 
@@ -26,8 +25,8 @@ func writeNewFile(filename string, data []byte) error {
 	return nil
 }
 
-// RecoverFile reads a file and returns all index entries, a bloom filter, and total size of the file
-func RecoverFile(filename string) (entries []*LSMIndexEntry, bloom *Bloom, size int, err error) {
+// RecoverFile reads a file and returns key range, bloom filter, and total size of the file
+func RecoverFile(filename string) (keyRange *KeyRange, bloom *Bloom, size int, err error) {
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	defer f.Close()
 
@@ -35,42 +34,28 @@ func RecoverFile(filename string) (entries []*LSMIndexEntry, bloom *Bloom, size 
 		return nil, nil, 0, err
 	}
 
-	dataSize, indexSize, bloomSize, _, err := readHeader(f)
+	dataSize, indexSize, bloomSize, keyRangeSize, err := readHeader(f)
 	if err != nil {
 		return nil, nil, 0, err
 	}
 
-	fmt.Println("RecoverFile:", filename, indexSize, bloomSize)
-	indexAndBloom := make([]byte, indexSize+bloomSize)
+	bitsAndKeyRange := make([]byte, bloomSize+keyRangeSize)
 
-	numBytes, err := f.ReadAt(indexAndBloom, int64(headerSize+dataSize))
+	numBytes, err := f.ReadAt(bitsAndKeyRange, int64(headerSize+dataSize+indexSize))
 	if err != nil {
 		return nil, nil, 0, err
 	}
-	if numBytes != len(indexAndBloom) {
+	if numBytes != len(bitsAndKeyRange) {
 		return nil, nil, 0, ErrWriteUnexpectedBytes(filename)
 	}
 
-	index := indexAndBloom[:indexSize]
-	i := 0
-	for i < len(index) {
-		keySize := uint8(index[i])
-		i++
-		key := string(index[i : i+int(keySize)])
-		i += int(keySize)
-		block := binary.LittleEndian.Uint32(index[i : i+4])
-		i += 4
-		entries = append(entries, &LSMIndexEntry{
-			keySize: keySize,
-			key:     key,
-			block:   block,
-		})
-	}
+	bits := bitsAndKeyRange[:bloomSize]
+	keyRangeBytes := bitsAndKeyRange[bloomSize:]
 
-	bits := indexAndBloom[indexSize:]
 	bloom = RecoverBloom(bits)
+	keyRange = parseKeyRangeEntry(keyRangeBytes)
 
-	return entries, bloom, int(dataSize + indexSize + bloomSize), nil
+	return keyRange, bloom, int(dataSize + indexSize + bloomSize + keyRangeSize), nil
 }
 
 func fileFind(filename, key string, replyChan chan *LSMDataEntry, errChan chan error) {

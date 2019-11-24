@@ -18,6 +18,21 @@ func createKeyRangeEntry(keyRange *KeyRange) []byte {
 	return data
 }
 
+func parseKeyRangeEntry(data []byte) *KeyRange {
+	i := 0
+	startKeySize := uint8(data[i])
+	i++
+	startKey := string(data[i : i+int(startKeySize)])
+	i += int(startKeySize)
+	endKeySize := uint8(data[i])
+	i++
+	endKey := string(data[i : i+int(endKeySize)])
+	return &KeyRange{
+		startKey: startKey,
+		endKey:   endKey,
+	}
+}
+
 func createHeader(dataSize, indexSize, bloomSize, keyRangeSize int) []byte {
 	dataSizeBytes := make([]byte, 8)
 	indexSizeBytes := make([]byte, 8)
