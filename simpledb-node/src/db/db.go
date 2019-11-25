@@ -9,9 +9,8 @@ import (
 
 // DB is struct for database
 type DB struct {
-	seqID uint64
-
-	numWorkers int
+	seqID  uint64
+	oracle *Oracle
 
 	mutable   *MemTable
 	immutable *MemTable
@@ -47,8 +46,9 @@ type rangeRequest struct {
 
 // KV is struct for Key-Value pair
 type KV struct {
-	key   string
-	value interface{}
+	commitID uint64
+	key      string
+	value    interface{}
 }
 
 // NewDB creates a new database by instantiating the LSM and Value Log
@@ -71,10 +71,7 @@ func NewDB(directory string) (*DB, error) {
 	}
 
 	db := &DB{
-		seqID: 0,
-
-		numWorkers: 32,
-
+		seqID:     0,
 		mutable:   memtable1,
 		immutable: memtable2,
 
@@ -88,10 +85,22 @@ func NewDB(directory string) (*DB, error) {
 		close: make(chan struct{}, 1),
 	}
 
+	oracle := NewOracle(0, db)
+	db.oracle = oracle
+
 	go db.run()
 	go db.runFlush()
 
 	return db, nil
+}
+
+// NewTxn returns a new Txn to perform ops on
+func (db *DB) NewTxn() *Txn {
+	return &Txn{
+		db:         db,
+		writeCache: make(map[string]*KV),
+		readSet:    make(map[string]uint64),
+	}
 }
 
 // Put inserts a key, value pair into the database
@@ -254,7 +263,7 @@ func (db *DB) ForceClose() {
 
 func (db *DB) run() {
 	// Spawn read workers
-	for i := 0; i < db.numWorkers; i++ {
+	for i := 0; i < numWorkers; i++ {
 		go func() {
 			for {
 				select {
@@ -264,6 +273,13 @@ func (db *DB) run() {
 						req.errChan <- err
 					} else {
 						req.replyChan <- reply
+					}
+				case req := <-db.rangeChan:
+					entries, err := db.lsm.Range(req.startKey, req.endKey)
+					if err != nil {
+						req.errChan <- err
+					} else {
+						req.replyChan <- entries
 					}
 				}
 			}
@@ -289,13 +305,6 @@ func (db *DB) run() {
 				} else {
 					req.errChan <- nil
 				}
-			}
-		case req := <-db.rangeChan:
-			entries, err := db.lsm.Range(req.startKey, req.endKey)
-			if err != nil {
-				req.errChan <- err
-			} else {
-				req.replyChan <- entries
 			}
 		case <-db.close:
 			db.lsm.Close()

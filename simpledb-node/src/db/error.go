@@ -142,3 +142,13 @@ func ErrDuplicateKey(key string) *errDuplicateKey {
 func (e *errDuplicateKey) Error() string {
 	return fmt.Sprintf("Primary key already exists: %v", e.key)
 }
+
+type errTxnAbort struct{}
+
+func ErrTxnAbort() *errTxnAbort {
+	return &errTxnAbort{}
+}
+
+func (e *errTxnAbort) Error() string {
+	return fmt.Sprintf("Txn aborted due to concurrent writes to key(s) from other txns")
+}
