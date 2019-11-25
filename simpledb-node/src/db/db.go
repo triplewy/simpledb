@@ -110,11 +110,13 @@ func (db *DB) NewTxn() *Txn {
 	}
 }
 
+// View implements a read only transaction to the DB. Ensures read only since it does not commit at end
 func (db *DB) View(fn func(txn *Txn) error) error {
 	txn := db.NewTxn()
 	return fn(txn)
 }
 
+// Update implements a read and write only transaction to the DB
 func (db *DB) Update(fn func(txn *Txn) error) error {
 	txn := db.NewTxn()
 	if err := fn(txn); err != nil {

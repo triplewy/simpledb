@@ -54,7 +54,3 @@ func (txn *Txn) Commit() error {
 	}
 	return txn.db.oracle.commit(txn.readSet, txn.writeCache)
 }
-
-func (txt *Txn) Discard() error {
-	return nil
-}
