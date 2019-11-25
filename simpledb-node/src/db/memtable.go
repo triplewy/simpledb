@@ -46,12 +46,30 @@ func NewMemTable(directory string, id string) (*MemTable, error) {
 
 // Put first appends to WAL then inserts into the in-memory table
 func (mt *MemTable) Put(entry *LSMDataEntry) error {
-	err := mt.AppendWAL(entry)
+	data := encodeDataEntry(entry)
+	err := mt.AppendWAL(data)
 	if err != nil {
 		return err
 	}
 	mt.table.Put(entry)
 	mt.size += sizeDataEntry(entry)
+	return nil
+}
+
+// BatchPut first appends a batch of writes to WAL then inserts them all into in-memory table
+func (mt *MemTable) BatchPut(entries []*LSMDataEntry) error {
+	data := []byte{}
+	for _, entry := range entries {
+		data = append(data, encodeDataEntry(entry)...)
+	}
+	err := mt.AppendWAL(data)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		mt.table.Put(entry)
+		mt.size += sizeDataEntry(entry)
+	}
 	return nil
 }
 
@@ -70,9 +88,7 @@ func (mt *MemTable) Range(startKey, endKey string) []*LSMDataEntry {
 }
 
 // AppendWAL encodes an LSMDataEntry into bytes and appends to the WAL
-func (mt *MemTable) AppendWAL(entry *LSMDataEntry) error {
-	data := encodeDataEntry(entry)
-
+func (mt *MemTable) AppendWAL(data []byte) error {
 	f, err := os.OpenFile(mt.wal, os.O_APPEND|os.O_WRONLY, os.ModePerm)
 	defer f.Close()
 	if err != nil {

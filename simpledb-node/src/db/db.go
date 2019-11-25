@@ -16,6 +16,7 @@ type DB struct {
 	immutable *MemTable
 
 	insertChan chan *insertRequest
+	batchChan  chan *batchRequest
 	getChan    chan *getRequest
 	rangeChan  chan *rangeRequest
 	flushChan  chan *MemTable
@@ -29,6 +30,11 @@ type insertRequest struct {
 	key     string
 	value   interface{}
 	errChan chan error
+}
+
+type batchRequest struct {
+	entries   []*KV
+	replyChan chan error
 }
 
 type getRequest struct {
@@ -76,6 +82,7 @@ func NewDB(directory string) (*DB, error) {
 		immutable: memtable2,
 
 		insertChan: make(chan *insertRequest),
+		batchChan:  make(chan *batchRequest),
 		getChan:    make(chan *getRequest),
 		rangeChan:  make(chan *rangeRequest),
 		flushChan:  make(chan *MemTable),
@@ -103,7 +110,20 @@ func (db *DB) NewTxn() *Txn {
 	}
 }
 
-// Put inserts a key, value pair into the database
+func (db *DB) View(fn func(txn *Txn) error) error {
+	txn := db.NewTxn()
+	return fn(txn)
+}
+
+func (db *DB) Update(fn func(txn *Txn) error) error {
+	txn := db.NewTxn()
+	if err := fn(txn); err != nil {
+		return err
+	}
+	return txn.Commit()
+}
+
+// Put inserts a key-value pair into DB
 func (db *DB) Put(key string, value interface{}) error {
 	errChan := make(chan error, 1)
 
@@ -116,6 +136,18 @@ func (db *DB) Put(key string, value interface{}) error {
 	db.insertChan <- req
 
 	return <-errChan
+}
+
+// BatchPut inserts multiple key-value pairs into DB
+func (db *DB) BatchPut(entries []*KV) error {
+	replyChan := make(chan error, 1)
+	req := &batchRequest{
+		entries:   entries,
+		replyChan: replyChan,
+	}
+
+	db.batchChan <- req
+	return <-replyChan
 }
 
 // Get retrieves value for a given key or returns key not found
@@ -287,6 +319,7 @@ func (db *DB) run() {
 	}
 
 	for {
+	SelectStatement:
 		select {
 		case req := <-db.insertChan:
 			db.seqID++
@@ -305,6 +338,24 @@ func (db *DB) run() {
 				} else {
 					req.errChan <- nil
 				}
+			}
+		case req := <-db.batchChan:
+			lsmEntries := []*LSMDataEntry{}
+			totalSize := 0
+			for _, entry := range req.entries {
+				lsmEntry, err := createDataEntry(entry.commitID, entry.key, entry.value)
+				if err != nil {
+					req.replyChan <- err
+					break SelectStatement
+				}
+				lsmEntries = append(lsmEntries, lsmEntry)
+				totalSize += sizeDataEntry(lsmEntry)
+			}
+			err := db.mutable.BatchPut(lsmEntries)
+			if err != nil {
+				req.replyChan <- err
+			} else {
+				req.replyChan <- nil
 			}
 		case <-db.close:
 			db.lsm.Close()

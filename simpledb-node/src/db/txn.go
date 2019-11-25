@@ -9,6 +9,7 @@ type Txn struct {
 	readSet    map[string]uint64
 }
 
+// Read gets value for a key from the DB and updates the txn readSet
 func (txn *Txn) Read(key string) (interface{}, error) {
 	kv, err := txn.db.Get(key)
 	if err != nil {
@@ -18,6 +19,7 @@ func (txn *Txn) Read(key string) (interface{}, error) {
 	return kv.value, nil
 }
 
+// Write updates the write cache of the txn
 func (txn *Txn) Write(key string, value interface{}) {
 	txn.writeCache[key] = &KV{
 		key:   key,
@@ -25,6 +27,7 @@ func (txn *Txn) Write(key string, value interface{}) {
 	}
 }
 
+// Delete updates the write cache of the txn
 func (txn *Txn) Delete(key string) {
 	txn.writeCache[key] = &KV{
 		key:   key,
@@ -32,6 +35,7 @@ func (txn *Txn) Delete(key string) {
 	}
 }
 
+// Range gets a range of values from a start key to an end key from the DB and updates the txn readSet
 func (txn *Txn) Range(startKey, endKey string) ([]*KV, error) {
 	kvs, err := txn.db.Range(startKey, endKey)
 	if err != nil {
@@ -43,9 +47,14 @@ func (txn *Txn) Range(startKey, endKey string) ([]*KV, error) {
 	return kvs, nil
 }
 
+// Commit sends the txn's read and write set to the oracle for commit
 func (txn *Txn) Commit() error {
 	if len(txn.writeCache) == 0 {
 		return nil
 	}
 	return txn.db.oracle.commit(txn.readSet, txn.writeCache)
+}
+
+func (txt *Txn) Discard() error {
+	return nil
 }

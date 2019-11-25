@@ -11,6 +11,50 @@ import (
 	"time"
 )
 
+func asyncUpdates(db *DB, entries []*KV) error {
+	var wg sync.WaitGroup
+	errChan := make(chan error)
+	wg.Add(len(entries))
+
+	startTime := time.Now()
+	for _, kv := range entries {
+		go func(key string, value interface{}) {
+			err := db.Update(func(txn *Txn) error {
+				txn.Write(key, value)
+				return nil
+			})
+			errChan <- err
+		}(kv.key, kv.value)
+	}
+
+	errs := make(map[string]int)
+	go func() {
+		for {
+			select {
+			case err := <-errChan:
+				if err != nil {
+					if _, ok := errs[err.Error()]; !ok {
+						errs[err.Error()] = 1
+					} else {
+						errs[err.Error()]++
+					}
+				}
+				wg.Done()
+			}
+		}
+	}()
+	wg.Wait()
+
+	duration := time.Since(startTime)
+	fmt.Printf("Duration inserting %d items: %v\n", len(entries), duration)
+
+	if len(errs) > 0 {
+		fmt.Printf("Encountered errors during put: %v\n", errs)
+		return errors.New("Async Updates failed")
+	}
+	return nil
+}
+
 func asyncPuts(db *DB, keys []string, values []interface{}) error {
 	if len(keys) != len(values) {
 		return errors.New("Length of keys does not match length of values")
@@ -108,6 +152,70 @@ func asyncDeletes(db *DB, keys []string) error {
 	if len(errs) > 0 {
 		fmt.Printf("Encountered errors during delete: %v\n", errs)
 		return errors.New("Async Deletes failed")
+	}
+	return nil
+}
+
+func asyncViews(db *DB, keys []string, memoryKV map[string]string) error {
+	var wg sync.WaitGroup
+	errChan := make(chan error)
+
+	startTime := time.Now()
+	for _, key := range keys {
+		wg.Add(1)
+		value := memoryKV[key]
+		go func(key, value string) {
+			err := db.View(func(txn *Txn) error {
+				result, err := txn.Read(key)
+				if err != nil {
+					if err.Error() == "Key not found" && !(value == "__delete__" || value == "") {
+						fmt.Printf("Key: %v, Expected: %v, Got: %v\n", key, value, "Key not found")
+						return err
+					}
+					return nil
+				}
+				if result.(string) != value {
+					if value == "__delete__" {
+						fmt.Printf("Key: %v, Expected: Key not found, Got: %v\n", key, result.(string))
+						return errors.New("Key should have been deleted")
+					}
+					fmt.Printf("Key: %v, Expected: %v, Got: %v\n", key, value, result.(string))
+					return errors.New("Incorrect result for get")
+				}
+				return nil
+			})
+			errChan <- err
+		}(key, value)
+	}
+
+	wrong := 0
+	errs := make(map[string]int)
+
+	go func() {
+		for {
+			select {
+			case err := <-errChan:
+				if err != nil {
+					wrong++
+					if _, ok := errs[err.Error()]; !ok {
+						errs[err.Error()] = 1
+					} else {
+						errs[err.Error()]++
+					}
+				}
+				wg.Done()
+			}
+		}
+	}()
+	wg.Wait()
+
+	duration := time.Since(startTime)
+	fmt.Printf("Duration reading %d items: %v\n", len(keys), duration)
+
+	fmt.Printf("Correct: %f%%\n", float64(len(keys)-wrong)/float64(len(keys))*float64(100))
+	if len(errs) > 0 {
+		fmt.Printf("Encountered errors during read: %v\n", errs)
+		return errors.New("Async get failed")
 	}
 	return nil
 }

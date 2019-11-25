@@ -49,8 +49,6 @@ func TestDBPutOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Error getting from LSM: %v\n", err)
 	}
-
-	// fmt.Printf("Total LSM Read duration: %v\nTotal Vlog Read duration: %v\n", db.totalLsmReadDuration, db.totalVlogReadDuration)
 }
 
 func TestDBOverlapPut(t *testing.T) {
@@ -106,8 +104,6 @@ func TestDBOverlapPut(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Error getting from LSM: %v\n", err)
 	}
-
-	// fmt.Printf("Total LSM Read duration: %v\nTotal Vlog Read duration: %v\n", db.totalLsmReadDuration, db.totalVlogReadDuration)
 }
 
 func TestDBDelete(t *testing.T) {

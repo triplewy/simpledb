@@ -53,13 +53,17 @@ func (oracle *Oracle) run() {
 					break
 				}
 			}
+			entries := []*KV{}
 			commitID := oracle.next()
 			for key, kv := range req.writeSet {
 				oracle.commitedTxns[key] = commitID
-				kv.commitID = commitID
+				entries = append(entries, &KV{
+					commitID: commitID,
+					key:      kv.key,
+					value:    kv.value,
+				})
 			}
-
-			req.replyChan <- nil
+			req.replyChan <- oracle.db.BatchPut(entries)
 		}
 	}
 }
