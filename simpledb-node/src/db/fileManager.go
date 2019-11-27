@@ -73,6 +73,7 @@ func (fm *FileManager) spawnFileWorker() {
 	}
 }
 
+// Write writes an arbitrary sized byte slice to a file
 func (fm *FileManager) Write(filename string, data []byte) error {
 	errChan := make(chan error, 1)
 	req := &fileWriteReq{
@@ -84,6 +85,7 @@ func (fm *FileManager) Write(filename string, data []byte) error {
 	return <-errChan
 }
 
+// MMap reads a file's data block and converts it to a slice of LSMDataEntry
 func (fm *FileManager) MMap(filename string) ([]*LSMDataEntry, error) {
 	replyChan := make(chan []*LSMDataEntry, 1)
 	errChan := make(chan error, 1)
@@ -96,6 +98,7 @@ func (fm *FileManager) MMap(filename string) ([]*LSMDataEntry, error) {
 	return <-replyChan, <-errChan
 }
 
+// Find attempts to find a LSMDataEntry that matches the given key within the file
 func (fm *FileManager) Find(filename, key string) (*LSMDataEntry, error) {
 	replyChan := make(chan *LSMDataEntry, 1)
 	errChan := make(chan error, 1)
@@ -109,6 +112,7 @@ func (fm *FileManager) Find(filename, key string) (*LSMDataEntry, error) {
 	return <-replyChan, <-errChan
 }
 
+// Range returns all LSMDataEntry within in the specified key range within the file
 func (fm *FileManager) Range(filename string, keyRange *KeyRange) ([]*LSMDataEntry, error) {
 	replyChan := make(chan []*LSMDataEntry, 1)
 	errChan := make(chan error, 1)
