@@ -8,69 +8,6 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestMerge(t *testing.T) {
-	err := DeleteData()
-	if err != nil {
-		t.Errorf("Error deleting data: %v\n", err)
-	}
-
-	entries1 := []*LSMDataEntry{}
-	entries2 := []*LSMDataEntry{}
-	entries3 := []*LSMDataEntry{}
-	entries4 := []*LSMDataEntry{}
-
-	for i := 0; i < 50000; i++ {
-		key := strconv.Itoa(1000000000000000000 + i)
-		entry, err := createDataEntry(uint64(i), key, key)
-		if err != nil {
-			t.Fatalf("Error creating data entry: %v\n", err)
-		}
-
-		if (1000000000000000000+i)%4 == 0 {
-			entries1 = append(entries1, entry)
-		} else if (1000000000000000000+i-1)%4 == 0 {
-			entries2 = append(entries2, entry)
-		} else if (1000000000000000000+i-2)%4 == 0 {
-			entries3 = append(entries3, entry)
-		} else {
-			entries4 = append(entries4, entry)
-		}
-	}
-
-	err = writeEntriesToFile("data/L0/test1", entries1)
-	if err != nil {
-		t.Errorf("Error populating file: %v\n", err)
-	}
-	err = writeEntriesToFile("data/L0/test2", entries2)
-	if err != nil {
-		t.Errorf("Error populating file: %v\n", err)
-	}
-	err = writeEntriesToFile("data/L0/test3", entries3)
-	if err != nil {
-		t.Errorf("Error populating file: %v\n", err)
-	}
-	err = writeEntriesToFile("data/L0/test4", entries4)
-	if err != nil {
-		t.Errorf("Error populating file: %v\n", err)
-	}
-
-	entries, err := mergeSort([]string{"data/L0/test2", "data/L0/test1", "data/L0/test3", "data/L0/test4"})
-	if err != nil {
-		t.Errorf("Error merge sorting files: %v\n", err)
-	}
-
-	if len(entries) != 50000 {
-		t.Fatalf("Length of entries expected: %d, Got: %d\n", 50000, len(entries))
-	}
-
-	for i, entry := range entries {
-		key := entry.key
-		if key != strconv.Itoa(1000000000000000000+i) {
-			t.Errorf("Did not sort files properly. Expected: %s, Got: %s\n", strconv.Itoa(1000000000000000000+i), string(key))
-		}
-	}
-}
-
 func TestMergeMMap(t *testing.T) {
 	err := DeleteData()
 	if err != nil {

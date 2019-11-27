@@ -16,15 +16,15 @@ type MemTable struct {
 }
 
 // NewMemTable creates a file for the WAL and a new Memtable
-func NewMemTable(directory string, id string) (*MemTable, error) {
-	err := os.MkdirAll(filepath.Join(directory, "memtables"), os.ModePerm)
+func NewMemTable(directory string, id string) (mt *MemTable, maxCommitTs uint64, err error) {
+	err = os.MkdirAll(filepath.Join(directory, "memtables"), os.ModePerm)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	filename := "WAL_" + id
 
-	mt := &MemTable{
+	mt = &MemTable{
 		table: NewAVLTree(),
 		wal:   filepath.Join(directory, "memtables", filename),
 		size:  0,
@@ -34,14 +34,14 @@ func NewMemTable(directory string, id string) (*MemTable, error) {
 	defer f.Close()
 	if err != nil {
 		if !strings.HasSuffix(err.Error(), "file exists") {
-			return nil, err
+			return nil, 0, err
 		}
-		err := mt.RecoverWAL()
+		maxCommitTs, err = mt.RecoverWAL()
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 	}
-	return mt, nil
+	return mt, maxCommitTs, nil
 }
 
 // Put first appends to WAL then inserts into the in-memory table
@@ -109,14 +109,17 @@ func (mt *MemTable) AppendWAL(data []byte) error {
 }
 
 // RecoverWAL reads the WAL and repopulates the memtable
-func (mt *MemTable) RecoverWAL() error {
+func (mt *MemTable) RecoverWAL() (maxCommitTs uint64, err error) {
 	data, err := ioutil.ReadFile(mt.wal)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	i := 0
 	for i < len(data) {
 		seqID := binary.LittleEndian.Uint64(data[i : i+8])
+		if seqID > maxCommitTs {
+			maxCommitTs = seqID
+		}
 		i += 8
 		keySize := uint8(data[i])
 		i++
@@ -139,5 +142,5 @@ func (mt *MemTable) RecoverWAL() error {
 		mt.table.Put(entry)
 		mt.size += sizeDataEntry(entry)
 	}
-	return nil
+	return maxCommitTs, nil
 }

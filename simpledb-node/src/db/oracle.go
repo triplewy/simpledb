@@ -2,7 +2,8 @@ package db
 
 // Oracle is struct that is responsible for Optimistic Concurrency Control for ACID Txns
 type Oracle struct {
-	seqID        uint64
+	timestamp    uint64
+	reqChan      chan chan uint64
 	commitChan   chan *commitReq
 	commitedTxns map[string]uint64
 	db           *DB
@@ -15,9 +16,10 @@ type commitReq struct {
 }
 
 // NewOracle creates a new oracle that keeps track of current and committed Txns
-func NewOracle(seqID uint64, db *DB) *Oracle {
+func NewOracle(timestamp uint64, db *DB) *Oracle {
 	oracle := &Oracle{
-		seqID:        seqID,
+		timestamp:    timestamp,
+		reqChan:      make(chan chan uint64),
 		commitChan:   make(chan *commitReq),
 		commitedTxns: make(map[string]uint64),
 		db:           db,
@@ -27,9 +29,15 @@ func NewOracle(seqID uint64, db *DB) *Oracle {
 }
 
 func (oracle *Oracle) next() uint64 {
-	result := oracle.seqID
-	oracle.seqID++
+	result := oracle.timestamp
+	oracle.timestamp++
 	return result
+}
+
+func (oracle *Oracle) requestStart() uint64 {
+	replyChan := make(chan uint64, 1)
+	oracle.reqChan <- replyChan
+	return <-replyChan
 }
 
 func (oracle *Oracle) commit(readSet map[string]uint64, writeSet map[string]*KV) error {
@@ -46,19 +54,22 @@ func (oracle *Oracle) commit(readSet map[string]uint64, writeSet map[string]*KV)
 func (oracle *Oracle) run() {
 	for {
 		select {
+		case replyChan := <-oracle.reqChan:
+			startID := oracle.next()
+			replyChan <- startID
 		case req := <-oracle.commitChan:
-			for key, id := range req.readSet {
-				if lastCommit, ok := oracle.commitedTxns[key]; ok && lastCommit > id {
+			for key, ts := range req.readSet {
+				if lastCommit, ok := oracle.commitedTxns[key]; ok && lastCommit > ts {
 					req.replyChan <- ErrTxnAbort()
 					break
 				}
 			}
 			entries := []*KV{}
-			commitID := oracle.next()
+			commitTs := oracle.next()
 			for key, kv := range req.writeSet {
-				oracle.commitedTxns[key] = commitID
+				oracle.commitedTxns[key] = commitTs
 				entries = append(entries, &KV{
-					commitID: commitID,
+					commitTs: commitTs,
 					key:      kv.key,
 					value:    kv.value,
 				})

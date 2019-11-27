@@ -1,20 +1,18 @@
 package db
 
 import (
-	"encoding/binary"
-	"os"
 	"sort"
 )
 
-func mergeSort(files []string) ([]*LSMDataEntry, error) {
+func (level *Level) mergeSort(files []string) ([]*LSMDataEntry, error) {
 	if len(files) > 1 {
 		mid := len(files) / 2
 
-		left, err := mergeSort(files[:mid])
+		left, err := level.mergeSort(files[:mid])
 		if err != nil {
 			return nil, err
 		}
-		right, err := mergeSort(files[mid:])
+		right, err := level.mergeSort(files[mid:])
 		if err != nil {
 			return nil, err
 		}
@@ -24,7 +22,7 @@ func mergeSort(files []string) ([]*LSMDataEntry, error) {
 		return result, nil
 	}
 
-	return mmap(files[0])
+	return level.fm.MMap(files[0])
 }
 
 func mergeHelper(left, right []*LSMDataEntry) (entries []*LSMDataEntry) {
@@ -97,71 +95,6 @@ func mergeHelper(left, right []*LSMDataEntry) (entries []*LSMDataEntry) {
 	}
 
 	return entries
-}
-
-func mmap(filename string) (entries []*LSMDataEntry, err error) {
-	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
-	defer f.Close()
-	if err != nil {
-		return nil, err
-	}
-	dataSize, _, _, _, err := readHeader(f)
-	if err != nil {
-		return nil, err
-	}
-	data := make([]byte, dataSize)
-	numBytes, err := f.ReadAt(data, headerSize)
-	if err != nil {
-		return nil, err
-	}
-	if numBytes != len(data) {
-		return nil, ErrReadUnexpectedBytes("SST File")
-	}
-	for i := 0; i < len(data); i += BlockSize {
-		block := data[i : i+BlockSize]
-		j := 0
-		for j+8 <= len(block) {
-			seqID := binary.LittleEndian.Uint64(block[j : j+8])
-			j += 8
-			if j >= len(block) {
-				break
-			}
-			keySize := uint8(block[j])
-			j++
-			if j+int(keySize)-1 >= len(block) {
-				break
-			}
-			key := string(block[j : j+int(keySize)])
-			j += int(keySize)
-			if j >= len(block) {
-				break
-			}
-			valueType := uint8(block[j])
-			j++
-			if j+1 >= len(block) {
-				break
-			}
-			valueSize := binary.LittleEndian.Uint16(block[j : j+2])
-			j += 2
-			if j+int(valueSize)-1 >= len(block) {
-				break
-			}
-			value := block[j : j+int(valueSize)]
-			j += int(valueSize)
-
-			if key != "" {
-				entries = append(entries, &LSMDataEntry{
-					seqID:     seqID,
-					keySize:   keySize,
-					key:       key,
-					valueType: valueType,
-					valueSize: valueSize,
-					value:     value,
-				})
-			}
-		}
-	}
-	return entries, nil
 }
 
 func mergeIntervals(intervals []*merge) []*merge {

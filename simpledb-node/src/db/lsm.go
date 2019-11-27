@@ -2,7 +2,6 @@ package db
 
 import (
 	"fmt"
-	"math"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -11,25 +10,18 @@ import (
 // LSM is struct for all levels in an LSM
 type LSM struct {
 	levels []*Level
+	fm     *FileManager
 }
 
 // NewLSM instatiates all levels for a new LSM tree
 func NewLSM(directory string) (*LSM, error) {
+	fm := NewFileManager()
 	levels := []*Level{}
-
 	for i := 0; i < 7; i++ {
-		var blockCapacity int
-		if i == 0 {
-			blockCapacity = 2 * 1024
-		} else {
-			blockCapacity = int(math.Pow10(i)) * multiplier
-		}
-
-		level, err := NewLevel(i, blockCapacity, directory)
+		level, err := NewLevel(i, directory, fm)
 		if err != nil {
 			return nil, err
 		}
-
 		if i > 0 {
 			above := levels[i-1]
 			above.below = level
@@ -38,7 +30,10 @@ func NewLSM(directory string) (*LSM, error) {
 		levels = append(levels, level)
 	}
 
-	return &LSM{levels: levels}, nil
+	return &LSM{
+		levels: levels,
+		fm:     fm,
+	}, nil
 }
 
 // Append takes data blocks, an index block, and a key range as input and writes an SST File to level 0.
@@ -52,7 +47,7 @@ func (lsm *LSM) Append(blocks, index []byte, bloom *Bloom, keyRange *KeyRange) e
 	header := createHeader(len(blocks), len(index), len(bloom.bits), len(keyRangeEntry))
 	data := append(header, append(append(append(blocks, index...), bloom.bits...), keyRangeEntry...)...)
 
-	err := writeNewFile(filename, data)
+	err := lsm.fm.Write(filename, data)
 	if err != nil {
 		return err
 	}
@@ -86,7 +81,14 @@ func (lsm *LSM) Find(key string, levelNum int) (*LSMDataEntry, error) {
 
 	wg.Add(len(filenames))
 	for _, filename := range filenames {
-		go fileFind(filename, key, replyChan, errChan)
+		go func(filename string) {
+			entry, err := lsm.fm.Find(filename, key)
+			if err != nil {
+				errChan <- err
+			} else {
+				replyChan <- entry
+			}
+		}(filename)
 	}
 
 	go func() {
@@ -121,6 +123,7 @@ func (lsm *LSM) Find(key string, levelNum int) (*LSMDataEntry, error) {
 		if _, ok := err.(*errKeyNotFound); ok {
 			continue
 		} else if strings.HasSuffix(err.Error(), "no such file or directory") {
+			// If encounter race condition of non existent file, make sure to delete it from manifest
 			fmt.Println(key, err)
 			filename := strings.Fields(err.Error())[1]
 			filename = filename[:len(filename)-1]
@@ -139,17 +142,23 @@ func (lsm *LSM) Find(key string, levelNum int) (*LSMDataEntry, error) {
 
 // Range concurrently finds all keys in the LSM tree that fall within the range query.
 // Concurrency is achieved by going through each level on its own goroutine
-func (lsm *LSM) Range(startKey, endKey string) ([]*LSMDataEntry, error) {
+func (lsm *LSM) Range(keyRange *KeyRange) ([]*LSMDataEntry, error) {
 	replyChan := make(chan []*LSMDataEntry)
 	errChan := make(chan error)
 	result := []*LSMDataEntry{}
-
+	errs := make(map[string]int)
 	var wg sync.WaitGroup
-	var errs []error
 
 	wg.Add(7)
 	for _, level := range lsm.levels {
-		go level.Range(startKey, endKey, replyChan, errChan)
+		go func(level *Level) {
+			entries, err := level.Range(keyRange)
+			if err != nil {
+				errChan <- err
+			} else {
+				replyChan <- entries
+			}
+		}(level)
 	}
 
 	go func() {
@@ -159,18 +168,20 @@ func (lsm *LSM) Range(startKey, endKey string) ([]*LSMDataEntry, error) {
 				result = append(result, reply...)
 				wg.Done()
 			case err := <-errChan:
-				errs = append(errs, err)
+				if _, ok := errs[err.Error()]; !ok {
+					errs[err.Error()] = 1
+				} else {
+					errs[err.Error()]++
+				}
 				wg.Done()
 			}
 		}
 	}()
-
 	wg.Wait()
 
 	if len(errs) > 0 {
-		return result, errs[0]
+		return result, fmt.Errorf("Errors during LSM range query: %v", errs)
 	}
-
 	return result, nil
 }
 
@@ -197,7 +208,14 @@ func (lsm *LSM) CheckPrimaryKey(key string, levelNum int) (bool, error) {
 
 	wg.Add(len(filenames))
 	for _, filename := range filenames {
-		go fileFind(filename, key, replyChan, errChan)
+		go func(filename string) {
+			entry, err := lsm.fm.Find(filename, key)
+			if err != nil {
+				errChan <- err
+			} else {
+				replyChan <- entry
+			}
+		}(filename)
 	}
 
 	go func() {

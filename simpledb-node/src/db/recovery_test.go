@@ -19,28 +19,26 @@ func TestRecoverLevels(t *testing.T) {
 
 	numItems := 100000
 	memoryKV := make(map[string]string)
-	keys := []string{}
-	values := []interface{}{}
+	entries := []*KV{}
 
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(1000000000000000000 + i)
 		memoryKV[key] = key
-		keys = append(keys, key)
-		values = append(values, key)
+		entries = append(entries, &KV{key: key, value: key})
 	}
 
-	err = syncPuts(db, keys, values)
+	err = asyncUpdates(db, entries)
 	if err != nil {
 		t.Fatalf("Error inserting into LSM: %v\n", err)
 	}
 
-	keys = []string{}
+	keys := []string{}
 	for i := 0; i < 50000; i++ {
 		key := strconv.Itoa(1000000000000000000 + i)
 		keys = append(keys, key)
 	}
 
-	err = asyncGets(db, keys, memoryKV)
+	err = asyncViews(db, keys, memoryKV)
 	if err != nil {
 		t.Fatalf("Error getting from LSM: %v\n", err)
 	}
@@ -58,7 +56,7 @@ func TestRecoverLevels(t *testing.T) {
 		keys = append(keys, key)
 	}
 
-	err = asyncGets(newDb, keys, memoryKV)
+	err = asyncViews(newDb, keys, memoryKV)
 	if err != nil {
 		t.Fatalf("Error getting from LSM: %v\n", err)
 	}
@@ -97,7 +95,7 @@ func TestRecoverUnexpected(t *testing.T) {
 			keys = append(keys, key)
 		}
 
-		err = asyncGets(newDb, keys, memoryKV)
+		err = asyncViews(newDb, keys, memoryKV)
 		if err != nil {
 			t.Fatalf("Error reading from LSM: %v", err)
 		}
@@ -106,7 +104,10 @@ func TestRecoverUnexpected(t *testing.T) {
 
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(1000000000000000000 + i)
-		err := db.Put(key, key)
+		err := db.Update(func(txn *Txn) error {
+			txn.Write(key, key)
+			return nil
+		})
 		if err != nil {
 			t.Fatalf("Error inserting into LSM: %v\n", err)
 		} else {

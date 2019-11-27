@@ -77,7 +77,15 @@ func TestFileGet(t *testing.T) {
 	for i := 1000; i < 10000; i++ {
 		wg.Add(1)
 		key := strconv.Itoa(i)
-		fileFind("data/L0/test.sst", key, replyChan, errChan)
+		go func(key string) {
+			entry, err := fileFind("data/L0/test.sst", key)
+			if err != nil {
+				errChan <- err
+			} else {
+				replyChan <- entry
+			}
+		}(key)
+
 	}
 
 	wg.Wait()
@@ -129,33 +137,17 @@ func TestFileRange(t *testing.T) {
 			t.Fatalf("Num bytes written to file does not match data\n")
 		}
 	}
-
 	f.Close()
 
-	replyChan := make(chan []*LSMDataEntry)
-	errChan := make(chan error)
-	var wg sync.WaitGroup
+	keyRange = &KeyRange{startKey: strconv.Itoa(int(math.Pow10(9))), endKey: strconv.Itoa(int(math.Pow10(9)) + 1000000)}
+	entries, err = fileRange("data/L0/test.sst", keyRange)
+	if err != nil {
+		t.Fatalf("Error range query on file: %v\n", err)
+	}
 
-	go func() {
-		for {
-			select {
-			case reply := <-replyChan:
-				for i := 0; i < len(reply); i++ {
-					item := reply[i]
-					if string(item.value) != item.key {
-						t.Errorf("Value expected: %v, got :%v\n", item.key, string(item.value))
-					}
-				}
-				wg.Done()
-			case err := <-errChan:
-				t.Fatalf("Error range query on file: %v\n", err)
-				wg.Done()
-			}
+	for _, item := range entries {
+		if string(item.value) != item.key {
+			t.Errorf("Value expected: %v, got :%v\n", item.key, string(item.value))
 		}
-	}()
-
-	wg.Add(1)
-	fileRangeQuery("data/L0/test.sst", strconv.Itoa(int(math.Pow10(9))), strconv.Itoa(int(math.Pow10(9))+1000000), replyChan, errChan)
-
-	wg.Wait()
+	}
 }

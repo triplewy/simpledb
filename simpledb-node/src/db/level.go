@@ -3,6 +3,7 @@ package db
 import (
 	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -47,19 +48,28 @@ type Level struct {
 	bloomLock sync.RWMutex
 
 	compactReqChan   chan []*merge
-	compactReplyChan chan *compactReply
+	compactReplyChan chan []string
 
 	above *Level
 	below *Level
+
+	fm *FileManager
 
 	close chan struct{}
 }
 
 // NewLevel creates a new level in the LSM tree
-func NewLevel(level, capacity int, directory string) (*Level, error) {
+func NewLevel(level int, directory string, fm *FileManager) (*Level, error) {
 	err := os.MkdirAll(filepath.Join(directory, "L"+strconv.Itoa(level)), os.ModePerm)
 	if err != nil {
 		return nil, err
+	}
+
+	capacity := 0
+	if level == 0 {
+		capacity = 2 * 1024
+	} else {
+		capacity = int(math.Pow10(level)) * multiplier
 	}
 
 	lvl := &Level{
@@ -76,10 +86,12 @@ func NewLevel(level, capacity int, directory string) (*Level, error) {
 		blooms: make(map[string]*Bloom),
 
 		compactReqChan:   make(chan []*merge, 16),
-		compactReplyChan: make(chan *compactReply, 16),
+		compactReplyChan: make(chan []string, 16),
 
 		above: nil,
 		below: nil,
+
+		fm: fm,
 
 		close: make(chan struct{}),
 	}
@@ -105,13 +117,12 @@ func (level *Level) getUniqueID() string {
 }
 
 // Merge takes an empty or existing file at the current level and merges it with file(s) from the level above
-func (level *Level) Merge(files []string) {
+func (level *Level) Merge(files []string) ([]string, error) {
 	if len(files) == 1 {
 		file := files[0]
 		info, err := os.Stat(file)
 		if err != nil {
-			level.compactReplyChan <- &compactReply{files: nil, err: err}
-			return
+			return nil, err
 		}
 		size := int(info.Size())
 		fileArr := strings.Split(file, "/")
@@ -134,10 +145,8 @@ func (level *Level) Merge(files []string) {
 			delete(level.manifest, newFileID)
 			level.manifestLock.Unlock()
 			level.size -= size
-			level.compactReplyChan <- &compactReply{files: nil, err: err}
-			return
+			return nil, err
 		}
-
 		// Delete old key range and bloom filter
 		level.above.manifestLock.Lock()
 		level.above.mergeLock.Lock()
@@ -148,32 +157,18 @@ func (level *Level) Merge(files []string) {
 		level.above.manifestLock.Unlock()
 		level.above.mergeLock.Unlock()
 		level.above.bloomLock.Unlock()
-		return
+		return nil, nil
 	}
 
-	entries, err := mergeSort(files)
+	entries, err := level.mergeSort(files)
 	if err != nil {
-		level.compactReplyChan <- &compactReply{files: nil, err: err}
-		return
+		return nil, err
 	}
 	err = level.writeMerge(entries)
 	if err != nil {
-		level.compactReplyChan <- &compactReply{files: nil, err: err}
-		return
+		return nil, err
 	}
-
-	aboveFiles := []string{}
-	belowFiles := []string{}
-
-	for _, file := range files {
-		if strings.Contains(file, "L"+strconv.Itoa(level.level)) {
-			belowFiles = append(belowFiles, file)
-		} else {
-			aboveFiles = append(aboveFiles, file)
-		}
-	}
-	level.above.compactReplyChan <- &compactReply{files: aboveFiles, err: nil}
-	level.compactReplyChan <- &compactReply{files: belowFiles, err: nil}
+	return files, nil
 }
 
 func (level *Level) writeMerge(entries []*LSMDataEntry) error {
@@ -189,7 +184,7 @@ func (level *Level) writeMerge(entries []*LSMDataEntry) error {
 	fileID := level.getUniqueID()
 	filename := filepath.Join(level.directory, fileID+".sst")
 
-	err = writeNewFile(filename, data)
+	err = level.fm.Write(filename, data)
 	if err != nil {
 		return err
 	}
@@ -201,27 +196,37 @@ func (level *Level) writeMerge(entries []*LSMDataEntry) error {
 
 // Range gets all files at a specific level whose key range fall within the given range query.
 // It then concurrently reads all files and returns the result to the given channel
-func (level *Level) Range(startKey, endKey string, replyChan chan []*LSMDataEntry, errChan chan error) {
-	filenames := level.RangeSSTFiles(startKey, endKey)
-	replies := make(chan []*LSMDataEntry)
-	errs := make(chan error)
-	result := []*LSMDataEntry{}
-	var resultErr error
+func (level *Level) Range(keyRange *KeyRange) (entries []*LSMDataEntry, err error) {
+	filenames := level.RangeSSTFiles(keyRange.startKey, keyRange.endKey)
+	replyChan := make(chan []*LSMDataEntry)
+	errChan := make(chan error)
+	errs := make(map[string]int)
 	var wg sync.WaitGroup
 
 	wg.Add(len(filenames))
 	for _, filename := range filenames {
-		go fileRangeQuery(filename, startKey, endKey, replies, errs)
+		go func(filename string) {
+			entries, err := level.fm.Range(filename, keyRange)
+			if err != nil {
+				errChan <- err
+			} else {
+				replyChan <- entries
+			}
+		}(filename)
 	}
 
 	go func() {
 		for {
 			select {
-			case reply := <-replies:
-				result = append(result, reply...)
+			case reply := <-replyChan:
+				entries = append(entries, reply...)
 				wg.Done()
-			case err := <-errs:
-				resultErr = err
+			case err := <-errChan:
+				if _, ok := errs[err.Error()]; !ok {
+					errs[err.Error()] = 1
+				} else {
+					errs[err.Error()]++
+				}
 				wg.Done()
 			}
 		}
@@ -229,11 +234,10 @@ func (level *Level) Range(startKey, endKey string, replyChan chan []*LSMDataEntr
 
 	wg.Wait()
 
-	if resultErr != nil {
-		errChan <- resultErr
-		return
+	if len(errs) > 0 {
+		return entries, fmt.Errorf("Errors during range query on level %d: %v", level.level, errs)
 	}
-	replyChan <- result
+	return entries, nil
 }
 
 // RecoverLevel reads all files at a level's directory and updates all necessary in-memory data for the level.
@@ -253,7 +257,7 @@ func (level *Level) RecoverLevel() error {
 	}
 
 	for fileID, filename := range filenames {
-		keyRange, bloom, size, err := RecoverFile(filename)
+		keyRange, bloom, size, err := recoverFile(filename)
 		if err != nil {
 			return err
 		}
@@ -299,19 +303,29 @@ func (level *Level) run() {
 				wg.Add(1)
 				go func(files []string) {
 					defer wg.Done()
-					level.Merge(files)
+					removeFiles, err := level.Merge(files)
+					if err != nil {
+						fmt.Println(err)
+					} else {
+						aboveFiles := []string{}
+						belowFiles := []string{}
+						for _, file := range removeFiles {
+							if strings.Contains(file, "L"+strconv.Itoa(level.level)) {
+								belowFiles = append(belowFiles, file)
+							} else {
+								aboveFiles = append(aboveFiles, file)
+							}
+						}
+						level.above.compactReplyChan <- aboveFiles
+						level.compactReplyChan <- belowFiles
+					}
 				}(merge.files)
 			}
-
 			wg.Wait()
-		case reply := <-level.compactReplyChan:
-			if reply.err != nil {
-				fmt.Println(reply.err)
-			} else {
-				err := level.DeleteSSTFiles(reply.files)
-				if err != nil {
-					fmt.Println(err)
-				}
+		case files := <-level.compactReplyChan:
+			err := level.DeleteSSTFiles(files)
+			if err != nil {
+				fmt.Println(err)
 			}
 		case <-exceedCapacity.C:
 			if level.size > level.capacity && level.below != nil {

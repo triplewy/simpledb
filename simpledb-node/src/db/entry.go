@@ -90,7 +90,7 @@ func decodeDataEntry(data []byte) *LSMDataEntry {
 
 func parseDataEntry(entry *LSMDataEntry) (*KV, error) {
 	kv := &KV{
-		commitID: entry.seqID,
+		commitTs: entry.seqID,
 		key:      entry.key,
 	}
 	value := entry.value

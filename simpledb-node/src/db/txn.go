@@ -2,8 +2,10 @@ package db
 
 // Txn is Transaction struct for Optimistic Concurrency Control.
 type Txn struct {
-	db       *DB
-	commitID uint64
+	db *DB
+
+	startTs  uint64
+	commitTs uint64
 
 	writeCache map[string]*KV
 	readSet    map[string]uint64
@@ -15,7 +17,7 @@ func (txn *Txn) Read(key string) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	txn.readSet[key] = kv.commitID
+	txn.readSet[key] = kv.commitTs
 	return kv.value, nil
 }
 
@@ -42,7 +44,7 @@ func (txn *Txn) Range(startKey, endKey string) ([]*KV, error) {
 		return nil, err
 	}
 	for _, kv := range kvs {
-		txn.readSet[kv.key] = kv.commitID
+		txn.readSet[kv.key] = kv.commitTs
 	}
 	return kvs, nil
 }

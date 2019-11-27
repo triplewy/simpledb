@@ -15,21 +15,12 @@ type DB struct {
 	mutable   *MemTable
 	immutable *MemTable
 
-	insertChan chan *insertRequest
-	batchChan  chan *batchRequest
-	getChan    chan *getRequest
-	rangeChan  chan *rangeRequest
-	flushChan  chan *MemTable
+	batchChan chan *batchRequest
+	flushChan chan *MemTable
 
 	lsm *LSM
 
 	close chan struct{}
-}
-
-type insertRequest struct {
-	key     string
-	value   interface{}
-	errChan chan error
 }
 
 type batchRequest struct {
@@ -37,22 +28,9 @@ type batchRequest struct {
 	replyChan chan error
 }
 
-type getRequest struct {
-	key       string
-	replyChan chan *LSMDataEntry
-	errChan   chan error
-}
-
-type rangeRequest struct {
-	startKey  string
-	endKey    string
-	replyChan chan []*LSMDataEntry
-	errChan   chan error
-}
-
 // KV is struct for Key-Value pair
 type KV struct {
-	commitID uint64
+	commitTs uint64
 	key      string
 	value    interface{}
 }
@@ -67,13 +45,18 @@ func NewDB(directory string) (*DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	memtable1, err := NewMemTable(directory, "1")
+	memtable1, maxCommitTs1, err := NewMemTable(directory, "1")
 	if err != nil {
 		return nil, err
 	}
-	memtable2, err := NewMemTable(directory, "2")
+	memtable2, maxCommitTs2, err := NewMemTable(directory, "2")
 	if err != nil {
 		return nil, err
+	}
+
+	maxCommitTs := maxCommitTs1
+	if maxCommitTs2 > maxCommitTs {
+		maxCommitTs = maxCommitTs2
 	}
 
 	db := &DB{
@@ -81,18 +64,15 @@ func NewDB(directory string) (*DB, error) {
 		mutable:   memtable1,
 		immutable: memtable2,
 
-		insertChan: make(chan *insertRequest),
-		batchChan:  make(chan *batchRequest),
-		getChan:    make(chan *getRequest),
-		rangeChan:  make(chan *rangeRequest),
-		flushChan:  make(chan *MemTable),
+		batchChan: make(chan *batchRequest),
+		flushChan: make(chan *MemTable),
 
 		lsm: lsm,
 
 		close: make(chan struct{}, 1),
 	}
 
-	oracle := NewOracle(0, db)
+	oracle := NewOracle(maxCommitTs, db)
 	db.oracle = oracle
 
 	go db.run()
@@ -103,8 +83,10 @@ func NewDB(directory string) (*DB, error) {
 
 // NewTxn returns a new Txn to perform ops on
 func (db *DB) NewTxn() *Txn {
+	startTs := db.oracle.requestStart()
 	return &Txn{
 		db:         db,
+		startTs:    startTs,
 		writeCache: make(map[string]*KV),
 		readSet:    make(map[string]uint64),
 	}
@@ -125,21 +107,6 @@ func (db *DB) Update(fn func(txn *Txn) error) error {
 	return txn.Commit()
 }
 
-// Put inserts a key-value pair into DB
-func (db *DB) Put(key string, value interface{}) error {
-	errChan := make(chan error, 1)
-
-	req := &insertRequest{
-		key:     key,
-		value:   value,
-		errChan: errChan,
-	}
-
-	db.insertChan <- req
-
-	return <-errChan
-}
-
 // BatchPut inserts multiple key-value pairs into DB
 func (db *DB) BatchPut(entries []*KV) error {
 	replyChan := make(chan error, 1)
@@ -157,47 +124,19 @@ func (db *DB) Get(key string) (*KV, error) {
 	if len(key) > KeySize {
 		return nil, ErrExceedMaxKeySize(key)
 	}
-
 	entry := db.mutable.Get(key)
 	if entry != nil {
 		return parseDataEntry(entry)
 	}
-
 	entry = db.immutable.Get(key)
 	if entry != nil {
 		return parseDataEntry(entry)
 	}
-
-	replyChan := make(chan *LSMDataEntry, 1)
-	errChan := make(chan error, 1)
-	getRequest := &getRequest{
-		key:       key,
-		replyChan: replyChan,
-		errChan:   errChan,
-	}
-	db.getChan <- getRequest
-
-	select {
-	case entry := <-replyChan:
-		return parseDataEntry(entry)
-	case err := <-errChan:
+	entry, err := db.lsm.Find(key, 0)
+	if err != nil {
 		return nil, err
 	}
-}
-
-// Delete deletes a given key from the database
-func (db *DB) Delete(key string) error {
-	errChan := make(chan error, 1)
-
-	req := &insertRequest{
-		key:     key,
-		value:   nil,
-		errChan: errChan,
-	}
-
-	db.insertChan <- req
-
-	return <-errChan
+	return parseDataEntry(entry)
 }
 
 // Range finds all key, value pairs within the given range of keys
@@ -212,29 +151,20 @@ func (db *DB) Range(startKey, endKey string) ([]*KV, error) {
 		return nil, errors.New("Start Key is greater than End Key")
 	}
 
-	all := []*LSMDataEntry{}
+	keyRange := &KeyRange{startKey: startKey, endKey: endKey}
 
+	all := []*LSMDataEntry{}
 	all = append(all, db.mutable.Range(startKey, endKey)...)
 	all = append(all, db.immutable.Range(startKey, endKey)...)
 
-	replyChan := make(chan []*LSMDataEntry, 1)
-	errChan := make(chan error, 1)
-	rangeRequest := &rangeRequest{
-		startKey:  startKey,
-		endKey:    endKey,
-		replyChan: replyChan,
-		errChan:   errChan,
-	}
-	db.rangeChan <- rangeRequest
-
-	select {
-	case entries := <-replyChan:
-		all = append(all, entries...)
-	case err := <-errChan:
+	entries, err := db.lsm.Range(keyRange)
+	if err != nil {
 		return nil, err
 	}
-	resultMap := make(map[string]*LSMDataEntry)
+	all = append(all, entries...)
 
+	// Convert slice of entries into a set of entries
+	resultMap := make(map[string]*LSMDataEntry)
 	for _, entry := range all {
 		if value, ok := resultMap[entry.key]; !ok {
 			resultMap[entry.key] = entry
@@ -296,67 +226,27 @@ func (db *DB) ForceClose() {
 }
 
 func (db *DB) run() {
-	// Spawn read workers
-	for i := 0; i < numWorkers; i++ {
-		go func() {
-			for {
-				select {
-				case req := <-db.getChan:
-					reply, err := db.lsm.Find(req.key, 0)
-					if err != nil {
-						req.errChan <- err
-					} else {
-						req.replyChan <- reply
-					}
-				case req := <-db.rangeChan:
-					entries, err := db.lsm.Range(req.startKey, req.endKey)
-					if err != nil {
-						req.errChan <- err
-					} else {
-						req.replyChan <- entries
-					}
-				}
-			}
-		}()
-	}
-
 	for {
 	SelectStatement:
 		select {
-		case req := <-db.insertChan:
-			db.seqID++
-			entry, err := createDataEntry(db.seqID, req.key, req.value)
-			if err != nil {
-				req.errChan <- err
-			} else {
-				entrySize := sizeDataEntry(entry)
-				if db.mutable.size+entrySize > MemTableSize {
-					db.flushChan <- db.mutable
-					db.mutable, db.immutable = db.immutable, db.mutable
-				}
-				err = db.mutable.Put(entry)
-				if err != nil {
-					req.errChan <- err
-				} else {
-					req.errChan <- nil
-				}
-			}
 		case req := <-db.batchChan:
 			lsmEntries := []*LSMDataEntry{}
-			totalSize := 0
 			for _, entry := range req.entries {
-				lsmEntry, err := createDataEntry(entry.commitID, entry.key, entry.value)
+				lsmEntry, err := createDataEntry(entry.commitTs, entry.key, entry.value)
 				if err != nil {
 					req.replyChan <- err
 					break SelectStatement
 				}
 				lsmEntries = append(lsmEntries, lsmEntry)
-				totalSize += sizeDataEntry(lsmEntry)
 			}
 			err := db.mutable.BatchPut(lsmEntries)
 			if err != nil {
 				req.replyChan <- err
 			} else {
+				if db.mutable.size > MemTableSize {
+					db.flushChan <- db.mutable
+					db.mutable, db.immutable = db.immutable, db.mutable
+				}
 				req.replyChan <- nil
 			}
 		case <-db.close:
