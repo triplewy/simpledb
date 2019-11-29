@@ -5,7 +5,7 @@ type Oracle struct {
 	timestamp    uint64
 	reqChan      chan chan uint64
 	commitChan   chan *commitReq
-	commitedTxns map[string]uint64
+	commitedTxns *lru
 	db           *DB
 }
 
@@ -21,7 +21,7 @@ func NewOracle(timestamp uint64, db *DB) *Oracle {
 		timestamp:    timestamp,
 		reqChan:      make(chan chan uint64),
 		commitChan:   make(chan *commitReq),
-		commitedTxns: make(map[string]uint64),
+		commitedTxns: newLRU(oracleSize),
 		db:           db,
 	}
 	go oracle.run()
@@ -60,7 +60,11 @@ func (oracle *Oracle) run() {
 			replyChan <- startID
 		case req := <-oracle.commitChan:
 			for key, ts := range req.readSet {
-				if lastCommit, ok := oracle.commitedTxns[key]; ok && lastCommit > ts {
+				if lastCommit, ok := oracle.commitedTxns.Get(key); ok && lastCommit > ts {
+					req.replyChan <- NewErrTxnAbort()
+					break SelectStatement
+				}
+				if oracle.commitedTxns.maxTs > ts {
 					req.replyChan <- NewErrTxnAbort()
 					break SelectStatement
 				}
@@ -68,7 +72,7 @@ func (oracle *Oracle) run() {
 			entries := []*KV{}
 			commitTs := oracle.next()
 			for key, kv := range req.writeSet {
-				oracle.commitedTxns[key] = commitTs
+				oracle.commitedTxns.Insert(key, commitTs)
 				entries = append(entries, &KV{
 					ts:    commitTs,
 					key:   kv.key,

@@ -2,10 +2,12 @@ package db
 
 import "fmt"
 
+// ErrWriteUnexpectedBytes is error if write to file returns an unexpected amount of bytes
 type ErrWriteUnexpectedBytes struct {
 	file string
 }
 
+// NewErrWriteUnexpectedBytes creates new ErrWriteUnexpectedBytes with specified file
 func NewErrWriteUnexpectedBytes(file string) *ErrWriteUnexpectedBytes {
 	return &ErrWriteUnexpectedBytes{file: file}
 }

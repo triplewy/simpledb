@@ -19,6 +19,8 @@ type DB struct {
 
 	lsm *LSM
 
+	memory *Memory
+
 	close chan struct{}
 }
 
@@ -66,6 +68,8 @@ func NewDB(directory string) (*DB, error) {
 		flushChan: make(chan *MemTable),
 
 		lsm: lsm,
+
+		memory: NewMemory(),
 
 		close: make(chan struct{}, 1),
 	}

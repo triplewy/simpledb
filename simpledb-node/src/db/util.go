@@ -4,7 +4,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
-	"strconv"
 )
 
 func max(x, y int) int {
@@ -32,44 +31,44 @@ func DeleteData() error {
 	return nil
 }
 
-func readAllSSTs() ([]map[string]bool, error) {
-	result := []map[string]bool{}
-	for i := 0; i < 7; i++ {
-		result = append(result, make(map[string]bool))
-	}
+// func readAllSSTs() ([]map[string]bool, error) {
+// 	result := []map[string]bool{}
+// 	for i := 0; i < 7; i++ {
+// 		result = append(result, make(map[string]bool))
+// 	}
 
-	for i := 0; i < 7; i++ {
-		dir := "data/L" + strconv.Itoa(i)
-		d, err := ioutil.ReadDir(dir)
-		if err != nil {
-			return nil, err
-		}
+// 	for i := 0; i < 7; i++ {
+// 		dir := "data/L" + strconv.Itoa(i)
+// 		d, err := ioutil.ReadDir(dir)
+// 		if err != nil {
+// 			return nil, err
+// 		}
 
-		for _, fileInfo := range d {
-			if fileInfo.Name() != "manifest" {
-				keys, err := readAllKeys(path.Join([]string{dir, fileInfo.Name()}...))
-				if err != nil {
-					return nil, err
-				}
-				for _, key := range keys {
-					result[i][key] = true
-				}
-			}
-		}
-	}
+// 		for _, fileInfo := range d {
+// 			if fileInfo.Name() != "manifest" {
+// 				keys, err := readAllKeys(path.Join([]string{dir, fileInfo.Name()}...))
+// 				if err != nil {
+// 					return nil, err
+// 				}
+// 				for _, key := range keys {
+// 					result[i][key] = true
+// 				}
+// 			}
+// 		}
+// 	}
 
-	return result, nil
-}
+// 	return result, nil
+// }
 
-func readAllKeys(filename string) ([]string, error) {
-	entries, err := mmap(filename)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]string, len(entries))
+// func readAllKeys(filename string) ([]string, error) {
+// 	entries, err := mmap(filename)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	result := make([]string, len(entries))
 
-	for i, entry := range entries {
-		result[i] = entry.key
-	}
-	return result, nil
-}
+// 	for i, entry := range entries {
+// 		result[i] = entry.key
+// 	}
+// 	return result, nil
+// }

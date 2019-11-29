@@ -1,10 +1,16 @@
 package db
 
-// BlockSize is size of each data block
-const BlockSize = 1 * 1024
+// KB represents kilobyte: 1024 bytes
+const KB = 1024
 
-// MemTableSize is size limit of each memtable
-const MemTableSize = 1 * 1024 * 1024
+// MB represents Megabyte: 1024 KB
+const MB = 1024 * KB
+
+// BlockSize is size of each data block: 1 KB
+const BlockSize = KB
+
+// MemTableSize is size limit of each memtable: 16 KB
+const MemTableSize = 16 * KB
 
 // KeySize is max size for key
 const KeySize = 255
@@ -15,11 +21,13 @@ const ValueSize = 4096
 const filenameLength = 8
 const compactThreshold = 4
 
-const multiplier = 10240
+const multiplier = MB
 
 const headerSize = 32
 
 const numWorkers = 50
+
+const oracleSize = 10000
 
 // EntrySizeConstant represents size of SeqID + Type + KeySize + ValueSize,
 // which all have constant byte sizes in an LSM Data Entry

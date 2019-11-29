@@ -67,7 +67,7 @@ func NewLevel(level int, directory string, fm *FileManager) (*Level, error) {
 
 	capacity := 0
 	if level == 0 {
-		capacity = 2 * 1024
+		capacity = 2 * MemTableSize
 	} else {
 		capacity = int(math.Pow10(level)) * multiplier
 	}

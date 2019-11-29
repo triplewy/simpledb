@@ -70,6 +70,59 @@ func asyncUpdates(db *DB, entries []*KV, memoryKV map[string]string) error {
 	return nil
 }
 
+func asyncDeletes(db *DB, keys []string, memoryKV map[string]string) error {
+	type update struct {
+		key string
+		err error
+	}
+	var wg sync.WaitGroup
+	updateChan := make(chan *update)
+	wg.Add(len(keys))
+	startTime := time.Now()
+	for _, key := range keys {
+		go func(key string) {
+			err := db.Update(func(txn *Txn) error {
+				txn.Delete(key)
+				return nil
+			})
+			updateChan <- &update{
+				key: key,
+				err: err,
+			}
+		}(key)
+	}
+
+	errs := make(map[string]int)
+	go func() {
+		for {
+			select {
+			case update := <-updateChan:
+				err := update.err
+				if err != nil {
+					if _, ok := errs[err.Error()]; !ok {
+						errs[err.Error()] = 1
+					} else {
+						errs[err.Error()]++
+					}
+				} else {
+					memoryKV[update.key] = ""
+				}
+				wg.Done()
+			}
+		}
+	}()
+	wg.Wait()
+
+	duration := time.Since(startTime)
+	fmt.Printf("Duration deleting %d items: %v\n", len(keys), duration)
+
+	if len(errs) > 0 {
+		fmt.Printf("Encountered errors during put: %v\n", errs)
+		return errors.New("Async Deletes failed")
+	}
+	return nil
+}
+
 func asyncViews(db *DB, keys []string, memoryKV map[string]string) error {
 	var wg sync.WaitGroup
 	errChan := make(chan error)

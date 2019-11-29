@@ -35,6 +35,8 @@ func TestTxnRead(t *testing.T) {
 		t.Fatalf("Error updating DB: %v\n", err)
 	}
 
+	fmt.Println(db.oracle.commitedTxns.maxTs, db.oracle.commitedTxns.size)
+
 	keys := []string{}
 	for i := 0; i < 50000; i++ {
 		key := strconv.Itoa(1000000000000000000 + rand.Intn(numItems))

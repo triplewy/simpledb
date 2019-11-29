@@ -123,18 +123,18 @@ func TestDBDelete(t *testing.T) {
 	}
 
 	numCmds := 5000
-	entries = []*KV{}
+	keys := []string{}
 	for i := 0; i < numCmds; i++ {
 		key := strconv.Itoa(rand.Intn(numItems))
-		entries = append(entries, &KV{key: key, value: nil})
+		keys = append(keys, key)
 	}
 
-	err = asyncUpdates(db, entries, memoryKV)
+	err = asyncDeletes(db, keys, memoryKV)
 	if err != nil {
 		t.Fatalf("Error deleting from LSM: %v\n", err)
 	}
 
-	keys := []string{}
+	keys = []string{}
 	for i := 0; i < numCmds; i++ {
 		key := strconv.Itoa(rand.Intn(numItems))
 		keys = append(keys, key)
@@ -174,13 +174,12 @@ func TestDBTinyBenchmark(t *testing.T) {
 
 	numCmds := 10000
 
-	entries = []*KV{}
+	keys := []string{}
 	for i := 0; i < numCmds; i++ {
 		key := strconv.Itoa(rand.Intn(numItems / 2))
-		entries = append(entries, &KV{key: key, value: nil})
+		keys = append(keys, key)
 	}
-
-	err = asyncUpdates(db, entries, memoryKV)
+	err = asyncDeletes(db, keys, memoryKV)
 	if err != nil {
 		t.Fatalf("Error deleting from LSM: %v\n", err)
 	}
@@ -198,7 +197,7 @@ func TestDBTinyBenchmark(t *testing.T) {
 		t.Fatalf("Error inserting into LSM: %v\n", err)
 	}
 
-	keys := []string{}
+	keys = []string{}
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(i)
 		keys = append(keys, key)
