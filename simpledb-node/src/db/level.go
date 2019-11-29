@@ -105,6 +105,83 @@ func NewLevel(level int, directory string, fm *FileManager) (*Level, error) {
 	return lvl, nil
 }
 
+func (level *Level) find(key string, ts uint64) (*LSMDataEntry, error) {
+	filenames := level.FindSSTFile(key)
+	if len(filenames) == 0 {
+		return nil, NewErrKeyNotFound()
+	}
+	if len(filenames) == 1 {
+		return level.fm.Find(filenames[0], key, ts)
+	}
+
+	replyChan := make(chan *LSMDataEntry)
+	errChan := make(chan error)
+	replies := []*LSMDataEntry{}
+
+	var wg sync.WaitGroup
+	var errs []error
+
+	wg.Add(len(filenames))
+	for _, filename := range filenames {
+		go func(filename string) {
+			entry, err := level.fm.Find(filename, key, ts)
+			if err != nil {
+				errChan <- err
+			} else {
+				replyChan <- entry
+			}
+		}(filename)
+	}
+
+	go func() {
+		for {
+			select {
+			case reply := <-replyChan:
+				replies = append(replies, reply)
+				wg.Done()
+			case err := <-errChan:
+				errs = append(errs, err)
+				wg.Done()
+			}
+		}
+	}()
+	wg.Wait()
+
+	for _, err := range errs {
+		switch err.(type) {
+		case *ErrKeyNotFound:
+			continue
+		case *os.PathError:
+			// If encounter race condition of non existent file, make sure to delete it from manifest
+			fmt.Println(key, err)
+			filename := strings.Fields(err.Error())[1]
+			filename = filename[:len(filename)-1]
+			err := level.DeleteSSTFiles([]string{filename})
+			if err != nil {
+				fmt.Println(err)
+			}
+			return level.find(key, ts)
+		default:
+			return nil, err
+		}
+	}
+
+	if len(replies) > 0 {
+		var latestUpdate *LSMDataEntry
+		for _, entry := range replies {
+			if latestUpdate == nil {
+				latestUpdate = entry
+			} else {
+				if entry.ts > latestUpdate.ts {
+					latestUpdate = entry
+				}
+			}
+		}
+		return latestUpdate, nil
+	}
+	return nil, NewErrKeyNotFound()
+}
+
 func (level *Level) getUniqueID() string {
 	level.manifestLock.RLock()
 	defer level.manifestLock.RUnlock()
@@ -196,7 +273,7 @@ func (level *Level) writeMerge(entries []*LSMDataEntry) error {
 
 // Range gets all files at a specific level whose key range fall within the given range query.
 // It then concurrently reads all files and returns the result to the given channel
-func (level *Level) Range(keyRange *KeyRange) (entries []*LSMDataEntry, err error) {
+func (level *Level) Range(keyRange *KeyRange, ts uint64) (entries []*LSMDataEntry, err error) {
 	filenames := level.RangeSSTFiles(keyRange.startKey, keyRange.endKey)
 	replyChan := make(chan []*LSMDataEntry)
 	errChan := make(chan error)
@@ -206,7 +283,7 @@ func (level *Level) Range(keyRange *KeyRange) (entries []*LSMDataEntry, err erro
 	wg.Add(len(filenames))
 	for _, filename := range filenames {
 		go func(filename string) {
-			entries, err := level.fm.Range(filename, keyRange)
+			entries, err := level.fm.Range(filename, keyRange, ts)
 			if err != nil {
 				errChan <- err
 			} else {

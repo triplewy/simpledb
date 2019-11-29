@@ -57,7 +57,7 @@ func readHeader(f *os.File) (dataSize, indexSize, bloomSize, keyRangeSize uint64
 		return 0, 0, 0, 0, err
 	}
 	if numBytes != len(header) {
-		return 0, 0, 0, 0, ErrReadUnexpectedBytes("Header")
+		return 0, 0, 0, 0, NewErrReadUnexpectedBytes("Header")
 	}
 
 	dataSize = binary.LittleEndian.Uint64(header[:8])

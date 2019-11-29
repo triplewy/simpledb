@@ -9,7 +9,6 @@ import (
 
 // DB is struct for database
 type DB struct {
-	seqID  uint64
 	oracle *Oracle
 
 	mutable   *MemTable
@@ -30,9 +29,9 @@ type batchRequest struct {
 
 // KV is struct for Key-Value pair
 type KV struct {
-	commitTs uint64
-	key      string
-	value    interface{}
+	ts    uint64
+	key   string
+	value interface{}
 }
 
 // NewDB creates a new database by instantiating the LSM and Value Log
@@ -60,7 +59,6 @@ func NewDB(directory string) (*DB, error) {
 	}
 
 	db := &DB{
-		seqID:     0,
 		mutable:   memtable1,
 		immutable: memtable2,
 
@@ -120,19 +118,19 @@ func (db *DB) BatchPut(entries []*KV) error {
 }
 
 // Get retrieves value for a given key or returns key not found
-func (db *DB) Get(key string) (*KV, error) {
+func (db *DB) Get(key string, ts uint64) (*KV, error) {
 	if len(key) > KeySize {
-		return nil, ErrExceedMaxKeySize(key)
+		return nil, NewErrExceedMaxKeySize(key)
 	}
-	entry := db.mutable.Get(key)
+	entry := db.mutable.table.Find(key, ts)
 	if entry != nil {
 		return parseDataEntry(entry)
 	}
-	entry = db.immutable.Get(key)
+	entry = db.immutable.table.Find(key, ts)
 	if entry != nil {
 		return parseDataEntry(entry)
 	}
-	entry, err := db.lsm.Find(key, 0)
+	entry, err := db.lsm.Find(key, ts)
 	if err != nil {
 		return nil, err
 	}
@@ -140,24 +138,23 @@ func (db *DB) Get(key string) (*KV, error) {
 }
 
 // Range finds all key, value pairs within the given range of keys
-func (db *DB) Range(startKey, endKey string) ([]*KV, error) {
+func (db *DB) Range(startKey, endKey string, ts uint64) ([]*KV, error) {
 	if len(startKey) > KeySize {
-		return nil, ErrExceedMaxKeySize(startKey)
+		return nil, NewErrExceedMaxKeySize(startKey)
 	}
 	if len(endKey) > KeySize {
-		return nil, ErrExceedMaxKeySize(endKey)
+		return nil, NewErrExceedMaxKeySize(endKey)
 	}
 	if startKey > endKey {
 		return nil, errors.New("Start Key is greater than End Key")
 	}
-
 	keyRange := &KeyRange{startKey: startKey, endKey: endKey}
 
 	all := []*LSMDataEntry{}
-	all = append(all, db.mutable.Range(startKey, endKey)...)
-	all = append(all, db.immutable.Range(startKey, endKey)...)
+	all = append(all, db.mutable.table.Range(keyRange, ts)...)
+	all = append(all, db.immutable.table.Range(keyRange, ts)...)
 
-	entries, err := db.lsm.Range(keyRange)
+	entries, err := db.lsm.Range(keyRange, ts)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +166,7 @@ func (db *DB) Range(startKey, endKey string) ([]*KV, error) {
 		if value, ok := resultMap[entry.key]; !ok {
 			resultMap[entry.key] = entry
 		} else {
-			if value.seqID < entry.seqID {
+			if value.ts < entry.ts {
 				resultMap[entry.key] = entry
 			}
 		}
@@ -194,7 +191,6 @@ func (db *DB) Range(startKey, endKey string) ([]*KV, error) {
 // Flush takes all entries from the in-memory table and sends them to LSM
 func (db *DB) Flush(mt *MemTable) error {
 	entries := mt.table.Inorder()
-
 	dataBlocks, indexBlock, bloom, keyRange, err := writeDataEntries(entries)
 	if err != nil {
 		return err
@@ -209,7 +205,6 @@ func (db *DB) Flush(mt *MemTable) error {
 	if err != nil {
 		return err
 	}
-
 	mt.table = NewAVLTree()
 	mt.size = 0
 	return nil
@@ -232,7 +227,7 @@ func (db *DB) run() {
 		case req := <-db.batchChan:
 			lsmEntries := []*LSMDataEntry{}
 			for _, entry := range req.entries {
-				lsmEntry, err := createDataEntry(entry.commitTs, entry.key, entry.value)
+				lsmEntry, err := createDataEntry(entry.ts, entry.key, entry.value)
 				if err != nil {
 					req.replyChan <- err
 					break SelectStatement

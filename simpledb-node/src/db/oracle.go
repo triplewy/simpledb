@@ -53,6 +53,7 @@ func (oracle *Oracle) commit(readSet map[string]uint64, writeSet map[string]*KV)
 
 func (oracle *Oracle) run() {
 	for {
+	SelectStatement:
 		select {
 		case replyChan := <-oracle.reqChan:
 			startID := oracle.next()
@@ -60,8 +61,8 @@ func (oracle *Oracle) run() {
 		case req := <-oracle.commitChan:
 			for key, ts := range req.readSet {
 				if lastCommit, ok := oracle.commitedTxns[key]; ok && lastCommit > ts {
-					req.replyChan <- ErrTxnAbort()
-					break
+					req.replyChan <- NewErrTxnAbort()
+					break SelectStatement
 				}
 			}
 			entries := []*KV{}
@@ -69,9 +70,9 @@ func (oracle *Oracle) run() {
 			for key, kv := range req.writeSet {
 				oracle.commitedTxns[key] = commitTs
 				entries = append(entries, &KV{
-					commitTs: commitTs,
-					key:      kv.key,
-					value:    kv.value,
+					ts:    commitTs,
+					key:   kv.key,
+					value: kv.value,
 				})
 			}
 			req.replyChan <- oracle.db.BatchPut(entries)

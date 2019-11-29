@@ -13,11 +13,11 @@ type Txn struct {
 
 // Read gets value for a key from the DB and updates the txn readSet
 func (txn *Txn) Read(key string) (interface{}, error) {
-	kv, err := txn.db.Get(key)
+	kv, err := txn.db.Get(key, txn.startTs)
 	if err != nil {
 		return nil, err
 	}
-	txn.readSet[key] = kv.commitTs
+	txn.readSet[key] = kv.ts
 	return kv.value, nil
 }
 
@@ -39,12 +39,12 @@ func (txn *Txn) Delete(key string) {
 
 // Range gets a range of values from a start key to an end key from the DB and updates the txn readSet
 func (txn *Txn) Range(startKey, endKey string) ([]*KV, error) {
-	kvs, err := txn.db.Range(startKey, endKey)
+	kvs, err := txn.db.Range(startKey, endKey, txn.startTs)
 	if err != nil {
 		return nil, err
 	}
 	for _, kv := range kvs {
-		txn.readSet[kv.key] = kv.commitTs
+		txn.readSet[kv.key] = kv.ts
 	}
 	return kvs, nil
 }

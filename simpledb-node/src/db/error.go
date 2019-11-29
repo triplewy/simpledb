@@ -2,60 +2,60 @@ package db
 
 import "fmt"
 
-type errWriteUnexpectedBytes struct {
+type ErrWriteUnexpectedBytes struct {
 	file string
 }
 
-func ErrWriteUnexpectedBytes(file string) *errWriteUnexpectedBytes {
-	return &errWriteUnexpectedBytes{file: file}
+func NewErrWriteUnexpectedBytes(file string) *ErrWriteUnexpectedBytes {
+	return &ErrWriteUnexpectedBytes{file: file}
 }
-func (e *errWriteUnexpectedBytes) Error() string {
+func (e *ErrWriteUnexpectedBytes) Error() string {
 	return "Wrote unexpected amount of bytes to " + e.file
 }
 
-type errReadUnexpectedBytes struct {
+type ErrReadUnexpectedBytes struct {
 	file string
 }
 
-func ErrReadUnexpectedBytes(file string) *errReadUnexpectedBytes {
-	return &errReadUnexpectedBytes{file: file}
+func NewErrReadUnexpectedBytes(file string) *ErrReadUnexpectedBytes {
+	return &ErrReadUnexpectedBytes{file: file}
 }
-func (e *errReadUnexpectedBytes) Error() string {
+func (e *ErrReadUnexpectedBytes) Error() string {
 	return "Read unexpected amount of bytes from " + e.file
 }
 
-type errKeyNotFound struct{}
+type ErrKeyNotFound struct{}
 
-func ErrKeyNotFound() *errKeyNotFound {
-	return &errKeyNotFound{}
+func NewErrKeyNotFound() *ErrKeyNotFound {
+	return &ErrKeyNotFound{}
 }
-func (e *errKeyNotFound) Error() string {
+func (e *ErrKeyNotFound) Error() string {
 	return "Key not found"
 }
 
-type errIncorrectBlockSize struct{}
+type ErrIncorrectBlockSize struct{}
 
-func ErrIncorrectBlockSize() *errIncorrectBlockSize {
-	return &errIncorrectBlockSize{}
+func NewErrIncorrectBlockSize() *ErrIncorrectBlockSize {
+	return &ErrIncorrectBlockSize{}
 }
 
-func (e *errIncorrectBlockSize) Error() string {
+func (e *ErrIncorrectBlockSize) Error() string {
 	return "Data block does not match block size"
 }
 
-type errIncorrectValueSize struct {
+type ErrIncorrectValueSize struct {
 	valueType uint8
 	valueSize int
 }
 
-func ErrIncorrectValueSize(valueType uint8, valueSize int) *errIncorrectValueSize {
-	return &errIncorrectValueSize{
+func NewErrIncorrectValueSize(valueType uint8, valueSize int) *ErrIncorrectValueSize {
+	return &ErrIncorrectValueSize{
 		valueType: valueType,
 		valueSize: valueSize,
 	}
 }
 
-func (e *errIncorrectValueSize) Error() string {
+func (e *ErrIncorrectValueSize) Error() string {
 	valueType := ""
 	switch e.valueType {
 	case Bool:
@@ -72,17 +72,17 @@ func (e *errIncorrectValueSize) Error() string {
 	return fmt.Sprintf("Value byte size %d is not appropriate for %s", e.valueSize, valueType)
 }
 
-type errIncompatibleValue struct {
+type ErrIncompatibleValue struct {
 	valueType uint8
 }
 
-func ErrIncompatibleValue(valueType uint8) *errIncompatibleValue {
-	return &errIncompatibleValue{
+func NewErrIncompatibleValue(valueType uint8) *ErrIncompatibleValue {
+	return &ErrIncompatibleValue{
 		valueType: valueType,
 	}
 }
 
-func (e *errIncompatibleValue) Error() string {
+func (e *ErrIncompatibleValue) Error() string {
 	valueType := ""
 	switch e.valueType {
 	case Bool:
@@ -99,56 +99,56 @@ func (e *errIncompatibleValue) Error() string {
 	return fmt.Sprintf("Incompatible value bytes for %s", valueType)
 }
 
-type errNoTypeFound struct{}
+type ErrNoTypeFound struct{}
 
-func ErrNoTypeFound() *errNoTypeFound {
-	return &errNoTypeFound{}
+func NewErrNoTypeFound() *ErrNoTypeFound {
+	return &ErrNoTypeFound{}
 }
 
-func (e *errNoTypeFound) Error() string {
+func (e *ErrNoTypeFound) Error() string {
 	return "No DB Type found"
 }
 
-type errExceedMaxKeySize struct {
+type ErrExceedMaxKeySize struct {
 	key string
 }
 
-func ErrExceedMaxKeySize(key string) *errExceedMaxKeySize {
-	return &errExceedMaxKeySize{key: key}
+func NewErrExceedMaxKeySize(key string) *ErrExceedMaxKeySize {
+	return &ErrExceedMaxKeySize{key: key}
 }
 
-func (e *errExceedMaxKeySize) Error() string {
+func (e *ErrExceedMaxKeySize) Error() string {
 	return fmt.Sprintf("Key: %v has length %d, which exceeds max key size %d", e.key, len(e.key), KeySize)
 }
 
-type errExceedMaxValueSize struct{}
+type ErrExceedMaxValueSize struct{}
 
-func ErrExceedMaxValueSize() *errExceedMaxValueSize {
-	return &errExceedMaxValueSize{}
+func NewErrExceedMaxValueSize() *ErrExceedMaxValueSize {
+	return &ErrExceedMaxValueSize{}
 }
 
-func (e *errExceedMaxValueSize) Error() string {
+func (e *ErrExceedMaxValueSize) Error() string {
 	return fmt.Sprintf("Value size has exceeded max value size: %d", ValueSize)
 }
 
-type errDuplicateKey struct {
+type ErrDuplicateKey struct {
 	key string
 }
 
-func ErrDuplicateKey(key string) *errDuplicateKey {
-	return &errDuplicateKey{key: key}
+func NewErrDuplicateKey(key string) *ErrDuplicateKey {
+	return &ErrDuplicateKey{key: key}
 }
 
-func (e *errDuplicateKey) Error() string {
+func (e *ErrDuplicateKey) Error() string {
 	return fmt.Sprintf("Primary key already exists: %v", e.key)
 }
 
-type errTxnAbort struct{}
+type ErrTxnAbort struct{}
 
-func ErrTxnAbort() *errTxnAbort {
-	return &errTxnAbort{}
+func NewErrTxnAbort() *ErrTxnAbort {
+	return &ErrTxnAbort{}
 }
 
-func (e *errTxnAbort) Error() string {
+func (e *ErrTxnAbort) Error() string {
 	return fmt.Sprintf("Txn aborted due to concurrent writes to key(s) from other txns")
 }

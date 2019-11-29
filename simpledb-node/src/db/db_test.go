@@ -269,7 +269,7 @@ func TestDBRange(t *testing.T) {
 	sort.Strings(keys)
 
 	startReadTime := time.Now()
-	result, err := db.Range(startKey, endKey)
+	result, err := db.Range(startKey, endKey, uint64(numItems+1))
 	if err != nil {
 		t.Fatalf("Error performing range query: %v\n", err)
 	}

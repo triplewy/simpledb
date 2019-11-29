@@ -16,7 +16,7 @@ func writeNewFile(filename string, data []byte) error {
 		return err
 	}
 	if numBytes != len(data) {
-		return ErrWriteUnexpectedBytes(filename)
+		return NewErrWriteUnexpectedBytes(filename)
 	}
 	err = f.Sync()
 	if err != nil {
@@ -41,13 +41,13 @@ func mmap(filename string) (entries []*LSMDataEntry, err error) {
 		return nil, err
 	}
 	if numBytes != len(data) {
-		return nil, ErrReadUnexpectedBytes("SST File")
+		return nil, NewErrReadUnexpectedBytes("SST File")
 	}
 	for i := 0; i < len(data); i += BlockSize {
 		block := data[i : i+BlockSize]
 		j := 0
 		for j+8 <= len(block) {
-			seqID := binary.LittleEndian.Uint64(block[j : j+8])
+			ts := binary.LittleEndian.Uint64(block[j : j+8])
 			j += 8
 			if j >= len(block) {
 				break
@@ -77,7 +77,7 @@ func mmap(filename string) (entries []*LSMDataEntry, err error) {
 
 			if key != "" {
 				entries = append(entries, &LSMDataEntry{
-					seqID:     seqID,
+					ts:        ts,
 					keySize:   keySize,
 					key:       key,
 					valueType: valueType,
@@ -111,7 +111,7 @@ func recoverFile(filename string) (keyRange *KeyRange, bloom *Bloom, size int, e
 		return nil, nil, 0, err
 	}
 	if numBytes != len(bitsAndKeyRange) {
-		return nil, nil, 0, ErrWriteUnexpectedBytes(filename)
+		return nil, nil, 0, NewErrWriteUnexpectedBytes(filename)
 	}
 
 	bits := bitsAndKeyRange[:bloomSize]
@@ -123,7 +123,7 @@ func recoverFile(filename string) (keyRange *KeyRange, bloom *Bloom, size int, e
 	return keyRange, bloom, int(dataSize + indexSize + bloomSize + keyRangeSize), nil
 }
 
-func fileFind(filename, key string) (entry *LSMDataEntry, err error) {
+func fileFind(filename, key string, ts uint64) (entry *LSMDataEntry, err error) {
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	defer f.Close()
 	if err != nil {
@@ -141,7 +141,7 @@ func fileFind(filename, key string) (entry *LSMDataEntry, err error) {
 		return nil, err
 	}
 	if numBytes != int(indexSize) {
-		return nil, ErrReadUnexpectedBytes("SST File, Index Block")
+		return nil, NewErrReadUnexpectedBytes("SST File, Index Block")
 	}
 
 	blockIndex, err := findDataBlock(key, index)
@@ -155,17 +155,17 @@ func fileFind(filename, key string) (entry *LSMDataEntry, err error) {
 		return nil, err
 	}
 	if numBytes != BlockSize {
-		return nil, ErrReadUnexpectedBytes("SST File, Data Block")
+		return nil, NewErrReadUnexpectedBytes("SST File, Data Block")
 	}
 
-	entry, err = findKeyInBlock(key, block)
+	entry, err = findKeyInBlock(key, block, ts)
 	if err != nil {
 		return nil, err
 	}
 	return entry, nil
 }
 
-func fileRange(filename string, keyRange *KeyRange) (entries []*LSMDataEntry, err error) {
+func fileRange(filename string, keyRange *KeyRange, ts uint64) (entries []*LSMDataEntry, err error) {
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	defer f.Close()
 	if err != nil {
@@ -183,7 +183,7 @@ func fileRange(filename string, keyRange *KeyRange) (entries []*LSMDataEntry, er
 		return nil, err
 	}
 	if numBytes != int(indexSize) {
-		return nil, ErrReadUnexpectedBytes("SST File, Index Block")
+		return nil, NewErrReadUnexpectedBytes("SST File, Index Block")
 	}
 
 	startBlock, endBlock := rangeDataBlocks(keyRange.startKey, keyRange.endKey, index)
@@ -195,10 +195,10 @@ func fileRange(filename string, keyRange *KeyRange) (entries []*LSMDataEntry, er
 		return nil, err
 	}
 	if numBytes != size {
-		return nil, ErrReadUnexpectedBytes("SST File, Data Block")
+		return nil, NewErrReadUnexpectedBytes("SST File, Data Block")
 	}
 
-	entries = findKeysInBlocks(keyRange.startKey, keyRange.endKey, blocks)
+	entries = findKeysInBlocks(keyRange, blocks, ts)
 	return entries, nil
 }
 
@@ -220,13 +220,13 @@ func findDataBlock(key string, index []byte) (uint32, error) {
 		}
 		i += 4
 	}
-	return 0, ErrKeyNotFound()
+	return 0, NewErrKeyNotFound()
 }
 
-func findKeyInBlock(key string, block []byte) (*LSMDataEntry, error) {
+func findKeyInBlock(key string, block []byte, ts uint64) (*LSMDataEntry, error) {
 	i := 0
 	for i+8 <= len(block) {
-		seqID := binary.LittleEndian.Uint64(block[i : i+8])
+		commitTs := binary.LittleEndian.Uint64(block[i : i+8])
 		i += 8
 		if i >= len(block) {
 			break
@@ -254,9 +254,9 @@ func findKeyInBlock(key string, block []byte) (*LSMDataEntry, error) {
 		value := block[i : i+int(valueSize)]
 		i += int(valueSize)
 
-		if key == foundKey {
+		if key == foundKey && commitTs < ts {
 			return &LSMDataEntry{
-				seqID:     seqID,
+				ts:        commitTs,
 				keySize:   keySize,
 				key:       key,
 				valueType: valueType,
@@ -265,7 +265,7 @@ func findKeyInBlock(key string, block []byte) (*LSMDataEntry, error) {
 			}, nil
 		}
 	}
-	return nil, ErrKeyNotFound()
+	return nil, NewErrKeyNotFound()
 }
 
 func rangeDataBlocks(startKey, endKey string, index []byte) (startBlock, endBlock uint32) {
@@ -296,12 +296,14 @@ func rangeDataBlocks(startKey, endKey string, index []byte) (startBlock, endBloc
 	return startBlock, block
 }
 
-func findKeysInBlocks(startKey, endKey string, data []byte) (entries []*LSMDataEntry) {
+func findKeysInBlocks(keyRange *KeyRange, data []byte, ts uint64) (entries []*LSMDataEntry) {
+	startKey := keyRange.startKey
+	endKey := keyRange.endKey
 	for i := 0; i < len(data); i += BlockSize {
 		block := data[i : i+BlockSize]
 		j := 0
 		for j+8 < len(block) {
-			seqID := binary.LittleEndian.Uint64(block[j : j+8])
+			commitTs := binary.LittleEndian.Uint64(block[j : j+8])
 			j += 8
 			if j >= len(block) {
 				break
@@ -329,9 +331,9 @@ func findKeysInBlocks(startKey, endKey string, data []byte) (entries []*LSMDataE
 			value := block[j : j+int(valueSize)]
 			j += int(valueSize)
 
-			if startKey <= key && key <= endKey {
+			if startKey <= key && key <= endKey && commitTs < ts {
 				entries = append(entries, &LSMDataEntry{
-					seqID:     seqID,
+					ts:        commitTs,
 					keySize:   keySize,
 					key:       key,
 					valueType: valueType,

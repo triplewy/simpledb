@@ -7,7 +7,7 @@ import (
 
 // LSMDataEntry is struct that represents an entry into an LSM Data Block
 type LSMDataEntry struct {
-	seqID     uint64
+	ts        uint64
 	keySize   uint8
 	key       string
 	valueType uint8
@@ -15,13 +15,13 @@ type LSMDataEntry struct {
 	value     []byte
 }
 
-func createDataEntry(seqID uint64, key string, value interface{}) (*LSMDataEntry, error) {
+func createDataEntry(ts uint64, key string, value interface{}) (*LSMDataEntry, error) {
 	if len(key) > KeySize {
-		return nil, ErrExceedMaxKeySize(key)
+		return nil, NewErrExceedMaxKeySize(key)
 	}
 	keySize := uint8(len(key))
 	entry := &LSMDataEntry{
-		seqID:     seqID,
+		ts:        ts,
 		keySize:   keySize,
 		key:       key,
 		valueType: 0,
@@ -54,7 +54,7 @@ func createDataEntry(seqID uint64, key string, value interface{}) (*LSMDataEntry
 		return entry, nil
 	case string:
 		if len(v) > ValueSize {
-			return nil, ErrExceedMaxValueSize()
+			return nil, NewErrExceedMaxValueSize()
 		}
 		entry.valueType = String
 		entry.valueSize = uint16(len(v))
@@ -66,14 +66,14 @@ func createDataEntry(seqID uint64, key string, value interface{}) (*LSMDataEntry
 		entry.value = []byte{}
 		return entry, nil
 	default:
-		return nil, ErrNoTypeFound()
+		return nil, NewErrNoTypeFound()
 	}
 }
 
 func encodeDataEntry(entry *LSMDataEntry) (data []byte) {
-	seqIDBytes := make([]byte, 8)
-	binary.LittleEndian.PutUint64(seqIDBytes, entry.seqID)
-	data = append(data, seqIDBytes...)
+	tsBytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(tsBytes, entry.ts)
+	data = append(data, tsBytes...)
 	data = append(data, entry.keySize)
 	data = append(data, []byte(entry.key)...)
 	data = append(data, entry.valueType)
@@ -90,17 +90,17 @@ func decodeDataEntry(data []byte) *LSMDataEntry {
 
 func parseDataEntry(entry *LSMDataEntry) (*KV, error) {
 	kv := &KV{
-		commitTs: entry.seqID,
-		key:      entry.key,
+		ts:  entry.ts,
+		key: entry.key,
 	}
 	value := entry.value
 	switch entry.valueType {
 	case Bool:
 		if len(value) != 1 {
-			return nil, ErrIncorrectValueSize(Bool, len(value))
+			return nil, NewErrIncorrectValueSize(Bool, len(value))
 		}
 		if value[0] != byte(0) && value[0] != byte(1) {
-			return nil, ErrIncompatibleValue(Bool)
+			return nil, NewErrIncompatibleValue(Bool)
 		}
 		if value[0] == byte(0) {
 			kv.value = false
@@ -109,22 +109,22 @@ func parseDataEntry(entry *LSMDataEntry) (*KV, error) {
 		}
 	case Int:
 		if len(value) != 8 {
-			return nil, ErrIncorrectValueSize(Int, len(value))
+			return nil, NewErrIncorrectValueSize(Int, len(value))
 		}
 		i := int64(binary.LittleEndian.Uint64(value))
 		kv.value = i
 	case Float:
 		if len(value) != 8 {
-			return nil, ErrIncorrectValueSize(Float, len(value))
+			return nil, NewErrIncorrectValueSize(Float, len(value))
 		}
 		f := float64(binary.LittleEndian.Uint64(value))
 		kv.value = f
 	case String:
 		kv.value = string(value)
 	case Tombstone:
-		return nil, ErrKeyNotFound()
+		return nil, NewErrKeyNotFound()
 	default:
-		return nil, ErrNoTypeFound()
+		return nil, NewErrNoTypeFound()
 	}
 	return kv, nil
 }

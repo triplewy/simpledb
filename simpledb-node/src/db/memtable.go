@@ -44,18 +44,6 @@ func NewMemTable(directory string, id string) (mt *MemTable, maxCommitTs uint64,
 	return mt, maxCommitTs, nil
 }
 
-// Put first appends to WAL then inserts into the in-memory table
-func (mt *MemTable) Put(entry *LSMDataEntry) error {
-	data := encodeDataEntry(entry)
-	err := mt.AppendWAL(data)
-	if err != nil {
-		return err
-	}
-	mt.table.Put(entry)
-	mt.size += sizeDataEntry(entry)
-	return nil
-}
-
 // BatchPut first appends a batch of writes to WAL then inserts them all into in-memory table
 func (mt *MemTable) BatchPut(entries []*LSMDataEntry) error {
 	data := []byte{}
@@ -73,20 +61,6 @@ func (mt *MemTable) BatchPut(entries []*LSMDataEntry) error {
 	return nil
 }
 
-// Get searches in-memory table for key
-func (mt *MemTable) Get(key string) *LSMDataEntry {
-	node := mt.table.Find(key)
-	if node != nil {
-		return mt.table.Find(key).entry
-	}
-	return nil
-}
-
-// Range searches in-memory table for keys within key range
-func (mt *MemTable) Range(startKey, endKey string) []*LSMDataEntry {
-	return mt.table.Range(startKey, endKey)
-}
-
 // AppendWAL encodes an LSMDataEntry into bytes and appends to the WAL
 func (mt *MemTable) AppendWAL(data []byte) error {
 	f, err := os.OpenFile(mt.wal, os.O_APPEND|os.O_WRONLY, os.ModePerm)
@@ -99,7 +73,7 @@ func (mt *MemTable) AppendWAL(data []byte) error {
 		return err
 	}
 	if numBytes != len(data) {
-		return ErrWriteUnexpectedBytes(mt.wal)
+		return NewErrWriteUnexpectedBytes(mt.wal)
 	}
 	err = f.Sync()
 	if err != nil {
@@ -116,9 +90,9 @@ func (mt *MemTable) RecoverWAL() (maxCommitTs uint64, err error) {
 	}
 	i := 0
 	for i < len(data) {
-		seqID := binary.LittleEndian.Uint64(data[i : i+8])
-		if seqID > maxCommitTs {
-			maxCommitTs = seqID
+		ts := binary.LittleEndian.Uint64(data[i : i+8])
+		if ts > maxCommitTs {
+			maxCommitTs = ts
 		}
 		i += 8
 		keySize := uint8(data[i])
@@ -132,7 +106,7 @@ func (mt *MemTable) RecoverWAL() (maxCommitTs uint64, err error) {
 		value := data[i : i+int(valueSize)]
 		i += int(valueSize)
 		entry := &LSMDataEntry{
-			seqID:     seqID,
+			ts:        ts,
 			keySize:   keySize,
 			key:       key,
 			valueType: valueType,

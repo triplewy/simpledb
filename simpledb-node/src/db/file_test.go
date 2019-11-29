@@ -78,7 +78,7 @@ func TestFileGet(t *testing.T) {
 		wg.Add(1)
 		key := strconv.Itoa(i)
 		go func(key string) {
-			entry, err := fileFind("data/L0/test.sst", key)
+			entry, err := fileFind("data/L0/test.sst", key, uint64(10001))
 			if err != nil {
 				errChan <- err
 			} else {
@@ -140,7 +140,7 @@ func TestFileRange(t *testing.T) {
 	f.Close()
 
 	keyRange = &KeyRange{startKey: strconv.Itoa(int(math.Pow10(9))), endKey: strconv.Itoa(int(math.Pow10(9)) + 1000000)}
-	entries, err = fileRange("data/L0/test.sst", keyRange)
+	entries, err = fileRange("data/L0/test.sst", keyRange, uint64(10001))
 	if err != nil {
 		t.Fatalf("Error range query on file: %v\n", err)
 	}

@@ -86,17 +86,21 @@ func TestTxnAbortRWRW(t *testing.T) {
 				return err
 			}
 			txn.Write("test", value.(string)+" 1")
+			time.Sleep(100 * time.Millisecond)
 			return nil
 		})
 		errChan <- err
 	}()
 
 	go func() {
+		time.Sleep(50 * time.Millisecond)
 		err := db.Update(func(txn *Txn) error {
+			time.Sleep(200 * time.Millisecond)
 			value, err := txn.Read("test")
 			if err != nil {
 				return err
 			}
+			fmt.Println("Read:", value)
 			txn.Write("test", value.(string)+" 2")
 			return nil
 		})

@@ -1,14 +1,9 @@
 package db
 
 type linkedListNode struct {
-	next *linkedListNode
-	prev *linkedListNode
-
-	value interface{}
-}
-
-func (n *linkedListNode) Value() interface{} {
-	return n.value
+	next    *linkedListNode
+	prev    *linkedListNode
+	entries []*LSMDataEntry
 }
 
 type linkedList struct {
@@ -18,107 +13,73 @@ type linkedList struct {
 
 func newLinkedList() *linkedList {
 	list := &linkedList{
-		head: &linkedListNode{value: nil},
-		tail: &linkedListNode{value: nil},
+		head: &linkedListNode{entries: nil},
+		tail: &linkedListNode{entries: nil},
 	}
 	list.head.next = list.tail
 	list.tail.prev = list.head
 	return list
 }
 
-func (l *linkedList) Append(value interface{}) *linkedListNode {
+func (l *linkedList) Append(entry *LSMDataEntry) *linkedListNode {
 	n := &linkedListNode{
-		prev:  l.tail.prev,
-		next:  l.tail,
-		value: value,
+		prev:    l.tail.prev,
+		next:    l.tail,
+		entries: []*LSMDataEntry{entry},
 	}
 
 	l.tail.prev.next = n
 	l.tail.prev = n
-
 	return n
 }
 
-func (l *linkedList) Remove(n *linkedListNode) bool {
+func (l *linkedList) Remove(n *linkedListNode) {
 	if n == l.head || n == l.tail {
-		return false
+		return
 	}
-
 	n.prev.next = n.next
 	n.next.prev = n.prev
-
-	return true
-}
-
-func (l *linkedList) Iterate() chan *linkedListNode {
-	ch := make(chan *linkedListNode)
-
-	go func() {
-		n := l.head
-
-		for n.next != l.tail {
-			ch <- n.next
-			n = n.next
-		}
-
-		close(ch)
-	}()
-
-	return ch
 }
 
 type orderedDict struct {
 	lookup map[string]*linkedListNode
 	list   *linkedList
-	size   int
 }
 
 func newOrderedDict() *orderedDict {
 	return &orderedDict{
 		lookup: make(map[string]*linkedListNode),
 		list:   newLinkedList(),
-		size:   0,
 	}
 }
 
-func (d *orderedDict) Set(key string, value interface{}) {
+func (d *orderedDict) Set(key string, entry *LSMDataEntry) {
 	if n, ok := d.lookup[key]; ok {
-		n.value = value
+		n.entries = append([]*LSMDataEntry{entry}, n.entries...)
 	} else {
-		d.lookup[key] = d.list.Append(value)
-		d.size++
+		d.lookup[key] = d.list.Append(entry)
 	}
 }
 
-func (d *orderedDict) Get(key string) (interface{}, bool) {
-	if n, ok := d.lookup[key]; ok {
-		return n.Value(), true
+func (d *orderedDict) Get(key string) ([]*LSMDataEntry, bool) {
+	if node, ok := d.lookup[key]; ok {
+		return node.entries, true
 	}
 	return nil, false
 }
 
-func (d *orderedDict) Remove(key string) bool {
+func (d *orderedDict) Remove(key string) {
 	if n, ok := d.lookup[key]; ok {
-		if ok := d.list.Remove(n); !ok {
-			return false
-		}
+		d.list.Remove(n)
 		delete(d.lookup, key)
-		d.size--
-		return true
 	}
-	return false
 }
 
-func (d *orderedDict) Iterate() chan interface{} {
-	ch := make(chan interface{})
-
-	go func() {
-		for v := range d.list.Iterate() {
-			ch <- v.Value()
-		}
-
-		close(ch)
-	}()
-
-	return ch
+func (d *orderedDict) Iterate() (entries []*LSMDataEntry) {
+	curr := d.list.head
+	for curr.next != d.list.tail {
+		entries = append(entries, curr.entries...)
+		curr = curr.next
+	}
+	return entries
 }

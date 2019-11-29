@@ -26,75 +26,54 @@ func (level *Level) mergeSort(files []string) ([]*LSMDataEntry, error) {
 }
 
 func mergeHelper(left, right []*LSMDataEntry) (entries []*LSMDataEntry) {
-	od := newOrderedDict()
-	i, j := 0, 0
-
-	for i < len(left) && j < len(right) {
-		leftEntry := left[i]
-		rightEntry := right[j]
-
-		if val, ok := od.Get(leftEntry.key); ok {
-			if val.(*LSMDataEntry).seqID < leftEntry.seqID {
-				od.Set(leftEntry.key, leftEntry)
-			}
-			i++
-			continue
+	entries = append(left, right...)
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].key == entries[j].key {
+			return entries[i].ts > entries[j].ts
 		}
-
-		if val, ok := od.Get(rightEntry.key); ok {
-			if val.(*LSMDataEntry).seqID < rightEntry.seqID {
-				od.Set(rightEntry.key, rightEntry)
-			}
-			j++
-			continue
-		}
-
-		if leftEntry.key < rightEntry.key {
-			od.Set(leftEntry.key, leftEntry)
-			i++
-		} else if leftEntry.key == rightEntry.key {
-			if leftEntry.seqID > rightEntry.seqID {
-				od.Set(leftEntry.key, leftEntry)
-			} else {
-				od.Set(rightEntry.key, rightEntry)
-			}
-			i++
-			j++
-		} else {
-			od.Set(rightEntry.key, rightEntry)
-			j++
-		}
-	}
-
-	for i < len(left) {
-		leftEntry := left[i]
-		if val, ok := od.Get(leftEntry.key); ok {
-			if val.(*LSMDataEntry).seqID < leftEntry.seqID {
-				od.Set(leftEntry.key, leftEntry)
-			}
-		} else {
-			od.Set(leftEntry.key, leftEntry)
-		}
-		i++
-	}
-
-	for j < len(right) {
-		rightEntry := right[j]
-		if val, ok := od.Get(rightEntry.key); ok {
-			if val.(*LSMDataEntry).seqID < rightEntry.seqID {
-				od.Set(rightEntry.key, rightEntry)
-			}
-		} else {
-			od.Set(rightEntry.key, rightEntry)
-		}
-		j++
-	}
-
-	for val := range od.Iterate() {
-		entries = append(entries, val.(*LSMDataEntry))
-	}
-
+		return entries[i].key < entries[j].key
+	})
 	return entries
+	// od := newOrderedDict()
+	// i, j := 0, 0
+
+	// for i < len(left) && j < len(right) {
+	// 	leftEntry := left[i]
+	// 	rightEntry := right[j]
+
+	// 	if _, ok := od.Get(leftEntry.key); ok {
+	// 		od.Set(leftEntry.key, leftEntry)
+	// 		i++
+	// 	} else if _, ok := od.Get(rightEntry.key); ok {
+	// 		od.Set(rightEntry.key, rightEntry)
+	// 		j++
+	// 	} else if leftEntry.key < rightEntry.key {
+	// 		od.Set(leftEntry.key, leftEntry)
+	// 		i++
+	// 	} else if leftEntry.key > rightEntry.key {
+	// 		od.Set(rightEntry.key, rightEntry)
+	// 		j++
+	// 	} else {
+	// 		od.Set(leftEntry.key, leftEntry)
+	// 		od.Set(rightEntry.key, rightEntry)
+	// 		i++
+	// 		j++
+	// 	}
+	// }
+
+	// for i < len(left) {
+	// 	leftEntry := left[i]
+	// 	od.Set(leftEntry.key, leftEntry)
+	// 	i++
+	// }
+
+	// for j < len(right) {
+	// 	rightEntry := right[j]
+	// 	od.Set(rightEntry.key, rightEntry)
+	// 	j++
+	// }
+
+	// return od.Iterate()
 }
 
 func mergeIntervals(intervals []*merge) []*merge {

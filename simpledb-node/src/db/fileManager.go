@@ -24,6 +24,7 @@ type fileMmapReq struct {
 type fileFindReq struct {
 	filename  string
 	key       string
+	ts        uint64
 	replyChan chan *LSMDataEntry
 	errChan   chan error
 }
@@ -31,6 +32,7 @@ type fileFindReq struct {
 type fileRangeReq struct {
 	filename  string
 	keyRange  *KeyRange
+	ts        uint64
 	replyChan chan []*LSMDataEntry
 	errChan   chan error
 }
@@ -62,11 +64,11 @@ func (fm *FileManager) spawnFileWorker() {
 			req.errChan <- err
 			req.replyChan <- entries
 		case req := <-fm.fileFindChan:
-			entry, err := fileFind(req.filename, req.key)
+			entry, err := fileFind(req.filename, req.key, req.ts)
 			req.errChan <- err
 			req.replyChan <- entry
 		case req := <-fm.fileRangeChan:
-			entries, err := fileRange(req.filename, req.keyRange)
+			entries, err := fileRange(req.filename, req.keyRange, req.ts)
 			req.errChan <- err
 			req.replyChan <- entries
 		}
@@ -99,12 +101,13 @@ func (fm *FileManager) MMap(filename string) ([]*LSMDataEntry, error) {
 }
 
 // Find attempts to find a LSMDataEntry that matches the given key within the file
-func (fm *FileManager) Find(filename, key string) (*LSMDataEntry, error) {
+func (fm *FileManager) Find(filename, key string, ts uint64) (*LSMDataEntry, error) {
 	replyChan := make(chan *LSMDataEntry, 1)
 	errChan := make(chan error, 1)
 	req := &fileFindReq{
 		filename:  filename,
 		key:       key,
+		ts:        ts,
 		replyChan: replyChan,
 		errChan:   errChan,
 	}
@@ -113,12 +116,13 @@ func (fm *FileManager) Find(filename, key string) (*LSMDataEntry, error) {
 }
 
 // Range returns all LSMDataEntry within in the specified key range within the file
-func (fm *FileManager) Range(filename string, keyRange *KeyRange) ([]*LSMDataEntry, error) {
+func (fm *FileManager) Range(filename string, keyRange *KeyRange, ts uint64) ([]*LSMDataEntry, error) {
 	replyChan := make(chan []*LSMDataEntry, 1)
 	errChan := make(chan error, 1)
 	req := &fileRangeReq{
 		filename:  filename,
 		keyRange:  keyRange,
+		ts:        ts,
 		replyChan: replyChan,
 		errChan:   errChan,
 	}
