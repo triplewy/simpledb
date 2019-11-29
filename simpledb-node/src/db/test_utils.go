@@ -11,9 +11,14 @@ import (
 	"time"
 )
 
-func asyncUpdates(db *DB, entries []*KV) error {
+func asyncUpdates(db *DB, entries []*KV, memoryKV map[string]string) error {
+	type update struct {
+		key   string
+		value string
+		err   error
+	}
 	var wg sync.WaitGroup
-	errChan := make(chan error)
+	updateChan := make(chan *update)
 	wg.Add(len(entries))
 
 	startTime := time.Now()
@@ -23,7 +28,14 @@ func asyncUpdates(db *DB, entries []*KV) error {
 				txn.Write(key, value)
 				return nil
 			})
-			errChan <- err
+			if value == nil {
+				value = ""
+			}
+			updateChan <- &update{
+				key:   key,
+				value: value.(string),
+				err:   err,
+			}
 		}(kv.key, kv.value)
 	}
 
@@ -31,13 +43,16 @@ func asyncUpdates(db *DB, entries []*KV) error {
 	go func() {
 		for {
 			select {
-			case err := <-errChan:
+			case update := <-updateChan:
+				err := update.err
 				if err != nil {
 					if _, ok := errs[err.Error()]; !ok {
 						errs[err.Error()] = 1
 					} else {
 						errs[err.Error()]++
 					}
+				} else {
+					memoryKV[update.key] = update.value
 				}
 				wg.Done()
 			}
@@ -68,17 +83,17 @@ func asyncViews(db *DB, keys []string, memoryKV map[string]string) error {
 				result, err := txn.Read(key)
 				if err != nil {
 					if err.Error() == "Key not found" && !(value == "__delete__" || value == "") {
-						fmt.Printf("Key: %v, Expected: %v, Got: %v\n", key, value, "Key not found")
+						// fmt.Printf("Key: %v, Expected: %v, Got: %v\n", key, value, "Key not found")
 						return err
 					}
 					return nil
 				}
 				if result.(string) != value {
 					if value == "__delete__" {
-						fmt.Printf("Key: %v, Expected: Key not found, Got: %v\n", key, result.(string))
+						// fmt.Printf("Key: %v, Expected: Key not found, Got: %v\n", key, result.(string))
 						return errors.New("Key should have been deleted")
 					}
-					fmt.Printf("Key: %v, Expected: %v, Got: %v\n", key, value, result.(string))
+					// fmt.Printf("Key: %v, Expected: %v, Got: %v\n", key, value, result.(string))
 					return errors.New("Incorrect result for get")
 				}
 				return nil

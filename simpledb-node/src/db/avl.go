@@ -83,13 +83,6 @@ func (tree *AVLTree) Preorder() []string {
 	return result
 }
 
-//PreorderValues prints values of preorder traversal of AVL-Tree
-func (tree *AVLTree) PreorderValues() []*LSMDataEntry {
-	tree.RLock()
-	defer tree.RUnlock()
-	return preorder(tree.root)
-}
-
 func put(root *AVLNode, entry *LSMDataEntry) *AVLNode {
 	if root == nil {
 		return newAVLNode(entry)

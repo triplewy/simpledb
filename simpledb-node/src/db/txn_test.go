@@ -30,7 +30,7 @@ func TestTxnRead(t *testing.T) {
 		entries = append(entries, &KV{key: key, value: key})
 	}
 
-	err = asyncUpdates(db, entries)
+	err = asyncUpdates(db, entries, memoryKV)
 	if err != nil {
 		t.Fatalf("Error updating DB: %v\n", err)
 	}

@@ -7,7 +7,6 @@ import (
 func (level *Level) mergeSort(files []string) ([]*LSMDataEntry, error) {
 	if len(files) > 1 {
 		mid := len(files) / 2
-
 		left, err := level.mergeSort(files[:mid])
 		if err != nil {
 			return nil, err
@@ -16,12 +15,9 @@ func (level *Level) mergeSort(files []string) ([]*LSMDataEntry, error) {
 		if err != nil {
 			return nil, err
 		}
-
 		result := mergeHelper(left, right)
-
 		return result, nil
 	}
-
 	return level.fm.MMap(files[0])
 }
 

@@ -1,9 +1,7 @@
 package db
 
 import (
-	"errors"
 	"io/ioutil"
-	"math"
 	"os"
 	"path"
 	"strconv"
@@ -14,15 +12,6 @@ func max(x, y int) int {
 		return y
 	}
 	return x
-}
-
-func floor(x float64) (int64, error) {
-	f64 := math.Floor(x)
-	if f64 >= math.MaxInt64 || f64 <= math.MinInt64 {
-		return 0, errors.New("input is out of int64 range")
-	}
-
-	return int64(f64), nil
 }
 
 // DeleteData deletes all data from database

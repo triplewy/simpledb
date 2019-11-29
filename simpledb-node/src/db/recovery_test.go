@@ -1,7 +1,9 @@
 package db
 
 import (
+	"fmt"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 )
@@ -23,11 +25,10 @@ func TestRecoverLevels(t *testing.T) {
 
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(1000000000000000000 + i)
-		memoryKV[key] = key
 		entries = append(entries, &KV{key: key, value: key})
 	}
 
-	err = asyncUpdates(db, entries)
+	err = asyncUpdates(db, entries, memoryKV)
 	if err != nil {
 		t.Fatalf("Error inserting into LSM: %v\n", err)
 	}
@@ -76,6 +77,9 @@ func TestRecoverUnexpected(t *testing.T) {
 	numItems := 50000
 	memoryKV := make(map[string]string)
 	closeChan := make(chan struct{}, 1)
+	success := true
+	var wg sync.WaitGroup
+	wg.Add(1)
 
 	go func() {
 		time.Sleep(5 * time.Second)
@@ -83,35 +87,45 @@ func TestRecoverUnexpected(t *testing.T) {
 	}()
 
 	go func() {
+		defer wg.Done()
 		<-closeChan
 		db.Close()
 		newDb, err := NewDB("data")
 		if err != nil {
-			t.Fatalf("Error creating DB: %v\n", err)
+			fmt.Printf("Error creating DB: %v\n", err)
+			success = false
+			return
 		}
 		keys := []string{}
 		for i := 0; i < 50000; i++ {
 			key := strconv.Itoa(1000000000000000000 + i)
 			keys = append(keys, key)
 		}
-
 		err = asyncViews(newDb, keys, memoryKV)
 		if err != nil {
-			t.Fatalf("Error reading from LSM: %v", err)
+			fmt.Printf("Error reading from LSM: %v\n", err)
+			success = false
+			return
 		}
-		return
 	}()
 
-	for i := 0; i < numItems; i++ {
-		key := strconv.Itoa(1000000000000000000 + i)
-		err := db.Update(func(txn *Txn) error {
-			txn.Write(key, key)
-			return nil
-		})
-		if err != nil {
-			t.Fatalf("Error inserting into LSM: %v\n", err)
-		} else {
-			memoryKV[key] = key
+	go func() {
+		for i := 0; i < numItems; i++ {
+			key := strconv.Itoa(1000000000000000000 + i)
+			err := db.Update(func(txn *Txn) error {
+				txn.Write(key, key)
+				return nil
+			})
+			if err != nil {
+				t.Fatalf("Error inserting into LSM: %v\n", err)
+			} else {
+				memoryKV[key] = key
+			}
 		}
+	}()
+
+	wg.Wait()
+	if !success {
+		t.Fatalf("Error recovering LSM")
 	}
 }
