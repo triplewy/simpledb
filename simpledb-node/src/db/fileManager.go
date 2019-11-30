@@ -17,7 +17,7 @@ type fileWriteReq struct {
 
 type fileMmapReq struct {
 	filename  string
-	replyChan chan []*lsmDataEntry
+	replyChan chan []*Entry
 	errChan   chan error
 }
 
@@ -25,7 +25,7 @@ type fileFindReq struct {
 	filename  string
 	key       string
 	ts        uint64
-	replyChan chan *lsmDataEntry
+	replyChan chan *Entry
 	errChan   chan error
 }
 
@@ -33,7 +33,7 @@ type fileRangeReq struct {
 	filename  string
 	keyRange  *keyRange
 	ts        uint64
-	replyChan chan []*lsmDataEntry
+	replyChan chan []*Entry
 	errChan   chan error
 }
 
@@ -88,8 +88,8 @@ func (fm *fileManager) Write(filename string, data []byte) error {
 }
 
 // MMap reads a file's data block and converts it to a slice of lsmDataEntry
-func (fm *fileManager) MMap(filename string) ([]*lsmDataEntry, error) {
-	replyChan := make(chan []*lsmDataEntry, 1)
+func (fm *fileManager) MMap(filename string) ([]*Entry, error) {
+	replyChan := make(chan []*Entry, 1)
 	errChan := make(chan error, 1)
 	req := &fileMmapReq{
 		filename:  filename,
@@ -101,8 +101,8 @@ func (fm *fileManager) MMap(filename string) ([]*lsmDataEntry, error) {
 }
 
 // Find attempts to find a lsmDataEntry that matches the given key within the file
-func (fm *fileManager) Find(filename, key string, ts uint64) (*lsmDataEntry, error) {
-	replyChan := make(chan *lsmDataEntry, 1)
+func (fm *fileManager) Find(filename, key string, ts uint64) (*Entry, error) {
+	replyChan := make(chan *Entry, 1)
 	errChan := make(chan error, 1)
 	req := &fileFindReq{
 		filename:  filename,
@@ -116,8 +116,8 @@ func (fm *fileManager) Find(filename, key string, ts uint64) (*lsmDataEntry, err
 }
 
 // Range returns all lsmDataEntry within in the specified key range within the file
-func (fm *fileManager) Range(filename string, keyRange *keyRange, ts uint64) ([]*lsmDataEntry, error) {
-	replyChan := make(chan []*lsmDataEntry, 1)
+func (fm *fileManager) Range(filename string, keyRange *keyRange, ts uint64) ([]*Entry, error) {
+	replyChan := make(chan []*Entry, 1)
 	errChan := make(chan error, 1)
 	req := &fileRangeReq{
 		filename:  filename,

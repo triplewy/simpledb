@@ -21,11 +21,11 @@ func TestRecoverLevels(t *testing.T) {
 
 	numItems := 100000
 	memorykv := make(map[string]string)
-	entries := []*kv{}
+	entries := []*Entry{}
 
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(1000000000000000000 + i)
-		entries = append(entries, &kv{key: key, value: key})
+		entries = append(entries, &Entry{key: key, value: key})
 	}
 
 	err = asyncUpdateTxns(db, entries, memorykv)

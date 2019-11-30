@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func insertIntoAVL(tree *avlTree, kvs []*kv) {
+func insertIntoAVL(tree *avlTree, kvs []*Entry) {
 	for i, kv := range kvs {
 		tree.Put(&lsmDataEntry{
 			ts:        uint64(i),
@@ -20,10 +20,10 @@ func insertIntoAVL(tree *avlTree, kvs []*kv) {
 
 func TestAVLPutLeftLeft(t *testing.T) {
 	tree := newAVLTree()
-	kvs := []*kv{
-		&kv{key: "5", value: "5"},
-		&kv{key: "4", value: "4"},
-		&kv{key: "3", value: "3"},
+	kvs := []*Entry{
+		&Entry{key: "5", value: "5"},
+		&Entry{key: "4", value: "4"},
+		&Entry{key: "3", value: "3"},
 	}
 	insertIntoAVL(tree, kvs)
 	preorder := strings.Join(tree.Preorder(), ",")
@@ -34,10 +34,10 @@ func TestAVLPutLeftLeft(t *testing.T) {
 
 func TestAVLPutLeftRight(t *testing.T) {
 	tree := newAVLTree()
-	kvs := []*kv{
-		&kv{key: "5", value: "5"},
-		&kv{key: "3", value: "3"},
-		&kv{key: "4", value: "4"},
+	kvs := []*Entry{
+		&Entry{key: "5", value: "5"},
+		&Entry{key: "3", value: "3"},
+		&Entry{key: "4", value: "4"},
 	}
 	insertIntoAVL(tree, kvs)
 	preorder := strings.Join(tree.Preorder(), ",")
@@ -48,10 +48,10 @@ func TestAVLPutLeftRight(t *testing.T) {
 
 func TestAVLPutRightRight(t *testing.T) {
 	tree := newAVLTree()
-	kvs := []*kv{
-		&kv{key: "3", value: "3"},
-		&kv{key: "4", value: "4"},
-		&kv{key: "5", value: "5"},
+	kvs := []*Entry{
+		&Entry{key: "3", value: "3"},
+		&Entry{key: "4", value: "4"},
+		&Entry{key: "5", value: "5"},
 	}
 	insertIntoAVL(tree, kvs)
 	preorder := strings.Join(tree.Preorder(), ",")
@@ -62,10 +62,10 @@ func TestAVLPutRightRight(t *testing.T) {
 
 func TestAVLPutRightLeft(t *testing.T) {
 	tree := newAVLTree()
-	kvs := []*kv{
-		&kv{key: "3", value: "3"},
-		&kv{key: "5", value: "5"},
-		&kv{key: "4", value: "4"},
+	kvs := []*Entry{
+		&Entry{key: "3", value: "3"},
+		&Entry{key: "5", value: "5"},
+		&Entry{key: "4", value: "4"},
 	}
 	insertIntoAVL(tree, kvs)
 	result := strings.Join(tree.Preorder(), ",")
@@ -76,11 +76,11 @@ func TestAVLPutRightLeft(t *testing.T) {
 
 func TestAVLPutDuplicate(t *testing.T) {
 	tree := newAVLTree()
-	kvs := []*kv{
-		&kv{key: "3", value: "3"},
-		&kv{key: "5", value: "5"},
-		&kv{key: "4", value: "4"},
-		&kv{key: "3", value: "10"},
+	kvs := []*Entry{
+		&Entry{key: "3", value: "3"},
+		&Entry{key: "5", value: "5"},
+		&Entry{key: "4", value: "4"},
+		&Entry{key: "3", value: "10"},
 	}
 	insertIntoAVL(tree, kvs)
 	entries := tree.Inorder()
@@ -93,9 +93,9 @@ func TestAVLPutDuplicate(t *testing.T) {
 		t.Fatalf("Expected: 10,3,4,5 Got: %s\n", result)
 	}
 
-	kvs = []*kv{
-		&kv{key: "5", value: "15"},
-		&kv{key: "4", value: "40"},
+	kvs = []*Entry{
+		&Entry{key: "5", value: "15"},
+		&Entry{key: "4", value: "40"},
 	}
 	insertIntoAVL(tree, kvs)
 
@@ -112,15 +112,15 @@ func TestAVLPutDuplicate(t *testing.T) {
 
 func TestAVLScan(t *testing.T) {
 	tree := newAVLTree()
-	kvs := []*kv{
-		&kv{key: "0", value: "0"},
-		&kv{key: "2", value: "2"},
-		&kv{key: "4", value: "4"},
-		&kv{key: "5", value: "5"},
-		&kv{key: "6", value: "6"},
-		&kv{key: "8", value: "8"},
-		&kv{key: "9", value: "9"},
-		&kv{key: "9", value: "90"},
+	kvs := []*Entry{
+		&Entry{key: "0", value: "0"},
+		&Entry{key: "2", value: "2"},
+		&Entry{key: "4", value: "4"},
+		&Entry{key: "5", value: "5"},
+		&Entry{key: "6", value: "6"},
+		&Entry{key: "8", value: "8"},
+		&Entry{key: "9", value: "9"},
+		&Entry{key: "9", value: "90"},
 	}
 	insertIntoAVL(tree, kvs)
 
@@ -161,7 +161,7 @@ func TestAVLScan(t *testing.T) {
 func TestAVLBulk(t *testing.T) {
 	tree := newAVLTree()
 	for i := 1000; i < 5000; i++ {
-		entry, err := createDataEntry(uint64(i), strconv.Itoa(i), int64(i))
+		entry, err := createEntry(uint64(i), strconv.Itoa(i), int64(i))
 		if err != nil {
 			t.Fatalf("Error creating data entry: %v\n", err)
 		}
@@ -191,7 +191,7 @@ func TestAVLRandom(t *testing.T) {
 		key := strconv.Itoa(rand.Intn(100))
 		value := strconv.Itoa(i)
 		memorykv[key] = value
-		entry, err := createDataEntry(uint64(i), key, value)
+		entry, err := createEntry(uint64(i), key, value)
 		if err != nil {
 			t.Fatalf("Error creating data entry: %v\n", err)
 		}

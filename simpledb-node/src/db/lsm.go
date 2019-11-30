@@ -58,7 +58,7 @@ func (lsm *lsm) Write(blocks, index []byte, bloom *bloom, keyRange *keyRange) er
 
 // Read goes through each level of the LSM tree and returns if a result is found for the given key.
 // If no result is found, Find throws a KeyNotFound error
-func (lsm *lsm) Read(key string, ts uint64) (*lsmDataEntry, error) {
+func (lsm *lsm) Read(key string, ts uint64) (*Entry, error) {
 	for _, level := range lsm.levels {
 		entry, err := level.find(key, ts)
 		if err != nil {
@@ -77,10 +77,10 @@ func (lsm *lsm) Read(key string, ts uint64) (*lsmDataEntry, error) {
 
 // Scan concurrently finds all keys in the LSM tree that fall within the range query.
 // Concurrency is achieved by going through each level on its own goroutine
-func (lsm *lsm) Scan(keyRange *keyRange, ts uint64) ([]*lsmDataEntry, error) {
-	replyChan := make(chan []*lsmDataEntry)
+func (lsm *lsm) Scan(keyRange *keyRange, ts uint64) ([]*Entry, error) {
+	replyChan := make(chan []*Entry)
 	errChan := make(chan error)
-	result := []*lsmDataEntry{}
+	result := []*Entry{}
 	errs := make(map[string]int)
 	var wg sync.WaitGroup
 
@@ -133,10 +133,10 @@ func (lsm *lsm) Scan(keyRange *keyRange, ts uint64) ([]*lsmDataEntry, error) {
 // 		return lsm.CheckPrimaryKey(key, levelNum+1)
 // 	}
 
-// 	replyChan := make(chan *lsmDataEntry)
+// 	replyChan := make(chan *Entry)
 // 	errChan := make(chan error)
 
-// 	replies := []*lsmDataEntry{}
+// 	replies := []*Entry{}
 
 // 	var wg sync.WaitGroup
 // 	var errs []error

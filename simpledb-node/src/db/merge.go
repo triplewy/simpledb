@@ -4,7 +4,7 @@ import (
 	"sort"
 )
 
-func (level *level) mergeSort(files []string) ([]*lsmDataEntry, error) {
+func (level *level) mergeSort(files []string) ([]*Entry, error) {
 	if len(files) > 1 {
 		mid := len(files) / 2
 		left, err := level.mergeSort(files[:mid])
@@ -21,7 +21,7 @@ func (level *level) mergeSort(files []string) ([]*lsmDataEntry, error) {
 	return level.fm.MMap(files[0])
 }
 
-func mergeHelper(left, right []*lsmDataEntry) (entries []*lsmDataEntry) {
+func mergeHelper(left, right []*Entry) (entries []*Entry) {
 	entries = append(left, right...)
 	sort.Slice(entries, func(i, j int) bool {
 		if entries[i].key == entries[j].key {

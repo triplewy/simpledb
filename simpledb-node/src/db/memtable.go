@@ -1,7 +1,6 @@
 package db
 
 import (
-	"encoding/binary"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -44,20 +43,21 @@ func newMemTable(directory string, id string) (mt *memTable, maxCommitTs uint64,
 	return mt, maxCommitTs, nil
 }
 
-// BatchPut first appends a batch of writes to WAL then inserts them all into in-memory table
-func (mt *memTable) BatchPut(entries []*lsmDataEntry) error {
+// Write first appends a batch of writes to WAL then inserts them all into in-memory table
+func (mt *memTable) Write(entries []*Entry) error {
 	data := []byte{}
 	for _, entry := range entries {
-		data = append(data, encodeDataEntry(entry)...)
+		data = append(data, encodeEntry(entry)...)
 	}
 	err := mt.AppendWAL(data)
 	if err != nil {
 		return err
 	}
+	// Put entries into memory structure after append to WAL to ensure consistency
 	for _, entry := range entries {
 		mt.table.Put(entry)
-		mt.size += sizeDataEntry(entry)
 	}
+	mt.size += len(data)
 	return nil
 }
 
@@ -88,33 +88,16 @@ func (mt *memTable) RecoverWAL() (maxCommitTs uint64, err error) {
 	if err != nil {
 		return 0, err
 	}
-	i := 0
-	for i < len(data) {
-		ts := binary.LittleEndian.Uint64(data[i : i+8])
-		if ts > maxCommitTs {
-			maxCommitTs = ts
-		}
-		i += 8
-		keySize := uint8(data[i])
-		i++
-		key := string(data[i : i+int(keySize)])
-		i += int(keySize)
-		valueType := uint8(data[i])
-		i++
-		valueSize := binary.LittleEndian.Uint16(data[i : i+2])
-		i += 2
-		value := data[i : i+int(valueSize)]
-		i += int(valueSize)
-		entry := &lsmDataEntry{
-			ts:        ts,
-			keySize:   keySize,
-			key:       key,
-			valueType: valueType,
-			valueSize: valueSize,
-			value:     value,
-		}
+	entries, err := decodeEntries(data)
+	if err != nil {
+		return 0, err
+	}
+	for _, entry := range entries {
 		mt.table.Put(entry)
-		mt.size += sizeDataEntry(entry)
+		mt.size += entry.size
+		if entry.ts > maxCommitTs {
+			maxCommitTs = entry.ts
+		}
 	}
 	return maxCommitTs, nil
 }

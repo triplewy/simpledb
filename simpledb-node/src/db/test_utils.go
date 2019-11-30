@@ -3,15 +3,11 @@ package db
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"path/filepath"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 )
 
-func asyncUpdateTxns(db *DB, entries []*kv, memorykv map[string]string) error {
+func asyncUpdateTxns(db *DB, entries []*Entry, memorykv map[string]string) error {
 	type update struct {
 		key   string
 		value string
@@ -187,41 +183,41 @@ func asyncViewTxns(db *DB, keys []string, memorykv map[string]string) error {
 	return nil
 }
 
-func writeEntriesToFile(filename string, entries []*lsmDataEntry) error {
-	dataBlocks, indexBlock, bloom, keyRange, err := writeDataEntries(entries)
-	if err != nil {
-		return err
-	}
+// func writeEntriesToFile(filename string, entries []*Entry) error {
+// 	dataBlocks, indexBlock, bloom, keyRange, err := writeDataEntries(entries)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	keyRangeEntry := createkeyRangeEntry(keyRange)
-	header := createHeader(len(dataBlocks), len(indexBlock), len(bloom.bits), len(keyRangeEntry))
-	data := append(header, append(append(append(dataBlocks, indexBlock...), bloom.bits...), keyRangeEntry...)...)
+// 	keyRangeEntry := createkeyRangeEntry(keyRange)
+// 	header := createHeader(len(dataBlocks), len(indexBlock), len(bloom.bits), len(keyRangeEntry))
+// 	data := append(header, append(append(append(dataBlocks, indexBlock...), bloom.bits...), keyRangeEntry...)...)
 
-	err = writeNewFile(filename, data)
-	if err != nil {
-		return err
-	}
-	return nil
-}
+// 	err = writeNewFile(filename, data)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	return nil
+// }
 
-func checkManifests(levels []*level) error {
-	for i := 0; i < 7; i++ {
-		level := levels[i]
-		dir := filepath.Join("data", "L"+strconv.Itoa(i))
-		d, err := ioutil.ReadDir(dir)
-		if err != nil {
-			return err
-		}
+// func checkManifests(levels []*level) error {
+// 	for i := 0; i < 7; i++ {
+// 		level := levels[i]
+// 		dir := filepath.Join("data", "L"+strconv.Itoa(i))
+// 		d, err := ioutil.ReadDir(dir)
+// 		if err != nil {
+// 			return err
+// 		}
 
-		for _, fileInfo := range d {
-			file := fileInfo.Name()
-			fileID := strings.Split(file, ".")[0]
-			keyRange, ok := level.manifest[fileID]
-			if !ok {
-				return errors.New("File in directory is not in manifest")
-			}
-			fmt.Println("Level:", i, keyRange)
-		}
-	}
-	return nil
-}
+// 		for _, fileInfo := range d {
+// 			file := fileInfo.Name()
+// 			fileID := strings.Split(file, ".")[0]
+// 			keyRange, ok := level.manifest[fileID]
+// 			if !ok {
+// 				return errors.New("File in directory is not in manifest")
+// 			}
+// 			fmt.Println("Level:", i, keyRange)
+// 		}
+// 	}
+// 	return nil
+// }

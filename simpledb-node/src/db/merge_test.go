@@ -15,13 +15,13 @@ func TestMergeMMap(t *testing.T) {
 	}
 
 	memorykv := make(map[string]string)
-	entries := []*lsmDataEntry{}
+	entries := []*Entry{}
 
 	for i := 10000; i < 50000; i++ {
 		key := strconv.Itoa(i)
 		value := uuid.New().String()
 		memorykv[key] = value
-		entry, err := createDataEntry(uint64(i), key, value)
+		entry, err := createEntry(uint64(i), key, value)
 		if err != nil {
 			t.Fatalf("Error creating data entry: %v\n", err)
 		}

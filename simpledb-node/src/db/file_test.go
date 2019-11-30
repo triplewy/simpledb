@@ -14,11 +14,11 @@ func TestFileGet(t *testing.T) {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
 
-	entries := []*lsmDataEntry{}
+	entries := []*Entry{}
 
 	for i := 1000; i < 10000; i++ {
 		key := strconv.Itoa(i)
-		entry, err := createDataEntry(uint64(i), key, key)
+		entry, err := createEntry(uint64(i), key, key)
 		if err != nil {
 			t.Fatalf("Error creating data entry: %v\n", err)
 		}
@@ -40,7 +40,7 @@ func TestFileGet(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	replyChan := make(chan *lsmDataEntry)
+	replyChan := make(chan *Entry)
 	errChan := make(chan error)
 	errs := make(map[string]int)
 
@@ -100,11 +100,11 @@ func TestFileRange(t *testing.T) {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
 
-	entries := []*lsmDataEntry{}
+	entries := []*Entry{}
 
 	for i := 0; i < 10000; i++ {
 		key := strconv.Itoa(int(math.Pow10(9)) + i)
-		entry, err := createDataEntry(uint64(i), key, key)
+		entry, err := createEntry(uint64(i), key, key)
 		if err != nil {
 			t.Fatalf("Error creating data entry: %v\n", err)
 		}

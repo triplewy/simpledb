@@ -105,7 +105,7 @@ func newLevel(numLevel int, directory string, fm *fileManager) (*level, error) {
 	return lvl, nil
 }
 
-func (level *level) find(key string, ts uint64) (*lsmDataEntry, error) {
+func (level *level) find(key string, ts uint64) (*Entry, error) {
 	filenames := level.FindSSTFile(key)
 	if len(filenames) == 0 {
 		return nil, newErrKeyNotFound()
@@ -114,9 +114,9 @@ func (level *level) find(key string, ts uint64) (*lsmDataEntry, error) {
 		return level.fm.Find(filenames[0], key, ts)
 	}
 
-	replyChan := make(chan *lsmDataEntry)
+	replyChan := make(chan *Entry)
 	errChan := make(chan error)
-	replies := []*lsmDataEntry{}
+	replies := []*Entry{}
 
 	var wg sync.WaitGroup
 	var errs []error
@@ -167,7 +167,7 @@ func (level *level) find(key string, ts uint64) (*lsmDataEntry, error) {
 	}
 
 	if len(replies) > 0 {
-		var latestUpdate *lsmDataEntry
+		var latestUpdate *Entry
 		for _, entry := range replies {
 			if latestUpdate == nil {
 				latestUpdate = entry
@@ -248,8 +248,8 @@ func (level *level) Merge(files []string) ([]string, error) {
 	return files, nil
 }
 
-func (level *level) writeMerge(entries []*lsmDataEntry) error {
-	dataBlocks, indexBlock, bloom, keyRange, err := writeDataEntries(entries)
+func (level *level) writeMerge(entries []*Entry) error {
+	dataBlocks, indexBlock, bloom, keyRange, err := writeEntries(entries)
 	if err != nil {
 		return err
 	}
@@ -273,9 +273,9 @@ func (level *level) writeMerge(entries []*lsmDataEntry) error {
 
 // Range gets all files at a specific level whose key range fall within the given range query.
 // It then concurrently reads all files and returns the result to the given channel
-func (level *level) Range(keyRange *keyRange, ts uint64) (entries []*lsmDataEntry, err error) {
+func (level *level) Range(keyRange *keyRange, ts uint64) (entries []*Entry, err error) {
 	filenames := level.RangeSSTFiles(keyRange.startKey, keyRange.endKey)
-	replyChan := make(chan []*lsmDataEntry)
+	replyChan := make(chan []*Entry)
 	errChan := make(chan error)
 	errs := make(map[string]int)
 	var wg sync.WaitGroup

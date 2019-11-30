@@ -68,6 +68,8 @@ func (e *ErrIncorrectValueSize) Error() string {
 		valueType = "Float"
 	case String:
 		valueType = "String"
+	case Bytes:
+		valueType = "Bytes"
 	case Tombstone:
 		valueType = "Tombstone"
 	}
@@ -95,6 +97,8 @@ func (e *ErrIncompatibleValue) Error() string {
 		valueType = "Float"
 	case String:
 		valueType = "String"
+	case Bytes:
+		valueType = "Bytes"
 	case Tombstone:
 		valueType = "Tombstone"
 	}
@@ -130,7 +134,7 @@ func newErrExceedMaxValueSize() *ErrExceedMaxValueSize {
 }
 
 func (e *ErrExceedMaxValueSize) Error() string {
-	return fmt.Sprintf("Value size has exceeded max value size: %d", ValueSize)
+	return fmt.Sprintf("Value size has exceeded max value size: %d", EntrySize)
 }
 
 type ErrDuplicateKey struct {
@@ -153,4 +157,44 @@ func newErrTxnAbort() *ErrTxnAbort {
 
 func (e *ErrTxnAbort) Error() string {
 	return fmt.Sprintf("Txn aborted due to concurrent writes to key(s) from other txns")
+}
+
+type ErrExceedMaxFields struct{}
+
+func newErrExceedMaxFields() *ErrExceedMaxFields {
+	return &ErrExceedMaxFields{}
+}
+
+func (e *ErrExceedMaxFields) Error() string {
+	return fmt.Sprintf("Amount of fields in entry exceed maximum (%d) amount of fields", MaxFields)
+}
+
+type ErrExceedMaxEntrySize struct{}
+
+func newErrExceedMaxEntrySize() *ErrExceedMaxEntrySize {
+	return &ErrExceedMaxEntrySize{}
+}
+
+func (e *ErrExceedMaxEntrySize) Error() string {
+	return fmt.Sprintf("Size of entry has exceeded maximum size of %d bytes", EntrySize)
+}
+
+type ErrDecodeEntry struct{}
+
+func newErrDecodeEntry() *ErrDecodeEntry {
+	return &ErrDecodeEntry{}
+}
+
+func (e *ErrDecodeEntry) Error() string {
+	return fmt.Sprintf("Error decoding entry from file")
+}
+
+type ErrBadFormattedSST struct{}
+
+func newErrBadFormattedSST() *ErrBadFormattedSST {
+	return &ErrBadFormattedSST{}
+}
+
+func (e *ErrBadFormattedSST) Error() string {
+	return fmt.Sprintf("Bad formatted SST File")
 }

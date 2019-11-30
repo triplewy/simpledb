@@ -11,7 +11,7 @@ type oracle struct {
 
 type commitReq struct {
 	readSet   map[string]uint64
-	writeSet  map[string]*kv
+	writeSet  map[string]*Entry
 	replyChan chan error
 }
 
@@ -40,7 +40,7 @@ func (oracle *oracle) requestStart() uint64 {
 	return <-replyChan
 }
 
-func (oracle *oracle) commit(readSet map[string]uint64, writeSet map[string]*kv) error {
+func (oracle *oracle) commit(readSet map[string]uint64, writeSet map[string]*Entry) error {
 	replyChan := make(chan error, 1)
 	commitReq := &commitReq{
 		readSet:   readSet,
@@ -69,17 +69,13 @@ func (oracle *oracle) run() {
 					break SelectStatement
 				}
 			}
-			entries := []*kv{}
+			entries := []*Entry{}
 			commitTs := oracle.next()
-			for key, item := range req.writeSet {
+			for key, entry := range req.writeSet {
 				oracle.commitedTxns.Insert(key, commitTs)
-				entries = append(entries, &kv{
-					ts:    commitTs,
-					key:   item.key,
-					value: item.value,
-				})
+				entries = append(entries, entry)
 			}
-			req.replyChan <- oracle.db.batchPut(entries)
+			req.replyChan <- oracle.db.write(entries)
 		}
 	}
 }

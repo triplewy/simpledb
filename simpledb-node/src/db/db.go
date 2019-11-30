@@ -9,31 +9,20 @@ import (
 
 // DB is struct for database
 type DB struct {
-	oracle *oracle
-
+	oracle    *oracle
 	mutable   *memTable
 	immutable *memTable
+	lsm       *lsm
+	memory    *memory
 
-	batchChan chan *batchRequest
+	writeChan chan *writeRequest
 	flushChan chan *memTable
-
-	lsm *lsm
-
-	memory *memory
-
-	close chan struct{}
+	close     chan struct{}
 }
 
-type batchRequest struct {
-	entries   []*kv
-	replyChan chan error
-}
-
-// kv is struct for Key-Value pair
-type kv struct {
-	ts    uint64
-	key   string
-	value interface{}
+type writeRequest struct {
+	entries []*Entry
+	errChan chan error
 }
 
 // NewDB creates a new database by instantiating the lsm and Value Log
@@ -64,7 +53,7 @@ func NewDB(directory string) (*DB, error) {
 		mutable:   memtable1,
 		immutable: memtable2,
 
-		batchChan: make(chan *batchRequest),
+		writeChan: make(chan *writeRequest),
 		flushChan: make(chan *memTable),
 
 		lsm: lsm,
@@ -89,7 +78,7 @@ func (db *DB) newTxn() *Txn {
 	return &Txn{
 		db:         db,
 		startTs:    startTs,
-		writeCache: make(map[string]*kv),
+		writeCache: make(map[string]*Entry),
 		readSet:    make(map[string]uint64),
 	}
 }
@@ -109,40 +98,35 @@ func (db *DB) UpdateTxn(fn func(txn *Txn) error) error {
 	return txn.commit()
 }
 
-// batchPut inserts multiple key-value pairs into DB
-func (db *DB) batchPut(entries []*kv) error {
-	replyChan := make(chan error, 1)
-	req := &batchRequest{
-		entries:   entries,
-		replyChan: replyChan,
+// write inserts multiple entries into DB
+func (db *DB) write(entries []*Entry) error {
+	errChan := make(chan error, 1)
+	req := &writeRequest{
+		entries: entries,
+		errChan: errChan,
 	}
-
-	db.batchChan <- req
-	return <-replyChan
+	db.writeChan <- req
+	return <-errChan
 }
 
-// get retrieves value for a given key or returns key not found
-func (db *DB) read(key string, ts uint64) (*kv, error) {
+// get retrieves fields for a given key or returns key not found
+func (db *DB) read(key string, ts uint64) (*Entry, error) {
 	if len(key) > KeySize {
 		return nil, newErrExceedMaxKeySize(key)
 	}
 	entry := db.mutable.table.Find(key, ts)
 	if entry != nil {
-		return parseDataEntry(entry)
+		return entry, nil
 	}
 	entry = db.immutable.table.Find(key, ts)
 	if entry != nil {
-		return parseDataEntry(entry)
+		return entry, nil
 	}
-	entry, err := db.lsm.Read(key, ts)
-	if err != nil {
-		return nil, err
-	}
-	return parseDataEntry(entry)
+	return db.lsm.Read(key, ts)
 }
 
 // range finds all key, value pairs within the given range of keys
-func (db *DB) scan(startKey, endKey string, ts uint64) ([]*kv, error) {
+func (db *DB) scan(startKey, endKey string, ts uint64) ([]*Entry, error) {
 	if len(startKey) > KeySize {
 		return nil, newErrExceedMaxKeySize(startKey)
 	}
@@ -154,7 +138,7 @@ func (db *DB) scan(startKey, endKey string, ts uint64) ([]*kv, error) {
 	}
 	keyRange := &keyRange{startKey: startKey, endKey: endKey}
 
-	all := []*lsmDataEntry{}
+	all := []*Entry{}
 	all = append(all, db.mutable.table.Scan(keyRange, ts)...)
 	all = append(all, db.immutable.table.Scan(keyRange, ts)...)
 
@@ -165,7 +149,7 @@ func (db *DB) scan(startKey, endKey string, ts uint64) ([]*kv, error) {
 	all = append(all, entries...)
 
 	// Convert slice of entries into a set of entries
-	resultMap := make(map[string]*lsmDataEntry)
+	resultMap := make(map[string]*Entry)
 	for _, entry := range all {
 		if value, ok := resultMap[entry.key]; !ok {
 			resultMap[entry.key] = entry
@@ -176,26 +160,20 @@ func (db *DB) scan(startKey, endKey string, ts uint64) ([]*kv, error) {
 		}
 	}
 
-	result := []*kv{}
+	result := []*Entry{}
 	for _, entry := range resultMap {
-		data, err := parseDataEntry(entry)
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, data)
+		result = append(result, entry)
 	}
-
 	sort.Slice(result, func(i, j int) bool {
 		return result[i].key < result[j].key
 	})
-
 	return result, nil
 }
 
 // Flush takes all entries from the in-memory table and sends them to lsm
 func (db *DB) flush(mt *memTable) error {
 	entries := mt.table.Inorder()
-	dataBlocks, indexBlock, bloom, keyRange, err := writeDataEntries(entries)
+	dataBlocks, indexBlock, bloom, keyRange, err := writeEntries(entries)
 	if err != nil {
 		return err
 	}
@@ -226,27 +204,17 @@ func (db *DB) forceClose() {
 
 func (db *DB) run() {
 	for {
-	SelectStatement:
 		select {
-		case req := <-db.batchChan:
-			lsmEntries := []*lsmDataEntry{}
-			for _, entry := range req.entries {
-				lsmEntry, err := createDataEntry(entry.ts, entry.key, entry.value)
-				if err != nil {
-					req.replyChan <- err
-					break SelectStatement
-				}
-				lsmEntries = append(lsmEntries, lsmEntry)
-			}
-			err := db.mutable.BatchPut(lsmEntries)
+		case req := <-db.writeChan:
+			err := db.mutable.Write(req.entries)
 			if err != nil {
-				req.replyChan <- err
+				req.errChan <- err
 			} else {
 				if db.mutable.size > MemTableSize {
 					db.flushChan <- db.mutable
 					db.mutable, db.immutable = db.immutable, db.mutable
 				}
-				req.replyChan <- nil
+				req.errChan <- nil
 			}
 		case <-db.close:
 			db.lsm.Close()
