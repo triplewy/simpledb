@@ -7,19 +7,11 @@ import (
 
 func TestLRU(t *testing.T) {
 	lru := newLRU(5)
-	keyTs := []*Entry{
-		&Entry{key: "1", value: uint64(1)},
-		&Entry{key: "2", value: uint64(2)},
-		&Entry{key: "3", value: uint64(3)},
-		&Entry{key: "4", value: uint64(4)},
-		&Entry{key: "5", value: uint64(5)},
-		&Entry{key: "5", value: uint64(6)},
-		&Entry{key: "2", value: uint64(7)},
-		&Entry{key: "6", value: uint64(8)},
-	}
+	keys := []string{"1", "2", "3", "4", "5", "5", "2", "6"}
+	values := []uint64{1, 2, 3, 4, 6, 7, 8}
 
-	for _, kv := range keyTs {
-		lru.Insert(kv.key, kv.value.(uint64))
+	for i := range keys {
+		lru.Insert(keys[i], values[i])
 	}
 
 	result := []string{}

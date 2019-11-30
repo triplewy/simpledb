@@ -12,13 +12,13 @@ type Txn struct {
 }
 
 // Read gets value for a key from the DB and updates the txn readSet
-func (txn *Txn) Read(key string) (map[string]*Value, error) {
+func (txn *Txn) Read(key string) (*Entry, error) {
 	entry, err := txn.db.read(key, txn.startTs)
 	if err != nil {
 		return nil, err
 	}
 	txn.readSet[key] = entry.ts
-	return entry.fields, nil
+	return entry, nil
 }
 
 // Write updates the write cache of the txn

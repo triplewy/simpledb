@@ -10,13 +10,45 @@ type Entry struct {
 	ts     uint64
 	key    string
 	fields map[string]*Value
-	size   int
 }
 
 // Value combines a slice of bytes with a data type in order to parse data
 type Value struct {
 	dataType uint8
 	data     []byte
+}
+
+func parseValue(value *Value) (interface{}, error) {
+	data := value.data
+	switch value.dataType {
+	case Bool:
+		if len(data) != 1 {
+			return nil, newErrParseValue(value)
+		}
+		if data[0] == byte(0) {
+			return false, nil
+		}
+		if data[0] == byte(1) {
+			return true, nil
+		}
+		return nil, newErrParseValue(value)
+	case Int:
+		if len(data) != 8 {
+			return nil, newErrParseValue(value)
+		}
+		return int64(binary.LittleEndian.Uint64(data)), nil
+	case Float:
+		if len(data) != 8 {
+			return nil, newErrParseValue(value)
+		}
+		return math.Float64frombits(binary.LittleEndian.Uint64(data)), nil
+	case String:
+		return string(data), nil
+	case Bytes:
+		return data, nil
+	default:
+		return nil, newErrParseValue(value)
+	}
 }
 
 // indexEntry is struct that represents an entry into an lsm Index Block
@@ -36,7 +68,6 @@ func createEntry(ts uint64, key string, fields map[string]interface{}) (*Entry, 
 		ts:     ts,
 		key:    key,
 		fields: make(map[string]*Value),
-		size:   0,
 	}
 	for name, data := range fields {
 		switch v := data.(type) {
@@ -64,9 +95,10 @@ func createEntry(ts uint64, key string, fields map[string]interface{}) (*Entry, 
 			return nil, newErrNoTypeFound()
 		}
 	}
-	for name, value := range entry.fields {
-		entry.size += len(value.data)
-		if entry.size > EntrySize {
+	totalSize := 0
+	for _, value := range entry.fields {
+		totalSize += len(value.data)
+		if totalSize > EntrySize {
 			return nil, newErrExceedMaxEntrySize()
 		}
 	}
@@ -87,12 +119,13 @@ func encodeEntry(entry *Entry) (data []byte) {
 		dataSizeBytes := make([]byte, 2)
 		binary.LittleEndian.PutUint16(dataSizeBytes, uint16(len(value.data)))
 		dataBytes := value.data
+
 		fieldBytes := []byte{}
-		fieldBytes = append(fieldsBytes, nameSizeBytes)
-		fieldBytes = append(fieldsBytes, nameBytes...)
-		fieldBytes = append(fieldsBytes, dataTypeBytes)
-		fieldBytes = append(fieldsBytes, dataSizeBytes...)
-		fieldBytes = append(fieldsBytes, dataBytes...)
+		fieldBytes = append(fieldBytes, nameSizeBytes)
+		fieldBytes = append(fieldBytes, nameBytes...)
+		fieldBytes = append(fieldBytes, dataTypeBytes)
+		fieldBytes = append(fieldBytes, dataSizeBytes...)
+		fieldBytes = append(fieldBytes, dataBytes...)
 
 		fieldsBytes = append(fieldsBytes, fieldBytes...)
 	}
@@ -161,6 +194,7 @@ func decodeEntry(data []byte) (*Entry, error) {
 			}
 			fieldData := data[i : i+int(fieldDataSize)]
 			entry.fields[fieldName] = &Value{dataType: fieldType, data: fieldData}
+			i += int(fieldDataSize)
 		default:
 			return nil, newErrDecodeEntry()
 		}
@@ -181,13 +215,14 @@ func decodeEntries(data []byte) (entries []*Entry, err error) {
 			if j+int(entrySize) > len(block) {
 				return nil, newErrBadFormattedSST()
 			}
-			if block[j] == byte(0) {
+			if entrySize == 0 {
 				break
 			}
 			entry, err := decodeEntry(block[j : j+int(entrySize)])
 			if err != nil {
 				return nil, err
 			}
+			j += int(entrySize)
 			entries = append(entries, entry)
 		}
 	}

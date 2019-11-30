@@ -25,7 +25,8 @@ func TestRecoverLevels(t *testing.T) {
 
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(1000000000000000000 + i)
-		entries = append(entries, &Entry{key: key, value: key})
+		value := key
+		entries = append(entries, simpleEntry(uint64(i), key, value))
 	}
 
 	err = asyncUpdateTxns(db, entries, memorykv)
@@ -113,7 +114,7 @@ func TestRecoverUnexpected(t *testing.T) {
 		for i := 0; i < numItems; i++ {
 			key := strconv.Itoa(1000000000000000000 + i)
 			err := db.UpdateTxn(func(txn *Txn) error {
-				txn.Write(key, key)
+				txn.Write(key, map[string]*Value{"value": &Value{dataType: String, data: []byte(key)}})
 				return nil
 			})
 			if err != nil {

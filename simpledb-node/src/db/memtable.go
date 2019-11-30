@@ -88,13 +88,13 @@ func (mt *memTable) RecoverWAL() (maxCommitTs uint64, err error) {
 	if err != nil {
 		return 0, err
 	}
+	mt.size = len(data)
 	entries, err := decodeEntries(data)
 	if err != nil {
 		return 0, err
 	}
 	for _, entry := range entries {
 		mt.table.Put(entry)
-		mt.size += entry.size
 		if entry.ts > maxCommitTs {
 			maxCommitTs = entry.ts
 		}

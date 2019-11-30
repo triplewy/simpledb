@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+func simpleEntry(ts uint64, key, value string) *Entry {
+	return &Entry{
+		ts:     ts,
+		key:    key,
+		fields: map[string]*Value{"value": &Value{dataType: String, data: []byte(value)}},
+	}
+}
+
 func asyncUpdateTxns(db *DB, entries []*Entry, memorykv map[string]string) error {
 	type update struct {
 		key   string
@@ -18,21 +26,18 @@ func asyncUpdateTxns(db *DB, entries []*Entry, memorykv map[string]string) error
 	wg.Add(len(entries))
 
 	startTime := time.Now()
-	for _, kv := range entries {
-		go func(key string, value interface{}) {
+	for _, entry := range entries {
+		go func(entry *Entry) {
 			err := db.UpdateTxn(func(txn *Txn) error {
-				txn.Write(key, value)
+				txn.Write(entry.key, entry.fields)
 				return nil
 			})
-			if value == nil {
-				value = ""
-			}
 			updateChan <- &update{
-				key:   key,
-				value: value.(string),
+				key:   entry.key,
+				value: string(entry.fields["value"].data),
 				err:   err,
 			}
-		}(kv.key, kv.value)
+		}(entry)
 	}
 
 	errs := make(map[string]int)
@@ -122,14 +127,13 @@ func asyncDeletes(db *DB, keys []string, memorykv map[string]string) error {
 func asyncViewTxns(db *DB, keys []string, memorykv map[string]string) error {
 	var wg sync.WaitGroup
 	errChan := make(chan error)
-
 	startTime := time.Now()
 	for _, key := range keys {
 		wg.Add(1)
 		value := memorykv[key]
 		go func(key, value string) {
 			err := db.ViewTxn(func(txn *Txn) error {
-				result, err := txn.Read(key)
+				entry, err := txn.Read(key)
 				if err != nil {
 					if err.Error() == "Key not found" && !(value == "__delete__" || value == "") {
 						// fmt.Printf("Key: %v, Expected: %v, Got: %v\n", key, value, "Key not found")
@@ -137,7 +141,7 @@ func asyncViewTxns(db *DB, keys []string, memorykv map[string]string) error {
 					}
 					return nil
 				}
-				if result.(string) != value {
+				if string(entry.fields["value"].data) != value {
 					if value == "__delete__" {
 						// fmt.Printf("Key: %v, Expected: Key not found, Got: %v\n", key, result.(string))
 						return errors.New("Key should have been deleted")

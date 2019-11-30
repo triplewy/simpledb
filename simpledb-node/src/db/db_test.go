@@ -28,7 +28,8 @@ func TestDBPutOnly(t *testing.T) {
 
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(1000000000000000000 + i)
-		entries = append(entries, &Entry{key: key, value: key})
+		value := key
+		entries = append(entries, simpleEntry(uint64(i), key, value))
 	}
 
 	err = asyncUpdateTxns(db, entries, memorykv)
@@ -65,7 +66,8 @@ func TestDBOverlapPut(t *testing.T) {
 
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(i)
-		entries = append(entries, &Entry{key: key, value: key})
+		value := key
+		entries = append(entries, simpleEntry(uint64(i), key, value))
 	}
 
 	err = asyncUpdateTxns(db, entries, memorykv)
@@ -77,7 +79,7 @@ func TestDBOverlapPut(t *testing.T) {
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(i)
 		value := strconv.Itoa(i + 1)
-		entries = append(entries, &Entry{key: key, value: value})
+		entries = append(entries, simpleEntry(uint64(i), key, value))
 	}
 
 	err = asyncUpdateTxns(db, entries, memorykv)
@@ -114,7 +116,8 @@ func TestDBDelete(t *testing.T) {
 
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(i)
-		entries = append(entries, &Entry{key: key, value: key})
+		value := key
+		entries = append(entries, simpleEntry(uint64(i), key, value))
 	}
 
 	err = asyncUpdateTxns(db, entries, memorykv)
@@ -164,7 +167,7 @@ func TestDBTinyBenchmark(t *testing.T) {
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(i)
 		value := uuid.New().String()
-		entries = append(entries, &Entry{key: key, value: value})
+		entries = append(entries, simpleEntry(uint64(i), key, value))
 	}
 
 	err = asyncUpdateTxns(db, entries, memorykv)
@@ -189,7 +192,7 @@ func TestDBTinyBenchmark(t *testing.T) {
 	for i := 0; i < numCmds; i++ {
 		key := strconv.Itoa(rand.Intn(numItems / 10))
 		value := uuid.New().String()
-		entries = append(entries, &Entry{key: key, value: value})
+		entries = append(entries, simpleEntry(uint64(i), key, value))
 	}
 
 	err = asyncUpdateTxns(db, entries, memorykv)
@@ -227,7 +230,7 @@ func TestDBRange(t *testing.T) {
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(i)
 		value := uuid.New().String()
-		entries = append(entries, &Entry{key: key, value: value})
+		entries = append(entries, simpleEntry(uint64(i), key, value))
 	}
 
 	err = asyncUpdateTxns(db, entries, memorykv)
@@ -271,7 +274,7 @@ func TestDBRange(t *testing.T) {
 		for i := 0; i < len(entries); i++ {
 			key := keys[i]
 			got := entries[i]
-			if key != got.key || memorykv[key] != got.value.(string) {
+			if key != got.key || memorykv[key] != string(got.fields["value"].data) {
 				numWrong++
 			}
 		}
@@ -303,7 +306,7 @@ func TestDBRandom(t *testing.T) {
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(rand.Intn(1000))
 		value := strconv.Itoa(i)
-		entries = append(entries, &Entry{key: key, value: value})
+		entries = append(entries, simpleEntry(uint64(i), key, value))
 	}
 
 	err = asyncUpdateTxns(db, entries, memorykv)

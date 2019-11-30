@@ -20,15 +20,11 @@ func TestMergeMMap(t *testing.T) {
 	for i := 10000; i < 50000; i++ {
 		key := strconv.Itoa(i)
 		value := uuid.New().String()
+		entries = append(entries, simpleEntry(uint64(i), key, value))
 		memorykv[key] = value
-		entry, err := createEntry(uint64(i), key, value)
-		if err != nil {
-			t.Fatalf("Error creating data entry: %v\n", err)
-		}
-		entries = append(entries, entry)
 	}
 
-	dataBlocks, indexBlock, bloom, keyRange, err := writeDataEntries(entries)
+	dataBlocks, indexBlock, bloom, keyRange, err := writeEntries(entries)
 	if err != nil {
 		t.Fatalf("Error writing data entries: %v\n", err)
 	}
@@ -52,12 +48,8 @@ func TestMergeMMap(t *testing.T) {
 
 	for i, entry := range entries {
 		key := strconv.Itoa(i + 10000)
-		kv, err := parseDataEntry(entry)
-		if err != nil {
-			t.Fatalf("Error parsing data entry: %v\n", err)
-		}
-		if kv.key != key || kv.value.(string) != memorykv[key] {
-			t.Fatalf("Key or value expected: %v, Got key: %v value: %v\n", key, kv.key, kv.value.(string))
+		if entry.key != key || string(entry.fields["value"].data) != memorykv[key] {
+			t.Fatalf("Key or value expected: %v, Got key: %v value: %v\n", key, entry.key, string(entry.fields["value"].data))
 		}
 	}
 }

@@ -7,25 +7,21 @@ import (
 	"testing"
 )
 
-func insertIntoAVL(tree *avlTree, kvs []*Entry) {
-	for i, kv := range kvs {
-		tree.Put(&lsmDataEntry{
-			ts:        uint64(i),
-			key:       kv.key,
-			valueType: String,
-			value:     []byte(kv.value.(string)),
-		})
+func insertIntoAVL(tree *avlTree, entries []*Entry) {
+	for i, entry := range entries {
+		entry.ts = uint64(i)
+		tree.Put(entry)
 	}
 }
 
 func TestAVLPutLeftLeft(t *testing.T) {
 	tree := newAVLTree()
-	kvs := []*Entry{
-		&Entry{key: "5", value: "5"},
-		&Entry{key: "4", value: "4"},
-		&Entry{key: "3", value: "3"},
+	entries := []*Entry{
+		&Entry{key: "5", fields: map[string]*Value{"value": &Value{dataType: String, data: []byte("5")}}},
+		&Entry{key: "4", fields: map[string]*Value{"value": &Value{dataType: String, data: []byte("4")}}},
+		&Entry{key: "3", fields: map[string]*Value{"value": &Value{dataType: String, data: []byte("3")}}},
 	}
-	insertIntoAVL(tree, kvs)
+	insertIntoAVL(tree, entries)
 	preorder := strings.Join(tree.Preorder(), ",")
 	if preorder != "4,3,5" {
 		t.Fatalf("Expected: 4,3,5 Got: %s\n", preorder)
@@ -34,12 +30,12 @@ func TestAVLPutLeftLeft(t *testing.T) {
 
 func TestAVLPutLeftRight(t *testing.T) {
 	tree := newAVLTree()
-	kvs := []*Entry{
-		&Entry{key: "5", value: "5"},
-		&Entry{key: "3", value: "3"},
-		&Entry{key: "4", value: "4"},
+	entries := []*Entry{
+		&Entry{key: "5", fields: map[string]*Value{"value": &Value{dataType: String, data: []byte("5")}}},
+		&Entry{key: "3", fields: map[string]*Value{"value": &Value{dataType: String, data: []byte("3")}}},
+		&Entry{key: "4", fields: map[string]*Value{"value": &Value{dataType: String, data: []byte("4")}}},
 	}
-	insertIntoAVL(tree, kvs)
+	insertIntoAVL(tree, entries)
 	preorder := strings.Join(tree.Preorder(), ",")
 	if preorder != "4,3,5" {
 		t.Fatalf("Expected: 4,3,5 Got: %s\n", preorder)
@@ -48,12 +44,12 @@ func TestAVLPutLeftRight(t *testing.T) {
 
 func TestAVLPutRightRight(t *testing.T) {
 	tree := newAVLTree()
-	kvs := []*Entry{
-		&Entry{key: "3", value: "3"},
-		&Entry{key: "4", value: "4"},
-		&Entry{key: "5", value: "5"},
+	entries := []*Entry{
+		&Entry{key: "3", fields: map[string]*Value{"value": &Value{dataType: String, data: []byte("3")}}},
+		&Entry{key: "4", fields: map[string]*Value{"value": &Value{dataType: String, data: []byte("4")}}},
+		&Entry{key: "5", fields: map[string]*Value{"value": &Value{dataType: String, data: []byte("5")}}},
 	}
-	insertIntoAVL(tree, kvs)
+	insertIntoAVL(tree, entries)
 	preorder := strings.Join(tree.Preorder(), ",")
 	if preorder != "4,3,5" {
 		t.Fatalf("Expected: 4,3,5 Got: %s\n", preorder)
@@ -62,12 +58,12 @@ func TestAVLPutRightRight(t *testing.T) {
 
 func TestAVLPutRightLeft(t *testing.T) {
 	tree := newAVLTree()
-	kvs := []*Entry{
-		&Entry{key: "3", value: "3"},
-		&Entry{key: "5", value: "5"},
-		&Entry{key: "4", value: "4"},
+	entries := []*Entry{
+		&Entry{key: "3", fields: map[string]*Value{"value": &Value{dataType: String, data: []byte("3")}}},
+		&Entry{key: "5", fields: map[string]*Value{"value": &Value{dataType: String, data: []byte("5")}}},
+		&Entry{key: "4", fields: map[string]*Value{"value": &Value{dataType: String, data: []byte("4")}}},
 	}
-	insertIntoAVL(tree, kvs)
+	insertIntoAVL(tree, entries)
 	result := strings.Join(tree.Preorder(), ",")
 	if result != "4,3,5" {
 		t.Fatalf("Expected: 4,3,5 Got: %s\n", result)
@@ -76,33 +72,32 @@ func TestAVLPutRightLeft(t *testing.T) {
 
 func TestAVLPutDuplicate(t *testing.T) {
 	tree := newAVLTree()
-	kvs := []*Entry{
-		&Entry{key: "3", value: "3"},
-		&Entry{key: "5", value: "5"},
-		&Entry{key: "4", value: "4"},
-		&Entry{key: "3", value: "10"},
+	entries := []*Entry{
+		&Entry{key: "3", fields: map[string]*Value{"value": &Value{dataType: String, data: []byte("3")}}},
+		&Entry{key: "5", fields: map[string]*Value{"value": &Value{dataType: String, data: []byte("5")}}},
+		&Entry{key: "4", fields: map[string]*Value{"value": &Value{dataType: String, data: []byte("4")}}},
+		&Entry{key: "3", fields: map[string]*Value{"value": &Value{dataType: String, data: []byte("10")}}},
 	}
-	insertIntoAVL(tree, kvs)
-	entries := tree.Inorder()
+	insertIntoAVL(tree, entries)
+	entries = tree.Inorder()
 	values := []string{}
 	for _, entry := range entries {
-		values = append(values, string(entry.value))
+		values = append(values, string(entry.fields["value"].data))
 	}
 	result := strings.Join(values, ",")
 	if result != "10,3,4,5" {
 		t.Fatalf("Expected: 10,3,4,5 Got: %s\n", result)
 	}
 
-	kvs = []*Entry{
-		&Entry{key: "5", value: "15"},
-		&Entry{key: "4", value: "40"},
+	entries = []*Entry{
+		&Entry{key: "5", fields: map[string]*Value{"value": &Value{dataType: String, data: []byte("15")}}},
+		&Entry{key: "4", fields: map[string]*Value{"value": &Value{dataType: String, data: []byte("40")}}},
 	}
-	insertIntoAVL(tree, kvs)
-
+	insertIntoAVL(tree, entries)
 	entries = tree.Inorder()
 	values = []string{}
 	for _, entry := range entries {
-		values = append(values, string(entry.value))
+		values = append(values, string(entry.fields["value"].data))
 	}
 	result = strings.Join(values, ",")
 	if result != "10,3,40,4,15,5" {
@@ -112,19 +107,18 @@ func TestAVLPutDuplicate(t *testing.T) {
 
 func TestAVLScan(t *testing.T) {
 	tree := newAVLTree()
-	kvs := []*Entry{
-		&Entry{key: "0", value: "0"},
-		&Entry{key: "2", value: "2"},
-		&Entry{key: "4", value: "4"},
-		&Entry{key: "5", value: "5"},
-		&Entry{key: "6", value: "6"},
-		&Entry{key: "8", value: "8"},
-		&Entry{key: "9", value: "9"},
-		&Entry{key: "9", value: "90"},
+	entries := []*Entry{
+		&Entry{key: "0", fields: map[string]*Value{"value": &Value{dataType: String, data: []byte("0")}}},
+		&Entry{key: "2", fields: map[string]*Value{"value": &Value{dataType: String, data: []byte("2")}}},
+		&Entry{key: "4", fields: map[string]*Value{"value": &Value{dataType: String, data: []byte("4")}}},
+		&Entry{key: "5", fields: map[string]*Value{"value": &Value{dataType: String, data: []byte("5")}}},
+		&Entry{key: "6", fields: map[string]*Value{"value": &Value{dataType: String, data: []byte("6")}}},
+		&Entry{key: "8", fields: map[string]*Value{"value": &Value{dataType: String, data: []byte("8")}}},
+		&Entry{key: "9", fields: map[string]*Value{"value": &Value{dataType: String, data: []byte("9")}}},
+		&Entry{key: "9", fields: map[string]*Value{"value": &Value{dataType: String, data: []byte("90")}}},
 	}
-	insertIntoAVL(tree, kvs)
-
-	entries := tree.Scan(&keyRange{startKey: "4", endKey: "6"}, 100)
+	insertIntoAVL(tree, entries)
+	entries = tree.Scan(&keyRange{startKey: "4", endKey: "6"}, 100)
 	result := []string{}
 	for _, entry := range entries {
 		result = append(result, entry.key)
@@ -151,7 +145,7 @@ func TestAVLScan(t *testing.T) {
 	entries = tree.Scan(&keyRange{startKey: "0", endKey: "9"}, 100)
 	result = []string{}
 	for _, entry := range entries {
-		result = append(result, string(entry.value))
+		result = append(result, string(entry.fields["value"].data))
 	}
 	if strings.Join(result, ",") != "0,2,4,5,6,8,90" {
 		t.Fatalf("Expected: 0,2,4,5,6,8,90 Got: %s\n", strings.Join(result, ","))
@@ -161,7 +155,7 @@ func TestAVLScan(t *testing.T) {
 func TestAVLBulk(t *testing.T) {
 	tree := newAVLTree()
 	for i := 1000; i < 5000; i++ {
-		entry, err := createEntry(uint64(i), strconv.Itoa(i), int64(i))
+		entry, err := createEntry(uint64(i), strconv.Itoa(i), map[string]interface{}{"value": strconv.Itoa(i)})
 		if err != nil {
 			t.Fatalf("Error creating data entry: %v\n", err)
 		}
@@ -170,15 +164,11 @@ func TestAVLBulk(t *testing.T) {
 
 	entries := tree.Inorder()
 	for i, entry := range entries {
-		kv, err := parseDataEntry(entry)
-		if err != nil {
-			t.Fatalf("Error parsing data entry: %v\n", err)
+		if entry.key != strconv.Itoa(i+1000) {
+			t.Fatalf("Expected Key: %v, Got %v\n", strconv.Itoa(i), entry.key)
 		}
-		if kv.key != strconv.Itoa(i+1000) {
-			t.Fatalf("Expected Key: %v, Got %v\n", strconv.Itoa(i), kv.key)
-		}
-		if kv.value.(int64) != int64(i+1000) {
-			t.Fatalf("Expected Value: %d, Got %d\n", i, kv.value.(int64))
+		if string(entry.fields["value"].data) != strconv.Itoa(i+1000) {
+			t.Fatalf("Expected Value: %v, Got %v\n", strconv.Itoa(i+1000), string(entry.fields["value"].data))
 		}
 	}
 }
@@ -191,7 +181,7 @@ func TestAVLRandom(t *testing.T) {
 		key := strconv.Itoa(rand.Intn(100))
 		value := strconv.Itoa(i)
 		memorykv[key] = value
-		entry, err := createEntry(uint64(i), key, value)
+		entry, err := createEntry(uint64(i), key, map[string]interface{}{"value": value})
 		if err != nil {
 			t.Fatalf("Error creating data entry: %v\n", err)
 		}
@@ -203,12 +193,8 @@ func TestAVLRandom(t *testing.T) {
 		if entry == nil {
 			t.Fatalf("Key should be in the AVL Tree")
 		} else {
-			kv, err := parseDataEntry(entry)
-			if err != nil {
-				t.Fatalf("Error parsing data entry: %v\n", err)
-			}
-			if kv.value.(string) != value {
-				t.Fatalf("Expected: %v, Got: %v\n", value, kv.value.(string))
+			if string(entry.fields["value"].data) != value {
+				t.Fatalf("Expected: %v, Got: %v\n", value, string(entry.fields["value"].data))
 			}
 		}
 	}

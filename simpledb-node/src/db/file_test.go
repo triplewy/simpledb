@@ -13,19 +13,14 @@ func TestFileGet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
-
 	entries := []*Entry{}
-
 	for i := 1000; i < 10000; i++ {
 		key := strconv.Itoa(i)
-		entry, err := createEntry(uint64(i), key, key)
-		if err != nil {
-			t.Fatalf("Error creating data entry: %v\n", err)
-		}
+		entry := simpleEntry(uint64(i), key, key)
 		entries = append(entries, entry)
 	}
 
-	dataBlocks, indexBlock, bloom, keyRange, err := writeDataEntries(entries)
+	dataBlocks, indexBlock, bloom, keyRange, err := writeEntries(entries)
 	if err != nil {
 		t.Fatalf("Error writing data entries: %v\n", err)
 	}
@@ -48,14 +43,7 @@ func TestFileGet(t *testing.T) {
 		for {
 			select {
 			case entry := <-replyChan:
-				kv, err := parseDataEntry(entry)
-				if err != nil {
-					if _, ok := errs[err.Error()]; !ok {
-						errs[err.Error()] = 1
-					} else {
-						errs[err.Error()]++
-					}
-				} else if kv.key != kv.value.(string) {
+				if entry.key != string(entry.fields["value"].data) {
 					if _, ok := errs["Incorrect Key Value"]; !ok {
 						errs["Incorrect Key Value"] = 1
 					} else {
@@ -104,14 +92,11 @@ func TestFileRange(t *testing.T) {
 
 	for i := 0; i < 10000; i++ {
 		key := strconv.Itoa(int(math.Pow10(9)) + i)
-		entry, err := createEntry(uint64(i), key, key)
-		if err != nil {
-			t.Fatalf("Error creating data entry: %v\n", err)
-		}
+		entry := simpleEntry(uint64(i), key, key)
 		entries = append(entries, entry)
 	}
 
-	dataBlocks, indexBlock, bloom, kr, err := writeDataEntries(entries)
+	dataBlocks, indexBlock, bloom, kr, err := writeEntries(entries)
 	if err != nil {
 		t.Fatalf("Error writing data entries: %v\n", err)
 	}
@@ -145,9 +130,9 @@ func TestFileRange(t *testing.T) {
 		t.Fatalf("Error range query on file: %v\n", err)
 	}
 
-	for _, item := range entries {
-		if string(item.value) != item.key {
-			t.Errorf("Value expected: %v, got :%v\n", item.key, string(item.value))
+	for _, entry := range entries {
+		if string(entry.fields["value"].data) != entry.key {
+			t.Errorf("Value expected: %v, got :%v\n", entry.key, string(entry.fields["value"].data))
 		}
 	}
 }

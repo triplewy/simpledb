@@ -198,3 +198,15 @@ func newErrBadFormattedSST() *ErrBadFormattedSST {
 func (e *ErrBadFormattedSST) Error() string {
 	return fmt.Sprintf("Bad formatted SST File")
 }
+
+type ErrParseValue struct {
+	value *Value
+}
+
+func newErrParseValue(value *Value) *ErrParseValue {
+	return &ErrParseValue{value: value}
+}
+
+func (e *ErrParseValue) Error() string {
+	return fmt.Sprintf("Error parsing value in entry: %v", e.value)
+}
