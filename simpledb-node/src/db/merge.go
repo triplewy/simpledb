@@ -4,7 +4,7 @@ import (
 	"sort"
 )
 
-func (level *Level) mergeSort(files []string) ([]*LSMDataEntry, error) {
+func (level *level) mergeSort(files []string) ([]*lsmDataEntry, error) {
 	if len(files) > 1 {
 		mid := len(files) / 2
 		left, err := level.mergeSort(files[:mid])
@@ -21,7 +21,7 @@ func (level *Level) mergeSort(files []string) ([]*LSMDataEntry, error) {
 	return level.fm.MMap(files[0])
 }
 
-func mergeHelper(left, right []*LSMDataEntry) (entries []*LSMDataEntry) {
+func mergeHelper(left, right []*lsmDataEntry) (entries []*lsmDataEntry) {
 	entries = append(left, right...)
 	sort.Slice(entries, func(i, j int) bool {
 		if entries[i].key == entries[j].key {
@@ -88,7 +88,7 @@ func mergeInterval(intervals []*merge, newInterval *merge) (merged bool, result 
 			if merged {
 				result = append(result, &merge{
 					files: newFiles,
-					keyRange: &KeyRange{
+					keyRange: &keyRange{
 						startKey: newLeft,
 						endKey:   newRight,
 					},
@@ -102,7 +102,7 @@ func mergeInterval(intervals []*merge, newInterval *merge) (merged bool, result 
 	if merged {
 		return true, append(result, &merge{
 			files: newFiles,
-			keyRange: &KeyRange{
+			keyRange: &keyRange{
 				startKey: newLeft,
 				endKey:   newRight,
 			},

@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func asyncUpdates(db *DB, entries []*KV, memoryKV map[string]string) error {
+func asyncUpdateTxns(db *DB, entries []*kv, memorykv map[string]string) error {
 	type update struct {
 		key   string
 		value string
@@ -24,7 +24,7 @@ func asyncUpdates(db *DB, entries []*KV, memoryKV map[string]string) error {
 	startTime := time.Now()
 	for _, kv := range entries {
 		go func(key string, value interface{}) {
-			err := db.Update(func(txn *Txn) error {
+			err := db.UpdateTxn(func(txn *Txn) error {
 				txn.Write(key, value)
 				return nil
 			})
@@ -52,7 +52,7 @@ func asyncUpdates(db *DB, entries []*KV, memoryKV map[string]string) error {
 						errs[err.Error()]++
 					}
 				} else {
-					memoryKV[update.key] = update.value
+					memorykv[update.key] = update.value
 				}
 				wg.Done()
 			}
@@ -65,12 +65,12 @@ func asyncUpdates(db *DB, entries []*KV, memoryKV map[string]string) error {
 
 	if len(errs) > 0 {
 		fmt.Printf("Encountered errors during put: %v\n", errs)
-		return errors.New("Async Updates failed")
+		return errors.New("Async UpdateTxns failed")
 	}
 	return nil
 }
 
-func asyncDeletes(db *DB, keys []string, memoryKV map[string]string) error {
+func asyncDeletes(db *DB, keys []string, memorykv map[string]string) error {
 	type update struct {
 		key string
 		err error
@@ -81,7 +81,7 @@ func asyncDeletes(db *DB, keys []string, memoryKV map[string]string) error {
 	startTime := time.Now()
 	for _, key := range keys {
 		go func(key string) {
-			err := db.Update(func(txn *Txn) error {
+			err := db.UpdateTxn(func(txn *Txn) error {
 				txn.Delete(key)
 				return nil
 			})
@@ -105,7 +105,7 @@ func asyncDeletes(db *DB, keys []string, memoryKV map[string]string) error {
 						errs[err.Error()]++
 					}
 				} else {
-					memoryKV[update.key] = ""
+					memorykv[update.key] = ""
 				}
 				wg.Done()
 			}
@@ -123,16 +123,16 @@ func asyncDeletes(db *DB, keys []string, memoryKV map[string]string) error {
 	return nil
 }
 
-func asyncViews(db *DB, keys []string, memoryKV map[string]string) error {
+func asyncViewTxns(db *DB, keys []string, memorykv map[string]string) error {
 	var wg sync.WaitGroup
 	errChan := make(chan error)
 
 	startTime := time.Now()
 	for _, key := range keys {
 		wg.Add(1)
-		value := memoryKV[key]
+		value := memorykv[key]
 		go func(key, value string) {
-			err := db.View(func(txn *Txn) error {
+			err := db.ViewTxn(func(txn *Txn) error {
 				result, err := txn.Read(key)
 				if err != nil {
 					if err.Error() == "Key not found" && !(value == "__delete__" || value == "") {
@@ -187,13 +187,13 @@ func asyncViews(db *DB, keys []string, memoryKV map[string]string) error {
 	return nil
 }
 
-func writeEntriesToFile(filename string, entries []*LSMDataEntry) error {
+func writeEntriesToFile(filename string, entries []*lsmDataEntry) error {
 	dataBlocks, indexBlock, bloom, keyRange, err := writeDataEntries(entries)
 	if err != nil {
 		return err
 	}
 
-	keyRangeEntry := createKeyRangeEntry(keyRange)
+	keyRangeEntry := createkeyRangeEntry(keyRange)
 	header := createHeader(len(dataBlocks), len(indexBlock), len(bloom.bits), len(keyRangeEntry))
 	data := append(header, append(append(append(dataBlocks, indexBlock...), bloom.bits...), keyRangeEntry...)...)
 
@@ -204,7 +204,7 @@ func writeEntriesToFile(filename string, entries []*LSMDataEntry) error {
 	return nil
 }
 
-func checkManifests(levels []*Level) error {
+func checkManifests(levels []*level) error {
 	for i := 0; i < 7; i++ {
 		level := levels[i]
 		dir := filepath.Join("data", "L"+strconv.Itoa(i))

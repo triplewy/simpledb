@@ -1,7 +1,7 @@
 package db
 
-// Oracle is struct that is responsible for Optimistic Concurrency Control for ACID Txns
-type Oracle struct {
+// oracle is struct that is responsible for Optimistic Concurrency Control for ACID Txns
+type oracle struct {
 	timestamp    uint64
 	reqChan      chan chan uint64
 	commitChan   chan *commitReq
@@ -11,13 +11,13 @@ type Oracle struct {
 
 type commitReq struct {
 	readSet   map[string]uint64
-	writeSet  map[string]*KV
+	writeSet  map[string]*kv
 	replyChan chan error
 }
 
-// NewOracle creates a new oracle that keeps track of current and committed Txns
-func NewOracle(timestamp uint64, db *DB) *Oracle {
-	oracle := &Oracle{
+// newOracle creates a new oracle that keeps track of current and committed Txns
+func newOracle(timestamp uint64, db *DB) *oracle {
+	oracle := &oracle{
 		timestamp:    timestamp,
 		reqChan:      make(chan chan uint64),
 		commitChan:   make(chan *commitReq),
@@ -28,19 +28,19 @@ func NewOracle(timestamp uint64, db *DB) *Oracle {
 	return oracle
 }
 
-func (oracle *Oracle) next() uint64 {
+func (oracle *oracle) next() uint64 {
 	result := oracle.timestamp
 	oracle.timestamp++
 	return result
 }
 
-func (oracle *Oracle) requestStart() uint64 {
+func (oracle *oracle) requestStart() uint64 {
 	replyChan := make(chan uint64, 1)
 	oracle.reqChan <- replyChan
 	return <-replyChan
 }
 
-func (oracle *Oracle) commit(readSet map[string]uint64, writeSet map[string]*KV) error {
+func (oracle *oracle) commit(readSet map[string]uint64, writeSet map[string]*kv) error {
 	replyChan := make(chan error, 1)
 	commitReq := &commitReq{
 		readSet:   readSet,
@@ -51,7 +51,7 @@ func (oracle *Oracle) commit(readSet map[string]uint64, writeSet map[string]*KV)
 	return <-replyChan
 }
 
-func (oracle *Oracle) run() {
+func (oracle *oracle) run() {
 	for {
 	SelectStatement:
 		select {
@@ -61,25 +61,25 @@ func (oracle *Oracle) run() {
 		case req := <-oracle.commitChan:
 			for key, ts := range req.readSet {
 				if lastCommit, ok := oracle.commitedTxns.Get(key); ok && lastCommit > ts {
-					req.replyChan <- NewErrTxnAbort()
+					req.replyChan <- newErrTxnAbort()
 					break SelectStatement
 				}
 				if oracle.commitedTxns.maxTs > ts {
-					req.replyChan <- NewErrTxnAbort()
+					req.replyChan <- newErrTxnAbort()
 					break SelectStatement
 				}
 			}
-			entries := []*KV{}
+			entries := []*kv{}
 			commitTs := oracle.next()
-			for key, kv := range req.writeSet {
+			for key, item := range req.writeSet {
 				oracle.commitedTxns.Insert(key, commitTs)
-				entries = append(entries, &KV{
+				entries = append(entries, &kv{
 					ts:    commitTs,
-					key:   kv.key,
-					value: kv.value,
+					key:   item.key,
+					value: item.value,
 				})
 			}
-			req.replyChan <- oracle.db.BatchPut(entries)
+			req.replyChan <- oracle.db.batchPut(entries)
 		}
 	}
 }

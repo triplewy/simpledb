@@ -9,18 +9,18 @@ import (
 )
 
 func TestMergeMMap(t *testing.T) {
-	err := DeleteData()
+	err := deleteData()
 	if err != nil {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
 
-	memoryKV := make(map[string]string)
-	entries := []*LSMDataEntry{}
+	memorykv := make(map[string]string)
+	entries := []*lsmDataEntry{}
 
 	for i := 10000; i < 50000; i++ {
 		key := strconv.Itoa(i)
 		value := uuid.New().String()
-		memoryKV[key] = value
+		memorykv[key] = value
 		entry, err := createDataEntry(uint64(i), key, value)
 		if err != nil {
 			t.Fatalf("Error creating data entry: %v\n", err)
@@ -33,7 +33,7 @@ func TestMergeMMap(t *testing.T) {
 		t.Fatalf("Error writing data entries: %v\n", err)
 	}
 
-	keyRangeEntry := createKeyRangeEntry(keyRange)
+	keyRangeEntry := createkeyRangeEntry(keyRange)
 	header := createHeader(len(dataBlocks), len(indexBlock), len(bloom.bits), len(keyRangeEntry))
 	data := append(header, append(append(append(dataBlocks, indexBlock...), bloom.bits...), keyRangeEntry...)...)
 
@@ -56,7 +56,7 @@ func TestMergeMMap(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Error parsing data entry: %v\n", err)
 		}
-		if kv.key != key || kv.value.(string) != memoryKV[key] {
+		if kv.key != key || kv.value.(string) != memorykv[key] {
 			t.Fatalf("Key or value expected: %v, Got key: %v value: %v\n", key, kv.key, kv.value.(string))
 		}
 	}
@@ -66,28 +66,28 @@ func TestMergeIntervals(t *testing.T) {
 	intervals := []*merge{
 		&merge{
 			files: []string{"a"},
-			keyRange: &KeyRange{
+			keyRange: &keyRange{
 				startKey: "a",
 				endKey:   "c",
 			},
 		},
 		&merge{
 			files: []string{"b"},
-			keyRange: &KeyRange{
+			keyRange: &keyRange{
 				startKey: "b",
 				endKey:   "f",
 			},
 		},
 		&merge{
 			files: []string{"c"},
-			keyRange: &KeyRange{
+			keyRange: &keyRange{
 				startKey: "h",
 				endKey:   "j",
 			},
 		},
 		&merge{
 			files: []string{"d"},
-			keyRange: &KeyRange{
+			keyRange: &keyRange{
 				startKey: "o",
 				endKey:   "r",
 			},
@@ -99,21 +99,21 @@ func TestMergeIntervals(t *testing.T) {
 	expected := []*merge{
 		&merge{
 			files: []string{"a", "b"},
-			keyRange: &KeyRange{
+			keyRange: &keyRange{
 				startKey: "a",
 				endKey:   "f",
 			},
 		},
 		&merge{
 			files: []string{"c"},
-			keyRange: &KeyRange{
+			keyRange: &keyRange{
 				startKey: "h",
 				endKey:   "j",
 			},
 		},
 		&merge{
 			files: []string{"d"},
-			keyRange: &KeyRange{
+			keyRange: &keyRange{
 				startKey: "o",
 				endKey:   "r",
 			},
@@ -140,7 +140,7 @@ func TestMergeInterval(t *testing.T) {
 	intervals := []*merge{
 		&merge{
 			files: []string{"a"},
-			keyRange: &KeyRange{
+			keyRange: &keyRange{
 				startKey: "a",
 				endKey:   "c",
 			},
@@ -149,7 +149,7 @@ func TestMergeInterval(t *testing.T) {
 
 	interval := &merge{
 		files: []string{"b"},
-		keyRange: &KeyRange{
+		keyRange: &keyRange{
 			startKey: "b",
 			endKey:   "f",
 		},
@@ -163,12 +163,12 @@ func TestMergeInterval(t *testing.T) {
 		t.Fatalf("Files, Expected: %v, Got: %v\n", "a,b", strings.Join(intervals[0].files, ","))
 	}
 	if intervals[0].keyRange.startKey != "a" || intervals[0].keyRange.endKey != "f" {
-		t.Fatalf("Interval, Expected: %v, Got: %v\n", &KeyRange{startKey: "a", endKey: "f"}, intervals[0].keyRange)
+		t.Fatalf("Interval, Expected: %v, Got: %v\n", &keyRange{startKey: "a", endKey: "f"}, intervals[0].keyRange)
 	}
 
 	interval = &merge{
 		files: []string{"c"},
-		keyRange: &KeyRange{
+		keyRange: &keyRange{
 			startKey: "h",
 			endKey:   "j",
 		},
@@ -185,6 +185,6 @@ func TestMergeInterval(t *testing.T) {
 		t.Fatalf("Files, Expected: %v, Got: %v\n", "a,b", strings.Join(intervals[0].files, ","))
 	}
 	if intervals[0].keyRange.startKey != "a" || intervals[0].keyRange.endKey != "f" {
-		t.Fatalf("Interval, Expected: %v, Got: %v\n", &KeyRange{startKey: "a", endKey: "f"}, intervals[0].keyRange)
+		t.Fatalf("Interval, Expected: %v, Got: %v\n", &keyRange{startKey: "a", endKey: "f"}, intervals[0].keyRange)
 	}
 }

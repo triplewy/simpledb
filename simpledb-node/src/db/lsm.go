@@ -7,17 +7,17 @@ import (
 )
 
 // LSM is struct for all levels in an LSM
-type LSM struct {
-	levels []*Level
-	fm     *FileManager
+type lsm struct {
+	levels []*level
+	fm     *fileManager
 }
 
-// NewLSM instatiates all levels for a new LSM tree
-func NewLSM(directory string) (*LSM, error) {
-	fm := NewFileManager()
-	levels := []*Level{}
+// newLSM instatiates all levels for a new LSM tree
+func newLSM(directory string) (*lsm, error) {
+	fm := newFileManager()
+	levels := []*level{}
 	for i := 0; i < 7; i++ {
-		level, err := NewLevel(i, directory, fm)
+		level, err := newLevel(i, directory, fm)
 		if err != nil {
 			return nil, err
 		}
@@ -29,20 +29,20 @@ func NewLSM(directory string) (*LSM, error) {
 		levels = append(levels, level)
 	}
 
-	return &LSM{
+	return &lsm{
 		levels: levels,
 		fm:     fm,
 	}, nil
 }
 
-// Append takes data blocks, an index block, and a key range as input and writes an SST File to level 0.
+// Write takes data blocks, an index block, and a key range as input and writes an SST File to level 0.
 // It then adds this new file to level 0's manifest
-func (lsm *LSM) Append(blocks, index []byte, bloom *Bloom, keyRange *KeyRange) error {
+func (lsm *lsm) Write(blocks, index []byte, bloom *bloom, keyRange *keyRange) error {
 	level := lsm.levels[0]
 	fileID := level.getUniqueID()
 	filename := filepath.Join(level.directory, fileID+".sst")
 
-	keyRangeEntry := createKeyRangeEntry(keyRange)
+	keyRangeEntry := createkeyRangeEntry(keyRange)
 	header := createHeader(len(blocks), len(index), len(bloom.bits), len(keyRangeEntry))
 	data := append(header, append(append(append(blocks, index...), bloom.bits...), keyRangeEntry...)...)
 
@@ -56,9 +56,9 @@ func (lsm *LSM) Append(blocks, index []byte, bloom *Bloom, keyRange *KeyRange) e
 	return nil
 }
 
-// Find goes through each level of the LSM tree and returns if a result is found for the given key.
+// Read goes through each level of the LSM tree and returns if a result is found for the given key.
 // If no result is found, Find throws a KeyNotFound error
-func (lsm *LSM) Find(key string, ts uint64) (*LSMDataEntry, error) {
+func (lsm *lsm) Read(key string, ts uint64) (*lsmDataEntry, error) {
 	for _, level := range lsm.levels {
 		entry, err := level.find(key, ts)
 		if err != nil {
@@ -72,28 +72,28 @@ func (lsm *LSM) Find(key string, ts uint64) (*LSMDataEntry, error) {
 			return entry, nil
 		}
 	}
-	return nil, NewErrKeyNotFound()
+	return nil, newErrKeyNotFound()
 }
 
-// Range concurrently finds all keys in the LSM tree that fall within the range query.
+// Scan concurrently finds all keys in the LSM tree that fall within the range query.
 // Concurrency is achieved by going through each level on its own goroutine
-func (lsm *LSM) Range(keyRange *KeyRange, ts uint64) ([]*LSMDataEntry, error) {
-	replyChan := make(chan []*LSMDataEntry)
+func (lsm *lsm) Scan(keyRange *keyRange, ts uint64) ([]*lsmDataEntry, error) {
+	replyChan := make(chan []*lsmDataEntry)
 	errChan := make(chan error)
-	result := []*LSMDataEntry{}
+	result := []*lsmDataEntry{}
 	errs := make(map[string]int)
 	var wg sync.WaitGroup
 
 	wg.Add(7)
-	for _, level := range lsm.levels {
-		go func(level *Level) {
+	for _, lvl := range lsm.levels {
+		go func(level *level) {
 			entries, err := level.Range(keyRange, ts)
 			if err != nil {
 				errChan <- err
 			} else {
 				replyChan <- entries
 			}
-		}(level)
+		}(lvl)
 	}
 
 	go func() {
@@ -121,7 +121,7 @@ func (lsm *LSM) Range(keyRange *KeyRange, ts uint64) ([]*LSMDataEntry, error) {
 }
 
 // CheckPrimaryKey traverses through LSM and checks if key exists
-// func (lsm *LSM) CheckPrimaryKey(key string, levelNum int) (bool, error) {
+// func (lsm *lsm) CheckPrimaryKey(key string, levelNum int) (bool, error) {
 // 	if levelNum > 6 {
 // 		return false, nil
 // 	}
@@ -133,10 +133,10 @@ func (lsm *LSM) Range(keyRange *KeyRange, ts uint64) ([]*LSMDataEntry, error) {
 // 		return lsm.CheckPrimaryKey(key, levelNum+1)
 // 	}
 
-// 	replyChan := make(chan *LSMDataEntry)
+// 	replyChan := make(chan *lsmDataEntry)
 // 	errChan := make(chan error)
 
-// 	replies := []*LSMDataEntry{}
+// 	replies := []*lsmDataEntry{}
 
 // 	var wg sync.WaitGroup
 // 	var errs []error
@@ -186,7 +186,7 @@ func (lsm *LSM) Range(keyRange *KeyRange, ts uint64) ([]*LSMDataEntry, error) {
 // }
 
 // Close closes all levels in the LSM
-func (lsm *LSM) Close() {
+func (lsm *lsm) Close() {
 	for _, level := range lsm.levels {
 		level.Close()
 	}

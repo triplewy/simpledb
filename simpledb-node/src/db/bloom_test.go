@@ -8,7 +8,7 @@ import (
 
 func TestBloom(t *testing.T) {
 	n := 100000
-	bloom := NewBloom(n)
+	bloom := newBloom(n)
 
 	for i := 0; i < n; i++ {
 		key := strconv.Itoa(i)

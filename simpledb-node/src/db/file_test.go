@@ -9,12 +9,12 @@ import (
 )
 
 func TestFileGet(t *testing.T) {
-	err := DeleteData()
+	err := deleteData()
 	if err != nil {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
 
-	entries := []*LSMDataEntry{}
+	entries := []*lsmDataEntry{}
 
 	for i := 1000; i < 10000; i++ {
 		key := strconv.Itoa(i)
@@ -30,7 +30,7 @@ func TestFileGet(t *testing.T) {
 		t.Fatalf("Error writing data entries: %v\n", err)
 	}
 
-	keyRangeEntry := createKeyRangeEntry(keyRange)
+	keyRangeEntry := createkeyRangeEntry(keyRange)
 	header := createHeader(len(dataBlocks), len(indexBlock), len(bloom.bits), len(keyRangeEntry))
 	data := append(header, append(append(append(dataBlocks, indexBlock...), bloom.bits...), keyRangeEntry...)...)
 
@@ -40,7 +40,7 @@ func TestFileGet(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	replyChan := make(chan *LSMDataEntry)
+	replyChan := make(chan *lsmDataEntry)
 	errChan := make(chan error)
 	errs := make(map[string]int)
 
@@ -95,12 +95,12 @@ func TestFileGet(t *testing.T) {
 	}
 }
 func TestFileRange(t *testing.T) {
-	err := DeleteData()
+	err := deleteData()
 	if err != nil {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
 
-	entries := []*LSMDataEntry{}
+	entries := []*lsmDataEntry{}
 
 	for i := 0; i < 10000; i++ {
 		key := strconv.Itoa(int(math.Pow10(9)) + i)
@@ -111,7 +111,7 @@ func TestFileRange(t *testing.T) {
 		entries = append(entries, entry)
 	}
 
-	dataBlocks, indexBlock, bloom, keyRange, err := writeDataEntries(entries)
+	dataBlocks, indexBlock, bloom, kr, err := writeDataEntries(entries)
 	if err != nil {
 		t.Fatalf("Error writing data entries: %v\n", err)
 	}
@@ -122,7 +122,7 @@ func TestFileRange(t *testing.T) {
 		t.Fatalf("Error opening file: %v\n", err)
 	}
 
-	keyRangeEntry := createKeyRangeEntry(keyRange)
+	keyRangeEntry := createkeyRangeEntry(kr)
 	header := createHeader(len(dataBlocks), len(indexBlock), len(bloom.bits), len(keyRangeEntry))
 	data := append(header, append(append(append(dataBlocks, indexBlock...), bloom.bits...), keyRangeEntry...)...)
 
@@ -139,8 +139,8 @@ func TestFileRange(t *testing.T) {
 	}
 	f.Close()
 
-	keyRange = &KeyRange{startKey: strconv.Itoa(int(math.Pow10(9))), endKey: strconv.Itoa(int(math.Pow10(9)) + 1000000)}
-	entries, err = fileRange("data/L0/test.sst", keyRange, uint64(10001))
+	kr = &keyRange{startKey: strconv.Itoa(int(math.Pow10(9))), endKey: strconv.Itoa(int(math.Pow10(9)) + 1000000)}
+	entries, err = fileRange("data/L0/test.sst", kr, uint64(10001))
 	if err != nil {
 		t.Fatalf("Error range query on file: %v\n", err)
 	}

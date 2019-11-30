@@ -9,7 +9,7 @@ import (
 )
 
 // NewSSTFile adds new SST file to in-memory manifest and sends update request to manifest channel
-func (level *Level) NewSSTFile(fileID string, keyRange *KeyRange, bloom *Bloom) {
+func (level *level) NewSSTFile(fileID string, keyRange *keyRange, bloom *bloom) {
 	level.manifestLock.Lock()
 	level.manifest[fileID] = keyRange
 	level.manifestLock.Unlock()
@@ -25,7 +25,7 @@ func (level *Level) NewSSTFile(fileID string, keyRange *KeyRange, bloom *Bloom) 
 }
 
 // FindSSTFile finds files in level where key falls in their key range
-func (level *Level) FindSSTFile(key string) (filenames []string) {
+func (level *level) FindSSTFile(key string) (filenames []string) {
 	level.manifestLock.RLock()
 	level.bloomLock.RLock()
 	defer level.manifestLock.RUnlock()
@@ -42,7 +42,7 @@ func (level *Level) FindSSTFile(key string) (filenames []string) {
 }
 
 // RangeSSTFiles finds files in level where their key range falls in the range query
-func (level *Level) RangeSSTFiles(startKey, endKey string) (filenames []string) {
+func (level *level) RangeSSTFiles(startKey, endKey string) (filenames []string) {
 	level.manifestLock.RLock()
 	defer level.manifestLock.RUnlock()
 
@@ -55,7 +55,7 @@ func (level *Level) RangeSSTFiles(startKey, endKey string) (filenames []string) 
 }
 
 // DeleteSSTFiles deletes SST files and updates in-memory manifest
-func (level *Level) DeleteSSTFiles(files []string) error {
+func (level *level) DeleteSSTFiles(files []string) error {
 	level.manifestLock.Lock()
 	level.mergeLock.Lock()
 	level.bloomLock.Lock()
@@ -80,7 +80,7 @@ func (level *Level) DeleteSSTFiles(files []string) error {
 	return nil
 }
 
-func (level *Level) mergeManifest() []*merge {
+func (level *level) mergeManifest() []*merge {
 	level.mergeLock.Lock()
 	level.manifestLock.RLock()
 	defer level.mergeLock.Unlock()
@@ -101,10 +101,10 @@ func (level *Level) mergeManifest() []*merge {
 	return mergeIntervals(compact)
 }
 
-func (level *Level) printManifest() {
+func (level *level) printManifest() {
 	type manifest struct {
 		fileID   string
-		keyRange *KeyRange
+		keyRange *keyRange
 	}
 	mfsts := []*manifest{}
 	for fileID, keyRange := range level.manifest {

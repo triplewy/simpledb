@@ -14,15 +14,15 @@ import (
 	"github.com/google/uuid"
 )
 
-// KeyRange represents struct for range of keys
-type KeyRange struct {
+// keyRange represents struct for range of keys
+type keyRange struct {
 	startKey string
 	endKey   string
 }
 
 type merge struct {
 	files    []string
-	keyRange *KeyRange
+	keyRange *keyRange
 }
 
 type compactReply struct {
@@ -30,8 +30,8 @@ type compactReply struct {
 	err   error
 }
 
-// Level represents struct for level in LSM tree
-type Level struct {
+// level represents struct for level in lsm tree
+type level struct {
 	level     int
 	capacity  int
 	size      int
@@ -40,50 +40,50 @@ type Level struct {
 	merging   map[string]struct{}
 	mergeLock sync.RWMutex
 
-	manifest     map[string]*KeyRange
-	manifestSync map[string]*KeyRange
+	manifest     map[string]*keyRange
+	manifestSync map[string]*keyRange
 	manifestLock sync.RWMutex
 
-	blooms    map[string]*Bloom
+	blooms    map[string]*bloom
 	bloomLock sync.RWMutex
 
 	compactReqChan   chan []*merge
 	compactReplyChan chan []string
 
-	above *Level
-	below *Level
+	above *level
+	below *level
 
-	fm *FileManager
+	fm *fileManager
 
 	close chan struct{}
 }
 
-// NewLevel creates a new level in the LSM tree
-func NewLevel(level int, directory string, fm *FileManager) (*Level, error) {
-	err := os.MkdirAll(filepath.Join(directory, "L"+strconv.Itoa(level)), os.ModePerm)
+// newLevel creates a new level in the lsm tree
+func newLevel(numLevel int, directory string, fm *fileManager) (*level, error) {
+	err := os.MkdirAll(filepath.Join(directory, "L"+strconv.Itoa(numLevel)), os.ModePerm)
 	if err != nil {
 		return nil, err
 	}
 
 	capacity := 0
-	if level == 0 {
+	if numLevel == 0 {
 		capacity = 2 * MemTableSize
 	} else {
-		capacity = int(math.Pow10(level)) * multiplier
+		capacity = int(math.Pow10(numLevel)) * multiplier
 	}
 
-	lvl := &Level{
-		level:     level,
+	lvl := &level{
+		level:     numLevel,
 		capacity:  capacity,
 		size:      0,
-		directory: filepath.Join(directory, "L"+strconv.Itoa(level)),
+		directory: filepath.Join(directory, "L"+strconv.Itoa(numLevel)),
 
 		merging: make(map[string]struct{}),
 
-		manifest:     make(map[string]*KeyRange),
-		manifestSync: make(map[string]*KeyRange),
+		manifest:     make(map[string]*keyRange),
+		manifestSync: make(map[string]*keyRange),
 
-		blooms: make(map[string]*Bloom),
+		blooms: make(map[string]*bloom),
 
 		compactReqChan:   make(chan []*merge, 16),
 		compactReplyChan: make(chan []string, 16),
@@ -97,7 +97,7 @@ func NewLevel(level int, directory string, fm *FileManager) (*Level, error) {
 	}
 	go lvl.run()
 
-	err = lvl.RecoverLevel()
+	err = lvl.Recoverlevel()
 	if err != nil {
 		return nil, err
 	}
@@ -105,18 +105,18 @@ func NewLevel(level int, directory string, fm *FileManager) (*Level, error) {
 	return lvl, nil
 }
 
-func (level *Level) find(key string, ts uint64) (*LSMDataEntry, error) {
+func (level *level) find(key string, ts uint64) (*lsmDataEntry, error) {
 	filenames := level.FindSSTFile(key)
 	if len(filenames) == 0 {
-		return nil, NewErrKeyNotFound()
+		return nil, newErrKeyNotFound()
 	}
 	if len(filenames) == 1 {
 		return level.fm.Find(filenames[0], key, ts)
 	}
 
-	replyChan := make(chan *LSMDataEntry)
+	replyChan := make(chan *lsmDataEntry)
 	errChan := make(chan error)
-	replies := []*LSMDataEntry{}
+	replies := []*lsmDataEntry{}
 
 	var wg sync.WaitGroup
 	var errs []error
@@ -167,7 +167,7 @@ func (level *Level) find(key string, ts uint64) (*LSMDataEntry, error) {
 	}
 
 	if len(replies) > 0 {
-		var latestUpdate *LSMDataEntry
+		var latestUpdate *lsmDataEntry
 		for _, entry := range replies {
 			if latestUpdate == nil {
 				latestUpdate = entry
@@ -179,10 +179,10 @@ func (level *Level) find(key string, ts uint64) (*LSMDataEntry, error) {
 		}
 		return latestUpdate, nil
 	}
-	return nil, NewErrKeyNotFound()
+	return nil, newErrKeyNotFound()
 }
 
-func (level *Level) getUniqueID() string {
+func (level *level) getUniqueID() string {
 	level.manifestLock.RLock()
 	defer level.manifestLock.RUnlock()
 
@@ -194,7 +194,7 @@ func (level *Level) getUniqueID() string {
 }
 
 // Merge takes an empty or existing file at the current level and merges it with file(s) from the level above
-func (level *Level) Merge(files []string) ([]string, error) {
+func (level *level) Merge(files []string) ([]string, error) {
 	if len(files) == 1 {
 		file := files[0]
 		info, err := os.Stat(file)
@@ -248,13 +248,13 @@ func (level *Level) Merge(files []string) ([]string, error) {
 	return files, nil
 }
 
-func (level *Level) writeMerge(entries []*LSMDataEntry) error {
+func (level *level) writeMerge(entries []*lsmDataEntry) error {
 	dataBlocks, indexBlock, bloom, keyRange, err := writeDataEntries(entries)
 	if err != nil {
 		return err
 	}
 
-	keyRangeEntry := createKeyRangeEntry(keyRange)
+	keyRangeEntry := createkeyRangeEntry(keyRange)
 	header := createHeader(len(dataBlocks), len(indexBlock), len(bloom.bits), len(keyRangeEntry))
 	data := append(header, append(append(append(dataBlocks, indexBlock...), bloom.bits...), keyRangeEntry...)...)
 
@@ -273,9 +273,9 @@ func (level *Level) writeMerge(entries []*LSMDataEntry) error {
 
 // Range gets all files at a specific level whose key range fall within the given range query.
 // It then concurrently reads all files and returns the result to the given channel
-func (level *Level) Range(keyRange *KeyRange, ts uint64) (entries []*LSMDataEntry, err error) {
+func (level *level) Range(keyRange *keyRange, ts uint64) (entries []*lsmDataEntry, err error) {
 	filenames := level.RangeSSTFiles(keyRange.startKey, keyRange.endKey)
-	replyChan := make(chan []*LSMDataEntry)
+	replyChan := make(chan []*lsmDataEntry)
 	errChan := make(chan error)
 	errs := make(map[string]int)
 	var wg sync.WaitGroup
@@ -317,9 +317,9 @@ func (level *Level) Range(keyRange *KeyRange, ts uint64) (entries []*LSMDataEntr
 	return entries, nil
 }
 
-// RecoverLevel reads all files at a level's directory and updates all necessary in-memory data for the level.
+// Recoverlevel reads all files at a level's directory and updates all necessary in-memory data for the level.
 // In particular, it updates the level's total size, manifest, and bloom filters.
-func (level *Level) RecoverLevel() error {
+func (level *level) Recoverlevel() error {
 	entries, err := ioutil.ReadDir(level.directory)
 	if err != nil {
 		return err
@@ -346,11 +346,11 @@ func (level *Level) RecoverLevel() error {
 }
 
 // Close closes all level's operations including merging, compacting, and adding SST files.
-func (level *Level) Close() {
+func (level *level) Close() {
 	level.close <- struct{}{}
 }
 
-func (level *Level) run() {
+func (level *level) run() {
 	exceedCapacity := time.NewTicker(1 * time.Second)
 
 	for {

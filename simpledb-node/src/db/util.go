@@ -13,8 +13,8 @@ func max(x, y int) int {
 	return x
 }
 
-// DeleteData deletes all data from database
-func DeleteData() error {
+// deleteData deletes all data from database
+func deleteData() error {
 	dirs := []string{"data/L0", "data/L1", "data/L2", "data/L3", "data/L4", "data/L5", "data/L6", "data/memtables"}
 
 	for _, dir := range dirs {

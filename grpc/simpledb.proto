@@ -3,49 +3,30 @@ syntax = "proto3";
 package simpledb;
 
 service SimpleDb {
-    rpc DelKVCaller(KeyMsg) returns (OkMsg);
-    rpc DiscoverNodesCaller(RemoteNodesMsg) returns (RemoteNodesMsg);
-    rpc GetHostInfoCaller(Empty) returns (HostStatsReplyMsg);
-    rpc GetKVCaller(KeyMsg) returns (KeyValueMsg);
-    rpc GetNodesCaller(Empty) returns (RemoteNodesMsg);
-    rpc HeartbeatCaller(RemoteNodesMsg) returns (OkMsg);
-    rpc JoinNodesCaller(RemoteNodeMsg) returns (RemoteNodesMsg);
-    rpc SetKVCaller(KeyValueMsg) returns (OkMsg);
-    rpc TransferKVCaller(KeyValuesMsg) returns (OkMsg);
+    rpc ReadRPC(ReadMsg) returns (ValuesMsg);
+    rpc ScanRPC(ReadMsg) returns (ValuesMsg);
+    rpc UpdateRPC(WriteMsg) returns (OkMsg);
+    rpc InsertRPC(WriteMsg) returns (OkMsg);
+    rpc DeleteRPC(KeyMsg) returns (OkMsg);
 }
 
-message Empty {}
-
-message HostStatsReplyMsg {
-    string totalMemory = 1;
-    string usedMemory = 2;
-    string totalSpace = 3;
-    string usedSpace = 4;
-    string numCores = 5;
-    string cpuPercent = 6;
-    string os = 7;
-    string hostname = 8;
-    string uptime = 9;
-}
-
-message KeyMsg { string key = 1; }
-
-message KeyValueMsg {
+message ReadMsg {
     string key = 1;
-    string value = 2;
+    repeated string fields = 2;
 }
 
-message KeyValuesMsg { repeated KeyValueMsg pairs = 1; }
+message ValuesMsg { repeated Fields values = 1; }
+
+message Fields {
+    string name = 1;
+    bytes value = 2;
+}
+
+message WriteMsg {
+    string key = 1;
+    repeated Fields values = 2;
+}
 
 message OkMsg { bool Ok = 1; }
 
-message RemoteNodeMsg {
-    bytes id = 1;
-    string addr = 2;
-    string raftAddr = 3;
-    string httpAddr = 4;
-    bool isLeader = 5;
-    bool isElection = 6;
-}
-
-message RemoteNodesMsg { repeated RemoteNodeMsg remoteNodes = 1; }
+message KeyMsg { string key = 1; }

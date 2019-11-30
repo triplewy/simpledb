@@ -7,15 +7,15 @@ import (
 
 func TestLRU(t *testing.T) {
 	lru := newLRU(5)
-	keyTs := []*KV{
-		&KV{key: "1", value: uint64(1)},
-		&KV{key: "2", value: uint64(2)},
-		&KV{key: "3", value: uint64(3)},
-		&KV{key: "4", value: uint64(4)},
-		&KV{key: "5", value: uint64(5)},
-		&KV{key: "5", value: uint64(6)},
-		&KV{key: "2", value: uint64(7)},
-		&KV{key: "6", value: uint64(8)},
+	keyTs := []*kv{
+		&kv{key: "1", value: uint64(1)},
+		&kv{key: "2", value: uint64(2)},
+		&kv{key: "3", value: uint64(3)},
+		&kv{key: "4", value: uint64(4)},
+		&kv{key: "5", value: uint64(5)},
+		&kv{key: "5", value: uint64(6)},
+		&kv{key: "2", value: uint64(7)},
+		&kv{key: "6", value: uint64(8)},
 	}
 
 	for _, kv := range keyTs {

@@ -4,26 +4,26 @@ import (
 	"sync"
 )
 
-// AVLNode is a node in a AVL-Tree. For MVCC, each node may contain multiple LSMDataEntry
-type AVLNode struct {
+// avlNode is a node in a AVL-Tree. For MVCC, each node may contain multiple lsmDataEntry
+type avlNode struct {
 	key     string
-	entries []*LSMDataEntry
+	entries []*lsmDataEntry
 
-	left   *AVLNode
-	right  *AVLNode
+	left   *avlNode
+	right  *avlNode
 	height int
 }
 
-// AVLTree is struct for AVL-Tree
-type AVLTree struct {
-	root *AVLNode
+// avlTree is struct for AVL-Tree
+type avlTree struct {
+	root *avlNode
 	sync.RWMutex
 }
 
-func newAVLNode(entry *LSMDataEntry) *AVLNode {
-	return &AVLNode{
+func newAVLNode(entry *lsmDataEntry) *avlNode {
+	return &avlNode{
 		key:     entry.key,
-		entries: []*LSMDataEntry{entry},
+		entries: []*lsmDataEntry{entry},
 
 		left:   nil,
 		right:  nil,
@@ -31,48 +31,48 @@ func newAVLNode(entry *LSMDataEntry) *AVLNode {
 	}
 }
 
-// NewAVLTree creates a new AVL-Tree
-func NewAVLTree() *AVLTree {
-	return &AVLTree{
+// newavlTree creates a new AVL-Tree
+func newAVLTree() *avlTree {
+	return &avlTree{
 		root: nil,
 	}
 }
 
 // Put inserts a new node into an AVL-Tree
-func (tree *AVLTree) Put(entry *LSMDataEntry) {
+func (tree *avlTree) Put(entry *lsmDataEntry) {
 	tree.Lock()
 	defer tree.Unlock()
 	tree.root = put(tree.root, entry)
 }
 
 // Find finds the node in an AVL-Tree given a key. Returns error if key not found
-func (tree *AVLTree) Find(key string, ts uint64) *LSMDataEntry {
+func (tree *avlTree) Find(key string, ts uint64) *lsmDataEntry {
 	tree.RLock()
 	defer tree.RUnlock()
 
 	return find(tree.root, key, ts)
 }
 
-// Range finds all nodes whose keys fall within the range query
-func (tree *AVLTree) Range(keyRange *KeyRange, ts uint64) []*LSMDataEntry {
+// Scan finds all nodes whose keys fall within the range query
+func (tree *avlTree) Scan(keyRange *keyRange, ts uint64) []*lsmDataEntry {
 	tree.RLock()
 	defer tree.RUnlock()
 	node := commonParent(tree.root, keyRange)
 	if node == nil {
-		return []*LSMDataEntry{}
+		return []*lsmDataEntry{}
 	}
 	return rangeQuery(node, keyRange, ts)
 }
 
 // Inorder prints inorder traversal of AVL-Tree
-func (tree *AVLTree) Inorder() []*LSMDataEntry {
+func (tree *avlTree) Inorder() []*lsmDataEntry {
 	tree.RLock()
 	defer tree.RUnlock()
 	return inorder(tree.root)
 }
 
 //Preorder prints keys of preorder traversal of AVL-Tree
-func (tree *AVLTree) Preorder() []string {
+func (tree *avlTree) Preorder() []string {
 	tree.RLock()
 	defer tree.RUnlock()
 	pairs := preorder(tree.root)
@@ -83,11 +83,11 @@ func (tree *AVLTree) Preorder() []string {
 	return result
 }
 
-func put(root *AVLNode, entry *LSMDataEntry) *AVLNode {
+func put(root *avlNode, entry *lsmDataEntry) *avlNode {
 	if root == nil {
 		return newAVLNode(entry)
 	} else if entry.key == root.key {
-		root.entries = append([]*LSMDataEntry{entry}, root.entries...)
+		root.entries = append([]*lsmDataEntry{entry}, root.entries...)
 		return root
 	} else if entry.key < root.key {
 		root.left = put(root.left, entry)
@@ -120,21 +120,21 @@ func put(root *AVLNode, entry *LSMDataEntry) *AVLNode {
 	return root
 }
 
-func getHeight(root *AVLNode) int {
+func getHeight(root *avlNode) int {
 	if root == nil {
 		return 0
 	}
 	return root.height
 }
 
-func getBalance(root *AVLNode) int {
+func getBalance(root *avlNode) int {
 	if root == nil {
 		return 0
 	}
 	return getHeight(root.left) - getHeight(root.right)
 }
 
-func leftRotate(z *AVLNode) *AVLNode {
+func leftRotate(z *avlNode) *avlNode {
 	y := z.right
 	T2 := y.left
 
@@ -147,7 +147,7 @@ func leftRotate(z *AVLNode) *AVLNode {
 	return y
 }
 
-func rightRotate(z *AVLNode) *AVLNode {
+func rightRotate(z *avlNode) *avlNode {
 	y := z.left
 	T2 := y.right
 
@@ -160,7 +160,7 @@ func rightRotate(z *AVLNode) *AVLNode {
 	return y
 }
 
-func find(root *AVLNode, key string, ts uint64) *LSMDataEntry {
+func find(root *avlNode, key string, ts uint64) *lsmDataEntry {
 	if root == nil {
 		return nil
 	}
@@ -178,7 +178,7 @@ func find(root *AVLNode, key string, ts uint64) *LSMDataEntry {
 	return find(root.right, key, ts)
 }
 
-func commonParent(root *AVLNode, keyRange *KeyRange) *AVLNode {
+func commonParent(root *avlNode, keyRange *keyRange) *avlNode {
 	startKey := keyRange.startKey
 	endKey := keyRange.endKey
 	if root == nil {
@@ -193,7 +193,7 @@ func commonParent(root *AVLNode, keyRange *KeyRange) *AVLNode {
 	return root
 }
 
-func rangeQuery(root *AVLNode, keyRange *KeyRange, ts uint64) (entries []*LSMDataEntry) {
+func rangeQuery(root *avlNode, keyRange *keyRange, ts uint64) (entries []*lsmDataEntry) {
 	startKey := keyRange.startKey
 	endKey := keyRange.endKey
 	if root == nil {
@@ -221,7 +221,7 @@ func rangeQuery(root *AVLNode, keyRange *KeyRange, ts uint64) (entries []*LSMDat
 	return rangeQuery(root.left, keyRange, ts)
 }
 
-func inorder(root *AVLNode) (entries []*LSMDataEntry) {
+func inorder(root *avlNode) (entries []*lsmDataEntry) {
 	if root == nil {
 		return entries
 	}
@@ -231,7 +231,7 @@ func inorder(root *AVLNode) (entries []*LSMDataEntry) {
 	return entries
 }
 
-func preorder(root *AVLNode) (entries []*LSMDataEntry) {
+func preorder(root *avlNode) (entries []*lsmDataEntry) {
 	if root == nil {
 		return entries
 	}

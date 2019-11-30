@@ -7,13 +7,13 @@ type Txn struct {
 	startTs  uint64
 	commitTs uint64
 
-	writeCache map[string]*KV
+	writeCache map[string]*kv
 	readSet    map[string]uint64
 }
 
 // Read gets value for a key from the DB and updates the txn readSet
 func (txn *Txn) Read(key string) (interface{}, error) {
-	kv, err := txn.db.Get(key, txn.startTs)
+	kv, err := txn.db.read(key, txn.startTs)
 	if err != nil {
 		return nil, err
 	}
@@ -23,7 +23,7 @@ func (txn *Txn) Read(key string) (interface{}, error) {
 
 // Write updates the write cache of the txn
 func (txn *Txn) Write(key string, value interface{}) {
-	txn.writeCache[key] = &KV{
+	txn.writeCache[key] = &kv{
 		key:   key,
 		value: value,
 	}
@@ -31,15 +31,15 @@ func (txn *Txn) Write(key string, value interface{}) {
 
 // Delete updates the write cache of the txn
 func (txn *Txn) Delete(key string) {
-	txn.writeCache[key] = &KV{
+	txn.writeCache[key] = &kv{
 		key:   key,
 		value: nil,
 	}
 }
 
-// Range gets a range of values from a start key to an end key from the DB and updates the txn readSet
-func (txn *Txn) Range(startKey, endKey string) ([]*KV, error) {
-	kvs, err := txn.db.Range(startKey, endKey, txn.startTs)
+// Scan gets a range of values from a start key to an end key from the DB and updates the txn readSet
+func (txn *Txn) Scan(startKey, endKey string) ([]*kv, error) {
+	kvs, err := txn.db.scan(startKey, endKey, txn.startTs)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func (txn *Txn) Range(startKey, endKey string) ([]*KV, error) {
 }
 
 // Commit sends the txn's read and write set to the oracle for commit
-func (txn *Txn) Commit() error {
+func (txn *Txn) commit() error {
 	if len(txn.writeCache) == 0 {
 		return nil
 	}

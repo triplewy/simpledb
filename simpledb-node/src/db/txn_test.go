@@ -10,7 +10,7 @@ import (
 )
 
 func TestTxnRead(t *testing.T) {
-	err := DeleteData()
+	err := deleteData()
 	if err != nil {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
@@ -21,16 +21,16 @@ func TestTxnRead(t *testing.T) {
 	}
 
 	numItems := 100000
-	memoryKV := make(map[string]string)
-	entries := []*KV{}
+	memorykv := make(map[string]string)
+	entries := []*kv{}
 
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(1000000000000000000 + i)
-		memoryKV[key] = key
-		entries = append(entries, &KV{key: key, value: key})
+		memorykv[key] = key
+		entries = append(entries, &kv{key: key, value: key})
 	}
 
-	err = asyncUpdates(db, entries, memoryKV)
+	err = asyncUpdateTxns(db, entries, memorykv)
 	if err != nil {
 		t.Fatalf("Error updating DB: %v\n", err)
 	}
@@ -43,14 +43,14 @@ func TestTxnRead(t *testing.T) {
 		keys = append(keys, key)
 	}
 
-	err = asyncViews(db, keys, memoryKV)
+	err = asyncViewTxns(db, keys, memorykv)
 	if err != nil {
 		t.Fatalf("Error getting from LSM: %v\n", err)
 	}
 }
 
 func TestTxnAbortRWRW(t *testing.T) {
-	err := DeleteData()
+	err := deleteData()
 	if err != nil {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
@@ -60,7 +60,7 @@ func TestTxnAbortRWRW(t *testing.T) {
 		t.Fatalf("Error creating LSM: %v\n", err)
 	}
 
-	db.Update(func(txn *Txn) error {
+	db.UpdateTxn(func(txn *Txn) error {
 		txn.Write("test", "test")
 		return nil
 	})
@@ -82,7 +82,7 @@ func TestTxnAbortRWRW(t *testing.T) {
 	}()
 
 	go func() {
-		err := db.Update(func(txn *Txn) error {
+		err := db.UpdateTxn(func(txn *Txn) error {
 			value, err := txn.Read("test")
 			if err != nil {
 				return err
@@ -96,7 +96,7 @@ func TestTxnAbortRWRW(t *testing.T) {
 
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		err := db.Update(func(txn *Txn) error {
+		err := db.UpdateTxn(func(txn *Txn) error {
 			time.Sleep(200 * time.Millisecond)
 			value, err := txn.Read("test")
 			if err != nil {
@@ -112,7 +112,7 @@ func TestTxnAbortRWRW(t *testing.T) {
 	wg.Wait()
 
 	var result string
-	err = db.View(func(txn *Txn) error {
+	err = db.ViewTxn(func(txn *Txn) error {
 		value, err := txn.Read("test")
 		if err != nil {
 			return err
@@ -130,7 +130,7 @@ func TestTxnAbortRWRW(t *testing.T) {
 }
 
 func TestTxnAbortWRW(t *testing.T) {
-	err := DeleteData()
+	err := deleteData()
 	if err != nil {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
@@ -140,7 +140,7 @@ func TestTxnAbortWRW(t *testing.T) {
 		t.Fatalf("Error creating LSM: %v\n", err)
 	}
 
-	db.Update(func(txn *Txn) error {
+	db.UpdateTxn(func(txn *Txn) error {
 		txn.Write("test", "test")
 		return nil
 	})
@@ -162,7 +162,7 @@ func TestTxnAbortWRW(t *testing.T) {
 	}()
 
 	go func() {
-		err := db.Update(func(txn *Txn) error {
+		err := db.UpdateTxn(func(txn *Txn) error {
 			txn.Write("test", "foo")
 			fmt.Println("finished W")
 			return nil
@@ -171,7 +171,7 @@ func TestTxnAbortWRW(t *testing.T) {
 	}()
 
 	go func() {
-		err := db.Update(func(txn *Txn) error {
+		err := db.UpdateTxn(func(txn *Txn) error {
 			value, err := txn.Read("test")
 			if err != nil {
 				return err
@@ -187,7 +187,7 @@ func TestTxnAbortWRW(t *testing.T) {
 	wg.Wait()
 
 	var result string
-	err = db.View(func(txn *Txn) error {
+	err = db.ViewTxn(func(txn *Txn) error {
 		value, err := txn.Read("test")
 		if err != nil {
 			return err

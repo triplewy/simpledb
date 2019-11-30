@@ -1,8 +1,8 @@
 package db
 
-// FileManager handles all write and read operations on files in LSM.
+// fileManager handles all write and read operations on files in lsm.
 // Centralized file manager is required to prevent 'too many files open' error
-type FileManager struct {
+type fileManager struct {
 	fileWriteChan chan *fileWriteReq
 	fileMmapChan  chan *fileMmapReq
 	fileFindChan  chan *fileFindReq
@@ -17,7 +17,7 @@ type fileWriteReq struct {
 
 type fileMmapReq struct {
 	filename  string
-	replyChan chan []*LSMDataEntry
+	replyChan chan []*lsmDataEntry
 	errChan   chan error
 }
 
@@ -25,21 +25,21 @@ type fileFindReq struct {
 	filename  string
 	key       string
 	ts        uint64
-	replyChan chan *LSMDataEntry
+	replyChan chan *lsmDataEntry
 	errChan   chan error
 }
 
 type fileRangeReq struct {
 	filename  string
-	keyRange  *KeyRange
+	keyRange  *keyRange
 	ts        uint64
-	replyChan chan []*LSMDataEntry
+	replyChan chan []*lsmDataEntry
 	errChan   chan error
 }
 
-// NewFileManager creates a new file manager that spawns allotted file workers
-func NewFileManager() *FileManager {
-	fm := &FileManager{
+// newfileManager creates a new file manager that spawns allotted file workers
+func newFileManager() *fileManager {
+	fm := &fileManager{
 		fileWriteChan: make(chan *fileWriteReq),
 		fileMmapChan:  make(chan *fileMmapReq),
 		fileFindChan:  make(chan *fileFindReq),
@@ -53,7 +53,7 @@ func NewFileManager() *FileManager {
 
 // spawnFileWorker takes care of all open file operations. This prevents 'too many open files' error by
 // restricting amount of workers who can open files
-func (fm *FileManager) spawnFileWorker() {
+func (fm *fileManager) spawnFileWorker() {
 	for {
 		select {
 		case req := <-fm.fileWriteChan:
@@ -76,7 +76,7 @@ func (fm *FileManager) spawnFileWorker() {
 }
 
 // Write writes an arbitrary sized byte slice to a file
-func (fm *FileManager) Write(filename string, data []byte) error {
+func (fm *fileManager) Write(filename string, data []byte) error {
 	errChan := make(chan error, 1)
 	req := &fileWriteReq{
 		filename: filename,
@@ -87,9 +87,9 @@ func (fm *FileManager) Write(filename string, data []byte) error {
 	return <-errChan
 }
 
-// MMap reads a file's data block and converts it to a slice of LSMDataEntry
-func (fm *FileManager) MMap(filename string) ([]*LSMDataEntry, error) {
-	replyChan := make(chan []*LSMDataEntry, 1)
+// MMap reads a file's data block and converts it to a slice of lsmDataEntry
+func (fm *fileManager) MMap(filename string) ([]*lsmDataEntry, error) {
+	replyChan := make(chan []*lsmDataEntry, 1)
 	errChan := make(chan error, 1)
 	req := &fileMmapReq{
 		filename:  filename,
@@ -100,9 +100,9 @@ func (fm *FileManager) MMap(filename string) ([]*LSMDataEntry, error) {
 	return <-replyChan, <-errChan
 }
 
-// Find attempts to find a LSMDataEntry that matches the given key within the file
-func (fm *FileManager) Find(filename, key string, ts uint64) (*LSMDataEntry, error) {
-	replyChan := make(chan *LSMDataEntry, 1)
+// Find attempts to find a lsmDataEntry that matches the given key within the file
+func (fm *fileManager) Find(filename, key string, ts uint64) (*lsmDataEntry, error) {
+	replyChan := make(chan *lsmDataEntry, 1)
 	errChan := make(chan error, 1)
 	req := &fileFindReq{
 		filename:  filename,
@@ -115,9 +115,9 @@ func (fm *FileManager) Find(filename, key string, ts uint64) (*LSMDataEntry, err
 	return <-replyChan, <-errChan
 }
 
-// Range returns all LSMDataEntry within in the specified key range within the file
-func (fm *FileManager) Range(filename string, keyRange *KeyRange, ts uint64) ([]*LSMDataEntry, error) {
-	replyChan := make(chan []*LSMDataEntry, 1)
+// Range returns all lsmDataEntry within in the specified key range within the file
+func (fm *fileManager) Range(filename string, keyRange *keyRange, ts uint64) ([]*lsmDataEntry, error) {
+	replyChan := make(chan []*lsmDataEntry, 1)
 	errChan := make(chan error, 1)
 	req := &fileRangeReq{
 		filename:  filename,

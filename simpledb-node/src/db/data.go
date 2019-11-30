@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-func createKeyRangeEntry(keyRange *KeyRange) []byte {
+func createkeyRangeEntry(keyRange *keyRange) []byte {
 	data := []byte{}
 
 	startKeySize := uint8(len(keyRange.startKey))
@@ -18,7 +18,7 @@ func createKeyRangeEntry(keyRange *KeyRange) []byte {
 	return data
 }
 
-func parseKeyRangeEntry(data []byte) *KeyRange {
+func parsekeyRangeEntry(data []byte) *keyRange {
 	i := 0
 	startKeySize := uint8(data[i])
 	i++
@@ -27,7 +27,7 @@ func parseKeyRangeEntry(data []byte) *KeyRange {
 	endKeySize := uint8(data[i])
 	i++
 	endKey := string(data[i : i+int(endKeySize)])
-	return &KeyRange{
+	return &keyRange{
 		startKey: startKey,
 		endKey:   endKey,
 	}
@@ -57,7 +57,7 @@ func readHeader(f *os.File) (dataSize, indexSize, bloomSize, keyRangeSize uint64
 		return 0, 0, 0, 0, err
 	}
 	if numBytes != len(header) {
-		return 0, 0, 0, 0, NewErrReadUnexpectedBytes("Header")
+		return 0, 0, 0, 0, newErrReadUnexpectedBytes("Header")
 	}
 
 	dataSize = binary.LittleEndian.Uint64(header[:8])

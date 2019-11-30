@@ -12,7 +12,7 @@ import (
 )
 
 func TestDBPutOnly(t *testing.T) {
-	err := DeleteData()
+	err := deleteData()
 	if err != nil {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
@@ -23,15 +23,15 @@ func TestDBPutOnly(t *testing.T) {
 	}
 
 	numItems := 100000
-	memoryKV := make(map[string]string)
-	entries := []*KV{}
+	memorykv := make(map[string]string)
+	entries := []*kv{}
 
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(1000000000000000000 + i)
-		entries = append(entries, &KV{key: key, value: key})
+		entries = append(entries, &kv{key: key, value: key})
 	}
 
-	err = asyncUpdates(db, entries, memoryKV)
+	err = asyncUpdateTxns(db, entries, memorykv)
 	if err != nil {
 		t.Fatalf("Error inserting into LSM: %v\n", err)
 	}
@@ -42,14 +42,14 @@ func TestDBPutOnly(t *testing.T) {
 		keys = append(keys, key)
 	}
 
-	err = asyncViews(db, keys, memoryKV)
+	err = asyncViewTxns(db, keys, memorykv)
 	if err != nil {
 		t.Fatalf("Error getting from LSM: %v\n", err)
 	}
 }
 
 func TestDBOverlapPut(t *testing.T) {
-	err := DeleteData()
+	err := deleteData()
 	if err != nil {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
@@ -60,27 +60,27 @@ func TestDBOverlapPut(t *testing.T) {
 	}
 
 	numItems := 50000
-	memoryKV := make(map[string]string)
-	entries := []*KV{}
+	memorykv := make(map[string]string)
+	entries := []*kv{}
 
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(i)
-		entries = append(entries, &KV{key: key, value: key})
+		entries = append(entries, &kv{key: key, value: key})
 	}
 
-	err = asyncUpdates(db, entries, memoryKV)
+	err = asyncUpdateTxns(db, entries, memorykv)
 	if err != nil {
 		t.Fatalf("Error inserting into LSM: %v\n", err)
 	}
 
-	entries = []*KV{}
+	entries = []*kv{}
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(i)
 		value := strconv.Itoa(i + 1)
-		entries = append(entries, &KV{key: key, value: value})
+		entries = append(entries, &kv{key: key, value: value})
 	}
 
-	err = asyncUpdates(db, entries, memoryKV)
+	err = asyncUpdateTxns(db, entries, memorykv)
 	if err != nil {
 		t.Fatalf("Error inserting into LSM: %v\n", err)
 	}
@@ -91,14 +91,14 @@ func TestDBOverlapPut(t *testing.T) {
 		keys = append(keys, key)
 	}
 
-	err = asyncViews(db, keys, memoryKV)
+	err = asyncViewTxns(db, keys, memorykv)
 	if err != nil {
 		t.Fatalf("Error getting from LSM: %v\n", err)
 	}
 }
 
 func TestDBDelete(t *testing.T) {
-	err := DeleteData()
+	err := deleteData()
 	if err != nil {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
@@ -109,15 +109,15 @@ func TestDBDelete(t *testing.T) {
 	}
 
 	numItems := 50000
-	memoryKV := make(map[string]string)
-	entries := []*KV{}
+	memorykv := make(map[string]string)
+	entries := []*kv{}
 
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(i)
-		entries = append(entries, &KV{key: key, value: key})
+		entries = append(entries, &kv{key: key, value: key})
 	}
 
-	err = asyncUpdates(db, entries, memoryKV)
+	err = asyncUpdateTxns(db, entries, memorykv)
 	if err != nil {
 		t.Fatalf("Error inserting into LSM: %v\n", err)
 	}
@@ -129,7 +129,7 @@ func TestDBDelete(t *testing.T) {
 		keys = append(keys, key)
 	}
 
-	err = asyncDeletes(db, keys, memoryKV)
+	err = asyncDeletes(db, keys, memorykv)
 	if err != nil {
 		t.Fatalf("Error deleting from LSM: %v\n", err)
 	}
@@ -140,14 +140,14 @@ func TestDBDelete(t *testing.T) {
 		keys = append(keys, key)
 	}
 
-	err = asyncViews(db, keys, memoryKV)
+	err = asyncViewTxns(db, keys, memorykv)
 	if err != nil {
 		t.Fatalf("Error Reading from LSM: %v\n", err)
 	}
 }
 
 func TestDBTinyBenchmark(t *testing.T) {
-	err := DeleteData()
+	err := deleteData()
 	if err != nil {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
@@ -158,16 +158,16 @@ func TestDBTinyBenchmark(t *testing.T) {
 	}
 
 	numItems := 100000
-	memoryKV := make(map[string]string)
-	entries := []*KV{}
+	memorykv := make(map[string]string)
+	entries := []*kv{}
 
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(i)
 		value := uuid.New().String()
-		entries = append(entries, &KV{key: key, value: value})
+		entries = append(entries, &kv{key: key, value: value})
 	}
 
-	err = asyncUpdates(db, entries, memoryKV)
+	err = asyncUpdateTxns(db, entries, memorykv)
 	if err != nil {
 		t.Fatalf("Error inserting into LSM: %v\n", err)
 	}
@@ -179,20 +179,20 @@ func TestDBTinyBenchmark(t *testing.T) {
 		key := strconv.Itoa(rand.Intn(numItems / 2))
 		keys = append(keys, key)
 	}
-	err = asyncDeletes(db, keys, memoryKV)
+	err = asyncDeletes(db, keys, memorykv)
 	if err != nil {
 		t.Fatalf("Error deleting from LSM: %v\n", err)
 	}
 
 	numCmds = 5000
-	entries = []*KV{}
+	entries = []*kv{}
 	for i := 0; i < numCmds; i++ {
 		key := strconv.Itoa(rand.Intn(numItems / 10))
 		value := uuid.New().String()
-		entries = append(entries, &KV{key: key, value: value})
+		entries = append(entries, &kv{key: key, value: value})
 	}
 
-	err = asyncUpdates(db, entries, memoryKV)
+	err = asyncUpdateTxns(db, entries, memorykv)
 	if err != nil {
 		t.Fatalf("Error inserting into LSM: %v\n", err)
 	}
@@ -203,14 +203,14 @@ func TestDBTinyBenchmark(t *testing.T) {
 		keys = append(keys, key)
 	}
 
-	err = asyncViews(db, keys, memoryKV)
+	err = asyncViewTxns(db, keys, memorykv)
 	if err != nil {
 		t.Fatalf("Error Reading from LSM: %v\n", err)
 	}
 }
 
 func TestDBRange(t *testing.T) {
-	err := DeleteData()
+	err := deleteData()
 	if err != nil {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
@@ -221,16 +221,16 @@ func TestDBRange(t *testing.T) {
 	}
 
 	numItems := 30000
-	memoryKV := make(map[string]string)
-	entries := []*KV{}
+	memorykv := make(map[string]string)
+	entries := []*kv{}
 
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(i)
 		value := uuid.New().String()
-		entries = append(entries, &KV{key: key, value: value})
+		entries = append(entries, &kv{key: key, value: value})
 	}
 
-	err = asyncUpdates(db, entries, memoryKV)
+	err = asyncUpdateTxns(db, entries, memorykv)
 	if err != nil {
 		t.Fatalf("Error inserting into LSM: %v\n", err)
 	}
@@ -241,7 +241,7 @@ func TestDBRange(t *testing.T) {
 		keys = append(keys, key)
 	}
 
-	err = asyncViews(db, keys, memoryKV)
+	err = asyncViewTxns(db, keys, memorykv)
 	if err != nil {
 		t.Fatalf("Error Reading from LSM: %v\n", err)
 	}
@@ -250,7 +250,7 @@ func TestDBRange(t *testing.T) {
 	endKey := "9999"
 
 	keys = []string{}
-	for key := range memoryKV {
+	for key := range memorykv {
 		if startKey <= key && key <= endKey {
 			keys = append(keys, key)
 		}
@@ -259,8 +259,8 @@ func TestDBRange(t *testing.T) {
 	sort.Strings(keys)
 
 	startReadTime := time.Now()
-	err = db.View(func(txn *Txn) error {
-		entries, err := txn.Range(startKey, endKey)
+	err = db.ViewTxn(func(txn *Txn) error {
+		entries, err := txn.Scan(startKey, endKey)
 		if err != nil {
 			return err
 		}
@@ -271,7 +271,7 @@ func TestDBRange(t *testing.T) {
 		for i := 0; i < len(entries); i++ {
 			key := keys[i]
 			got := entries[i]
-			if key != got.key || memoryKV[key] != got.value.(string) {
+			if key != got.key || memorykv[key] != got.value.(string) {
 				numWrong++
 			}
 		}
@@ -286,7 +286,7 @@ func TestDBRange(t *testing.T) {
 }
 
 func TestDBRandom(t *testing.T) {
-	err := DeleteData()
+	err := deleteData()
 	if err != nil {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
@@ -297,16 +297,16 @@ func TestDBRandom(t *testing.T) {
 	}
 
 	numItems := 10000
-	memoryKV := make(map[string]string)
-	entries := []*KV{}
+	memorykv := make(map[string]string)
+	entries := []*kv{}
 
 	for i := 0; i < numItems; i++ {
 		key := strconv.Itoa(rand.Intn(1000))
 		value := strconv.Itoa(i)
-		entries = append(entries, &KV{key: key, value: value})
+		entries = append(entries, &kv{key: key, value: value})
 	}
 
-	err = asyncUpdates(db, entries, memoryKV)
+	err = asyncUpdateTxns(db, entries, memorykv)
 	if err != nil {
 		t.Fatalf("Error inserting into LSM: %v\n", err)
 	}
@@ -317,7 +317,7 @@ func TestDBRandom(t *testing.T) {
 		keys = append(keys, key)
 	}
 
-	err = asyncViews(db, keys, memoryKV)
+	err = asyncViewTxns(db, keys, memorykv)
 	if err != nil {
 		t.Fatalf("Error Reading from LSM: %v\n", err)
 	}

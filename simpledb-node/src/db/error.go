@@ -7,8 +7,8 @@ type ErrWriteUnexpectedBytes struct {
 	file string
 }
 
-// NewErrWriteUnexpectedBytes creates new ErrWriteUnexpectedBytes with specified file
-func NewErrWriteUnexpectedBytes(file string) *ErrWriteUnexpectedBytes {
+// newErrWriteUnexpectedBytes creates new ErrWriteUnexpectedBytes with specified file
+func newErrWriteUnexpectedBytes(file string) *ErrWriteUnexpectedBytes {
 	return &ErrWriteUnexpectedBytes{file: file}
 }
 func (e *ErrWriteUnexpectedBytes) Error() string {
@@ -19,7 +19,7 @@ type ErrReadUnexpectedBytes struct {
 	file string
 }
 
-func NewErrReadUnexpectedBytes(file string) *ErrReadUnexpectedBytes {
+func newErrReadUnexpectedBytes(file string) *ErrReadUnexpectedBytes {
 	return &ErrReadUnexpectedBytes{file: file}
 }
 func (e *ErrReadUnexpectedBytes) Error() string {
@@ -28,7 +28,7 @@ func (e *ErrReadUnexpectedBytes) Error() string {
 
 type ErrKeyNotFound struct{}
 
-func NewErrKeyNotFound() *ErrKeyNotFound {
+func newErrKeyNotFound() *ErrKeyNotFound {
 	return &ErrKeyNotFound{}
 }
 func (e *ErrKeyNotFound) Error() string {
@@ -37,7 +37,7 @@ func (e *ErrKeyNotFound) Error() string {
 
 type ErrIncorrectBlockSize struct{}
 
-func NewErrIncorrectBlockSize() *ErrIncorrectBlockSize {
+func newErrIncorrectBlockSize() *ErrIncorrectBlockSize {
 	return &ErrIncorrectBlockSize{}
 }
 
@@ -50,7 +50,7 @@ type ErrIncorrectValueSize struct {
 	valueSize int
 }
 
-func NewErrIncorrectValueSize(valueType uint8, valueSize int) *ErrIncorrectValueSize {
+func newErrIncorrectValueSize(valueType uint8, valueSize int) *ErrIncorrectValueSize {
 	return &ErrIncorrectValueSize{
 		valueType: valueType,
 		valueSize: valueSize,
@@ -78,7 +78,7 @@ type ErrIncompatibleValue struct {
 	valueType uint8
 }
 
-func NewErrIncompatibleValue(valueType uint8) *ErrIncompatibleValue {
+func newErrIncompatibleValue(valueType uint8) *ErrIncompatibleValue {
 	return &ErrIncompatibleValue{
 		valueType: valueType,
 	}
@@ -103,7 +103,7 @@ func (e *ErrIncompatibleValue) Error() string {
 
 type ErrNoTypeFound struct{}
 
-func NewErrNoTypeFound() *ErrNoTypeFound {
+func newErrNoTypeFound() *ErrNoTypeFound {
 	return &ErrNoTypeFound{}
 }
 
@@ -115,7 +115,7 @@ type ErrExceedMaxKeySize struct {
 	key string
 }
 
-func NewErrExceedMaxKeySize(key string) *ErrExceedMaxKeySize {
+func newErrExceedMaxKeySize(key string) *ErrExceedMaxKeySize {
 	return &ErrExceedMaxKeySize{key: key}
 }
 
@@ -125,7 +125,7 @@ func (e *ErrExceedMaxKeySize) Error() string {
 
 type ErrExceedMaxValueSize struct{}
 
-func NewErrExceedMaxValueSize() *ErrExceedMaxValueSize {
+func newErrExceedMaxValueSize() *ErrExceedMaxValueSize {
 	return &ErrExceedMaxValueSize{}
 }
 
@@ -137,7 +137,7 @@ type ErrDuplicateKey struct {
 	key string
 }
 
-func NewErrDuplicateKey(key string) *ErrDuplicateKey {
+func newErrDuplicateKey(key string) *ErrDuplicateKey {
 	return &ErrDuplicateKey{key: key}
 }
 
@@ -147,7 +147,7 @@ func (e *ErrDuplicateKey) Error() string {
 
 type ErrTxnAbort struct{}
 
-func NewErrTxnAbort() *ErrTxnAbort {
+func newErrTxnAbort() *ErrTxnAbort {
 	return &ErrTxnAbort{}
 }
 

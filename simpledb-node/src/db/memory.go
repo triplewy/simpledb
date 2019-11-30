@@ -6,13 +6,13 @@ import (
 	"time"
 )
 
-type Memory struct {
+type memory struct {
 	currMemory int
 	maxMemory  int
 }
 
-func NewMemory() *Memory {
-	m := &Memory{
+func newMemory() *memory {
+	m := &memory{
 		currMemory: 0,
 		maxMemory:  10,
 	}
@@ -20,19 +20,20 @@ func NewMemory() *Memory {
 	return m
 }
 
-func (m *Memory) run() {
+func (m *memory) run() {
 	checkMemory := time.NewTicker(5 * time.Second)
 	for {
 		select {
 		case <-checkMemory.C:
-			PrintMemUsage()
+			// PrintMemUsage()
+			continue
 		}
 	}
 }
 
 // PrintMemUsage outputs the current, total and OS memory being used. As well as the number
 // of garage collection cycles completed.
-func PrintMemUsage() {
+func printMemUsage() {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 	// For info on each, see: https://golang.org/pkg/runtime/#MemStats

@@ -5,8 +5,8 @@ import (
 	"math"
 )
 
-// LSMDataEntry is struct that represents an entry into an LSM Data Block
-type LSMDataEntry struct {
+// lsmDataEntry is struct that represents an entry into an lsm Data Block
+type lsmDataEntry struct {
 	ts        uint64
 	keySize   uint8
 	key       string
@@ -15,12 +15,12 @@ type LSMDataEntry struct {
 	value     []byte
 }
 
-func createDataEntry(ts uint64, key string, value interface{}) (*LSMDataEntry, error) {
+func createDataEntry(ts uint64, key string, value interface{}) (*lsmDataEntry, error) {
 	if len(key) > KeySize {
-		return nil, NewErrExceedMaxKeySize(key)
+		return nil, newErrExceedMaxKeySize(key)
 	}
 	keySize := uint8(len(key))
-	entry := &LSMDataEntry{
+	entry := &lsmDataEntry{
 		ts:        ts,
 		keySize:   keySize,
 		key:       key,
@@ -54,7 +54,7 @@ func createDataEntry(ts uint64, key string, value interface{}) (*LSMDataEntry, e
 		return entry, nil
 	case string:
 		if len(v) > ValueSize {
-			return nil, NewErrExceedMaxValueSize()
+			return nil, newErrExceedMaxValueSize()
 		}
 		entry.valueType = String
 		entry.valueSize = uint16(len(v))
@@ -66,11 +66,11 @@ func createDataEntry(ts uint64, key string, value interface{}) (*LSMDataEntry, e
 		entry.value = []byte{}
 		return entry, nil
 	default:
-		return nil, NewErrNoTypeFound()
+		return nil, newErrNoTypeFound()
 	}
 }
 
-func encodeDataEntry(entry *LSMDataEntry) (data []byte) {
+func encodeDataEntry(entry *lsmDataEntry) (data []byte) {
 	tsBytes := make([]byte, 8)
 	binary.LittleEndian.PutUint64(tsBytes, entry.ts)
 	data = append(data, tsBytes...)
@@ -84,12 +84,12 @@ func encodeDataEntry(entry *LSMDataEntry) (data []byte) {
 	return data
 }
 
-func decodeDataEntry(data []byte) *LSMDataEntry {
+func decodeDataEntry(data []byte) *lsmDataEntry {
 	return nil
 }
 
-func parseDataEntry(entry *LSMDataEntry) (*KV, error) {
-	kv := &KV{
+func parseDataEntry(entry *lsmDataEntry) (*kv, error) {
+	kv := &kv{
 		ts:  entry.ts,
 		key: entry.key,
 	}
@@ -97,10 +97,10 @@ func parseDataEntry(entry *LSMDataEntry) (*KV, error) {
 	switch entry.valueType {
 	case Bool:
 		if len(value) != 1 {
-			return nil, NewErrIncorrectValueSize(Bool, len(value))
+			return nil, newErrIncorrectValueSize(Bool, len(value))
 		}
 		if value[0] != byte(0) && value[0] != byte(1) {
-			return nil, NewErrIncompatibleValue(Bool)
+			return nil, newErrIncompatibleValue(Bool)
 		}
 		if value[0] == byte(0) {
 			kv.value = false
@@ -109,36 +109,36 @@ func parseDataEntry(entry *LSMDataEntry) (*KV, error) {
 		}
 	case Int:
 		if len(value) != 8 {
-			return nil, NewErrIncorrectValueSize(Int, len(value))
+			return nil, newErrIncorrectValueSize(Int, len(value))
 		}
 		i := int64(binary.LittleEndian.Uint64(value))
 		kv.value = i
 	case Float:
 		if len(value) != 8 {
-			return nil, NewErrIncorrectValueSize(Float, len(value))
+			return nil, newErrIncorrectValueSize(Float, len(value))
 		}
 		f := float64(binary.LittleEndian.Uint64(value))
 		kv.value = f
 	case String:
 		kv.value = string(value)
 	case Tombstone:
-		return nil, NewErrKeyNotFound()
+		return nil, newErrKeyNotFound()
 	default:
-		return nil, NewErrNoTypeFound()
+		return nil, newErrNoTypeFound()
 	}
 	return kv, nil
 }
 
-func sizeDataEntry(entry *LSMDataEntry) int {
+func sizeDataEntry(entry *lsmDataEntry) int {
 	return EntrySizeConstant + len(entry.key) + len(entry.value)
 }
 
-func writeDataEntries(entries []*LSMDataEntry) (dataBlocks, indexBlock []byte, bloom *Bloom, keyRange *KeyRange, err error) {
-	keyRange = &KeyRange{
+func writeDataEntries(entries []*lsmDataEntry) (dataBlocks, indexBlock []byte, bloom *bloom, kr *keyRange, err error) {
+	kr = &keyRange{
 		startKey: entries[0].key,
 		endKey:   entries[len(entries)-1].key,
 	}
-	bloom = NewBloom(len(entries))
+	bloom = newBloom(len(entries))
 
 	block := make([]byte, BlockSize)
 	currBlock := uint32(0)
@@ -147,7 +147,7 @@ func writeDataEntries(entries []*LSMDataEntry) (dataBlocks, indexBlock []byte, b
 		// Create new block if current entry overflows block
 		if i+sizeDataEntry(entry) >= BlockSize {
 			dataBlocks = append(dataBlocks, block...)
-			indexEntry := encodeIndexEntry(&LSMIndexEntry{
+			indexEntry := encodeIndexEntry(&lsmIndexEntry{
 				keySize: entries[index-1].keySize,
 				key:     entries[index-1].key,
 				block:   currBlock,
@@ -166,7 +166,7 @@ func writeDataEntries(entries []*LSMDataEntry) (dataBlocks, indexBlock []byte, b
 
 		if index == len(entries)-1 {
 			dataBlocks = append(dataBlocks, block...)
-			indexEntry := encodeIndexEntry(&LSMIndexEntry{
+			indexEntry := encodeIndexEntry(&lsmIndexEntry{
 				keySize: entry.keySize,
 				key:     entry.key,
 				block:   currBlock,
@@ -174,17 +174,17 @@ func writeDataEntries(entries []*LSMDataEntry) (dataBlocks, indexBlock []byte, b
 			indexBlock = append(indexBlock, indexEntry...)
 		}
 	}
-	return dataBlocks, indexBlock, bloom, keyRange, nil
+	return dataBlocks, indexBlock, bloom, kr, nil
 }
 
-// LSMIndexEntry is struct that represents an entry into an LSM Index Block
-type LSMIndexEntry struct {
+// lsmIndexEntry is struct that represents an entry into an lsm Index Block
+type lsmIndexEntry struct {
 	keySize uint8
 	key     string
 	block   uint32
 }
 
-func encodeIndexEntry(entry *LSMIndexEntry) (data []byte) {
+func encodeIndexEntry(entry *lsmIndexEntry) (data []byte) {
 	data = append(data, entry.keySize)
 	data = append(data, []byte(entry.key)...)
 	blockBytes := make([]byte, 4)
