@@ -166,7 +166,7 @@ func newErrExceedMaxFields() *ErrExceedMaxFields {
 }
 
 func (e *ErrExceedMaxFields) Error() string {
-	return fmt.Sprintf("Amount of fields in entry exceed maximum (%d) amount of fields", MaxFields)
+	return fmt.Sprintf("Amount of Fields in entry exceed maximum (%d) amount of Fields", MaxFields)
 }
 
 type ErrExceedMaxEntrySize struct{}

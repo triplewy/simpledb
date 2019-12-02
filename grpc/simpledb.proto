@@ -3,10 +3,10 @@ syntax = "proto3";
 package simpledb;
 
 service SimpleDb {
-    rpc ReadRPC(ReadMsg) returns (ValuesMsg);
-    rpc ScanRPC(ReadMsg) returns (ValuesMsg);
-    rpc UpdateRPC(WriteMsg) returns (OkMsg);
-    rpc InsertRPC(WriteMsg) returns (OkMsg);
+    rpc ReadRPC(ReadMsg) returns (Entry);
+    rpc ScanRPC(ReadMsg) returns (EntriesMsg);
+    rpc UpdateRPC(Entry) returns (OkMsg);
+    rpc InsertRPC(Entry) returns (OkMsg);
     rpc DeleteRPC(KeyMsg) returns (OkMsg);
 }
 
@@ -15,16 +15,16 @@ message ReadMsg {
     repeated string fields = 2;
 }
 
-message ValuesMsg { repeated Fields values = 1; }
+message EntriesMsg { repeated Entry entries = 1; }
 
-message Fields {
+message Field {
     string name = 1;
     bytes value = 2;
 }
 
-message WriteMsg {
+message Entry {
     string key = 1;
-    repeated Fields values = 2;
+    repeated Field values = 2;
 }
 
 message OkMsg { bool Ok = 1; }

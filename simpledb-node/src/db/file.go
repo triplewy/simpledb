@@ -163,7 +163,7 @@ func findKeyInBlock(key string, ts uint64, data []byte) (*Entry, error) {
 		return nil, err
 	}
 	for _, entry := range entries {
-		if entry.key == key && entry.ts < ts {
+		if entry.Key == key && entry.ts < ts {
 			return entry, nil
 		}
 	}
@@ -207,7 +207,7 @@ func findKeysInBlocks(keyRange *keyRange, ts uint64, data []byte) (result []*Ent
 	}
 	set := make(map[string]struct{})
 	for _, entry := range entries {
-		if _, ok := set[entry.key]; !ok && startKey <= entry.key && entry.key <= endKey && entry.ts < ts {
+		if _, ok := set[entry.Key]; !ok && startKey <= entry.Key && entry.Key <= endKey && entry.ts < ts {
 			result = append(result, entry)
 		}
 	}

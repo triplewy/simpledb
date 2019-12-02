@@ -110,21 +110,21 @@ func (db *DB) write(entries []*Entry) error {
 	return <-errChan
 }
 
-// get retrieves fields for a given key or returns key not found
+// get retrieves Fields for a given key or returns key not found
 func (db *DB) read(key string, ts uint64) (*Entry, error) {
 	if len(key) > KeySize {
 		return nil, newErrExceedMaxKeySize(key)
 	}
 	entry := db.mutable.table.Find(key, ts)
 	if entry != nil {
-		if entry.fields == nil {
+		if entry.Fields == nil {
 			return nil, newErrKeyNotFound()
 		}
 		return entry, nil
 	}
 	entry = db.immutable.table.Find(key, ts)
 	if entry != nil {
-		if entry.fields == nil {
+		if entry.Fields == nil {
 			return nil, newErrKeyNotFound()
 		}
 		return entry, nil
@@ -133,7 +133,7 @@ func (db *DB) read(key string, ts uint64) (*Entry, error) {
 	if err != nil {
 		return nil, err
 	}
-	if entry.fields == nil {
+	if entry.Fields == nil {
 		return nil, newErrKeyNotFound()
 	}
 	return entry, nil
@@ -165,11 +165,11 @@ func (db *DB) scan(startKey, endKey string, ts uint64) ([]*Entry, error) {
 	// Convert slice of entries into a set of entries
 	resultMap := make(map[string]*Entry)
 	for _, entry := range all {
-		if value, ok := resultMap[entry.key]; !ok {
-			resultMap[entry.key] = entry
+		if value, ok := resultMap[entry.Key]; !ok {
+			resultMap[entry.Key] = entry
 		} else {
 			if value.ts < entry.ts {
-				resultMap[entry.key] = entry
+				resultMap[entry.Key] = entry
 			}
 		}
 	}
@@ -179,7 +179,7 @@ func (db *DB) scan(startKey, endKey string, ts uint64) ([]*Entry, error) {
 		result = append(result, entry)
 	}
 	sort.Slice(result, func(i, j int) bool {
-		return result[i].key < result[j].key
+		return result[i].Key < result[j].Key
 	})
 	return result, nil
 }

@@ -18,7 +18,7 @@ const KeySize = 255
 // EntrySize is max size for entire entry
 const EntrySize = KB
 
-// MaxFields is max amount of fields per entry
+// MaxFields is max amount of Fields per entry
 const MaxFields = 10
 
 const timestampSize = 8

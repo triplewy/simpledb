@@ -10,36 +10,36 @@ import (
 )
 
 func setupEntry() (map[string]interface{}, *Entry, error) {
-	fields := make(map[string]interface{})
-	fields["id"] = uuid.New().String()
-	fields["balance"] = float64(100.0)
-	fields["isUser"] = true
-	fields["likes"] = int64(10)
+	Fields := make(map[string]interface{})
+	Fields["id"] = uuid.New().String()
+	Fields["balance"] = float64(100.0)
+	Fields["isUser"] = true
+	Fields["likes"] = int64(10)
 	b, err := json.Marshal(map[string]string{"test": "test"})
 	if err != nil {
 		return nil, nil, err
 	}
-	fields["info"] = b
-	entry, err := createEntry(uint64(0), "test", fields)
+	Fields["info"] = b
+	entry, err := createEntry(uint64(0), "test", Fields)
 	if err != nil {
 		return nil, nil, err
 	}
-	return fields, entry, nil
+	return Fields, entry, nil
 }
 
 func TestEntryCreate(t *testing.T) {
-	fields, entry, err := setupEntry()
+	Fields, entry, err := setupEntry()
 	if err != nil {
 		t.Fatalf("Error setting up entry: %v\n", err)
 	}
 	if entry.ts != 0 {
 		t.Fatalf("Incorrect entry: %v\n", entry)
 	}
-	if entry.key != "test" {
+	if entry.Key != "test" {
 		t.Fatalf("Incorrect entry: %v\n", entry)
 	}
-	for name, v1 := range fields {
-		if v2, ok := entry.fields[name]; ok {
+	for name, v1 := range Fields {
+		if v2, ok := entry.Fields[name]; ok {
 			v, err := parseValue(v2)
 			if err != nil {
 				t.Fatalf("Error parsing value: %v\n", err)
@@ -73,7 +73,7 @@ func TestEntryEncode(t *testing.T) {
 }
 
 func TestEntryDecode(t *testing.T) {
-	fields, entry, err := setupEntry()
+	Fields, entry, err := setupEntry()
 	if err != nil {
 		t.Fatalf("Error setting up entry: %v\n", err)
 	}
@@ -85,11 +85,11 @@ func TestEntryDecode(t *testing.T) {
 	if result.ts != 0 {
 		t.Fatalf("Incorrect entry: %v\n", entry)
 	}
-	if result.key != "test" {
+	if result.Key != "test" {
 		t.Fatalf("Incorrect entry: %v\n", entry)
 	}
-	for name, v1 := range fields {
-		if v2, ok := result.fields[name]; ok {
+	for name, v1 := range Fields {
+		if v2, ok := result.Fields[name]; ok {
 			v, err := parseValue(v2)
 			if err != nil {
 				t.Fatalf("Error parsing value: %v\n", err)
@@ -111,7 +111,7 @@ func TestEntryDecode(t *testing.T) {
 }
 
 func TestEntryWrite(t *testing.T) {
-	fields, entry, err := setupEntry()
+	Fields, entry, err := setupEntry()
 	entries := []*Entry{}
 	for i := 0; i < 100; i++ {
 		entries = append(entries, entry)
@@ -131,11 +131,11 @@ func TestEntryWrite(t *testing.T) {
 		if entry.ts != 0 {
 			t.Fatalf("Incorrect entry: %v\n", entry)
 		}
-		if entry.key != "test" {
+		if entry.Key != "test" {
 			t.Fatalf("Incorrect entry: %v\n", entry)
 		}
-		for name, v1 := range fields {
-			if v2, ok := entry.fields[name]; ok {
+		for name, v1 := range Fields {
+			if v2, ok := entry.Fields[name]; ok {
 				v, err := parseValue(v2)
 				if err != nil {
 					t.Fatalf("Error parsing value: %v\n", err)

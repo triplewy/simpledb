@@ -68,7 +68,7 @@ func deleteData() error {
 // 	result := make([]string, len(entries))
 
 // 	for i, entry := range entries {
-// 		result[i] = entry.key
+// 		result[i] = entry.Key
 // 	}
 // 	return result, nil
 // }

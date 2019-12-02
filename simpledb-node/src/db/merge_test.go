@@ -48,8 +48,8 @@ func TestMergeMMap(t *testing.T) {
 
 	for i, entry := range entries {
 		key := strconv.Itoa(i + 10000)
-		if entry.key != key || string(entry.fields["value"].data) != memorykv[key] {
-			t.Fatalf("Key or value expected: %v, Got key: %v value: %v\n", key, entry.key, string(entry.fields["value"].data))
+		if entry.Key != key || string(entry.Fields["value"].Data) != memorykv[key] {
+			t.Fatalf("Key or value expected: %v, Got key: %v value: %v\n", key, entry.Key, string(entry.Fields["value"].Data))
 		}
 	}
 }

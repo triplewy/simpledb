@@ -22,8 +22,8 @@ func setupDB(directory string) (*DB, error) {
 func simpleEntry(ts uint64, key, value string) *Entry {
 	return &Entry{
 		ts:     ts,
-		key:    key,
-		fields: map[string]*Value{"value": &Value{dataType: String, data: []byte(value)}},
+		Key:    key,
+		Fields: map[string]*Value{"value": &Value{DataType: String, Data: []byte(value)}},
 	}
 }
 
@@ -41,12 +41,12 @@ func asyncUpdateTxns(db *DB, entries []*Entry, memorykv map[string]string) error
 	for _, entry := range entries {
 		go func(entry *Entry) {
 			err := db.UpdateTxn(func(txn *Txn) error {
-				txn.Write(entry.key, entry.fields)
+				txn.Write(entry.Key, entry.Fields)
 				return nil
 			})
 			updateChan <- &update{
-				key:   entry.key,
-				value: string(entry.fields["value"].data),
+				key:   entry.Key,
+				value: string(entry.Fields["value"].Data),
 				err:   err,
 			}
 		}(entry)
@@ -153,7 +153,7 @@ func asyncViewTxns(db *DB, keys []string, memorykv map[string]string) error {
 					}
 					return nil
 				}
-				if string(entry.fields["value"].data) != value {
+				if string(entry.Fields["value"].Data) != value {
 					if value == "__delete__" {
 						// fmt.Printf("Key: %v, Expected: Key not found, Got: %v\n", key, result.(string))
 						return errors.New("Key should have been deleted")

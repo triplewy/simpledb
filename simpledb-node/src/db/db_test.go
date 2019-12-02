@@ -249,7 +249,7 @@ func TestDBRange(t *testing.T) {
 		for i := 0; i < len(entries); i++ {
 			key := keys[i]
 			got := entries[i]
-			if key != got.key || memorykv[key] != string(got.fields["value"].data) {
+			if key != got.Key || memorykv[key] != string(got.Fields["value"].Data) {
 				numWrong++
 			}
 		}

@@ -114,7 +114,7 @@ func TestRecoverUnexpected(t *testing.T) {
 		for i := 0; i < numItems; i++ {
 			key := strconv.Itoa(1000000000000000000 + i)
 			err := db.UpdateTxn(func(txn *Txn) error {
-				txn.Write(key, map[string]*Value{"value": &Value{dataType: String, data: []byte(key)}})
+				txn.Write(key, map[string]*Value{"value": &Value{DataType: String, Data: []byte(key)}})
 				return nil
 			})
 			if err != nil {

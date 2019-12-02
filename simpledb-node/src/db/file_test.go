@@ -44,7 +44,7 @@ func TestFileGet(t *testing.T) {
 		for {
 			select {
 			case entry := <-replyChan:
-				if entry.key != string(entry.fields["value"].data) {
+				if entry.Key != string(entry.Fields["value"].Data) {
 					if _, ok := errs["Incorrect Key Value"]; !ok {
 						errs["Incorrect Key Value"] = 1
 					} else {
@@ -132,8 +132,8 @@ func TestFileRange(t *testing.T) {
 	}
 
 	for _, entry := range entries {
-		if string(entry.fields["value"].data) != entry.key {
-			t.Errorf("Value expected: %v, got :%v\n", entry.key, string(entry.fields["value"].data))
+		if string(entry.Fields["value"].Data) != entry.Key {
+			t.Errorf("Value expected: %v, got :%v\n", entry.Key, string(entry.Fields["value"].Data))
 		}
 	}
 }

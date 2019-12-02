@@ -22,18 +22,18 @@ func (txn *Txn) Read(key string) (*Entry, error) {
 }
 
 // Write updates the write cache of the txn
-func (txn *Txn) Write(key string, fields map[string]*Value) {
+func (txn *Txn) Write(key string, Fields map[string]*Value) {
 	txn.writeCache[key] = &Entry{
-		key:    key,
-		fields: fields,
+		Key:    key,
+		Fields: Fields,
 	}
 }
 
 // Delete updates the write cache of the txn
 func (txn *Txn) Delete(key string) {
 	txn.writeCache[key] = &Entry{
-		key:    key,
-		fields: nil,
+		Key:    key,
+		Fields: nil,
 	}
 }
 
@@ -44,7 +44,7 @@ func (txn *Txn) Scan(startKey, endKey string) ([]*Entry, error) {
 		return nil, err
 	}
 	for _, kv := range kvs {
-		txn.readSet[kv.key] = kv.ts
+		txn.readSet[kv.Key] = kv.ts
 	}
 	return kvs, nil
 }

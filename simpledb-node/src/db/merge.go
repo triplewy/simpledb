@@ -24,10 +24,10 @@ func (level *level) mergeSort(files []string) ([]*Entry, error) {
 func mergeHelper(left, right []*Entry) (entries []*Entry) {
 	entries = append(left, right...)
 	sort.Slice(entries, func(i, j int) bool {
-		if entries[i].key == entries[j].key {
+		if entries[i].Key == entries[j].Key {
 			return entries[i].ts > entries[j].ts
 		}
-		return entries[i].key < entries[j].key
+		return entries[i].Key < entries[j].Key
 	})
 	return entries
 }

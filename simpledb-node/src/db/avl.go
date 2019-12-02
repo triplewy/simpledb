@@ -22,7 +22,7 @@ type avlTree struct {
 
 func newAVLNode(entry *Entry) *avlNode {
 	return &avlNode{
-		key:     entry.key,
+		key:     entry.Key,
 		entries: []*Entry{entry},
 
 		left:   nil,
@@ -78,7 +78,7 @@ func (tree *avlTree) Preorder() []string {
 	pairs := preorder(tree.root)
 	result := make([]string, len(pairs))
 	for i, pair := range pairs {
-		result[i] = pair.key
+		result[i] = pair.Key
 	}
 	return result
 }
@@ -86,10 +86,10 @@ func (tree *avlTree) Preorder() []string {
 func put(root *avlNode, entry *Entry) *avlNode {
 	if root == nil {
 		return newAVLNode(entry)
-	} else if entry.key == root.key {
+	} else if entry.Key == root.key {
 		root.entries = append([]*Entry{entry}, root.entries...)
 		return root
-	} else if entry.key < root.key {
+	} else if entry.Key < root.key {
 		root.left = put(root.left, entry)
 	} else {
 		root.right = put(root.right, entry)
@@ -99,20 +99,20 @@ func put(root *avlNode, entry *Entry) *avlNode {
 	balance := getBalance(root)
 
 	// Case 1 - Left Left
-	if balance > 1 && entry.key < root.left.key {
+	if balance > 1 && entry.Key < root.left.key {
 		return rightRotate(root)
 	}
 	// Case 2 - Right Right
-	if balance < -1 && entry.key > root.right.key {
+	if balance < -1 && entry.Key > root.right.key {
 		return leftRotate(root)
 	}
 	// Case 3 - Left Right
-	if balance > 1 && entry.key > root.left.key {
+	if balance > 1 && entry.Key > root.left.key {
 		root.left = leftRotate(root.left)
 		return rightRotate(root)
 	}
 	// Case 4 - Right Left
-	if balance < -1 && entry.key < root.right.key {
+	if balance < -1 && entry.Key < root.right.key {
 		root.right = rightRotate(root.right)
 		return leftRotate(root)
 	}

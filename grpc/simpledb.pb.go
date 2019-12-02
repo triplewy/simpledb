@@ -71,46 +71,46 @@ func (m *ReadMsg) GetFields() []string {
 	return nil
 }
 
-type ValuesMsg struct {
-	Values               []*Fields `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
-	XXX_unrecognized     []byte    `json:"-"`
-	XXX_sizecache        int32     `json:"-"`
+type EntriesMsg struct {
+	Entries              []*Entry `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *ValuesMsg) Reset()         { *m = ValuesMsg{} }
-func (m *ValuesMsg) String() string { return proto.CompactTextString(m) }
-func (*ValuesMsg) ProtoMessage()    {}
-func (*ValuesMsg) Descriptor() ([]byte, []int) {
+func (m *EntriesMsg) Reset()         { *m = EntriesMsg{} }
+func (m *EntriesMsg) String() string { return proto.CompactTextString(m) }
+func (*EntriesMsg) ProtoMessage()    {}
+func (*EntriesMsg) Descriptor() ([]byte, []int) {
 	return fileDescriptor_748391160b9263c4, []int{1}
 }
 
-func (m *ValuesMsg) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_ValuesMsg.Unmarshal(m, b)
+func (m *EntriesMsg) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_EntriesMsg.Unmarshal(m, b)
 }
-func (m *ValuesMsg) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_ValuesMsg.Marshal(b, m, deterministic)
+func (m *EntriesMsg) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_EntriesMsg.Marshal(b, m, deterministic)
 }
-func (m *ValuesMsg) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ValuesMsg.Merge(m, src)
+func (m *EntriesMsg) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_EntriesMsg.Merge(m, src)
 }
-func (m *ValuesMsg) XXX_Size() int {
-	return xxx_messageInfo_ValuesMsg.Size(m)
+func (m *EntriesMsg) XXX_Size() int {
+	return xxx_messageInfo_EntriesMsg.Size(m)
 }
-func (m *ValuesMsg) XXX_DiscardUnknown() {
-	xxx_messageInfo_ValuesMsg.DiscardUnknown(m)
+func (m *EntriesMsg) XXX_DiscardUnknown() {
+	xxx_messageInfo_EntriesMsg.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_ValuesMsg proto.InternalMessageInfo
+var xxx_messageInfo_EntriesMsg proto.InternalMessageInfo
 
-func (m *ValuesMsg) GetValues() []*Fields {
+func (m *EntriesMsg) GetEntries() []*Entry {
 	if m != nil {
-		return m.Values
+		return m.Entries
 	}
 	return nil
 }
 
-type Fields struct {
+type Field struct {
 	Name                 string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	Value                []byte   `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -118,86 +118,86 @@ type Fields struct {
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *Fields) Reset()         { *m = Fields{} }
-func (m *Fields) String() string { return proto.CompactTextString(m) }
-func (*Fields) ProtoMessage()    {}
-func (*Fields) Descriptor() ([]byte, []int) {
+func (m *Field) Reset()         { *m = Field{} }
+func (m *Field) String() string { return proto.CompactTextString(m) }
+func (*Field) ProtoMessage()    {}
+func (*Field) Descriptor() ([]byte, []int) {
 	return fileDescriptor_748391160b9263c4, []int{2}
 }
 
-func (m *Fields) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_Fields.Unmarshal(m, b)
+func (m *Field) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_Field.Unmarshal(m, b)
 }
-func (m *Fields) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_Fields.Marshal(b, m, deterministic)
+func (m *Field) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_Field.Marshal(b, m, deterministic)
 }
-func (m *Fields) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Fields.Merge(m, src)
+func (m *Field) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Field.Merge(m, src)
 }
-func (m *Fields) XXX_Size() int {
-	return xxx_messageInfo_Fields.Size(m)
+func (m *Field) XXX_Size() int {
+	return xxx_messageInfo_Field.Size(m)
 }
-func (m *Fields) XXX_DiscardUnknown() {
-	xxx_messageInfo_Fields.DiscardUnknown(m)
+func (m *Field) XXX_DiscardUnknown() {
+	xxx_messageInfo_Field.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_Fields proto.InternalMessageInfo
+var xxx_messageInfo_Field proto.InternalMessageInfo
 
-func (m *Fields) GetName() string {
+func (m *Field) GetName() string {
 	if m != nil {
 		return m.Name
 	}
 	return ""
 }
 
-func (m *Fields) GetValue() []byte {
+func (m *Field) GetValue() []byte {
 	if m != nil {
 		return m.Value
 	}
 	return nil
 }
 
-type WriteMsg struct {
-	Key                  string    `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	Values               []*Fields `protobuf:"bytes,2,rep,name=values,proto3" json:"values,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
-	XXX_unrecognized     []byte    `json:"-"`
-	XXX_sizecache        int32     `json:"-"`
+type Entry struct {
+	Key                  string   `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Values               []*Field `protobuf:"bytes,2,rep,name=values,proto3" json:"values,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *WriteMsg) Reset()         { *m = WriteMsg{} }
-func (m *WriteMsg) String() string { return proto.CompactTextString(m) }
-func (*WriteMsg) ProtoMessage()    {}
-func (*WriteMsg) Descriptor() ([]byte, []int) {
+func (m *Entry) Reset()         { *m = Entry{} }
+func (m *Entry) String() string { return proto.CompactTextString(m) }
+func (*Entry) ProtoMessage()    {}
+func (*Entry) Descriptor() ([]byte, []int) {
 	return fileDescriptor_748391160b9263c4, []int{3}
 }
 
-func (m *WriteMsg) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_WriteMsg.Unmarshal(m, b)
+func (m *Entry) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_Entry.Unmarshal(m, b)
 }
-func (m *WriteMsg) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_WriteMsg.Marshal(b, m, deterministic)
+func (m *Entry) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_Entry.Marshal(b, m, deterministic)
 }
-func (m *WriteMsg) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_WriteMsg.Merge(m, src)
+func (m *Entry) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Entry.Merge(m, src)
 }
-func (m *WriteMsg) XXX_Size() int {
-	return xxx_messageInfo_WriteMsg.Size(m)
+func (m *Entry) XXX_Size() int {
+	return xxx_messageInfo_Entry.Size(m)
 }
-func (m *WriteMsg) XXX_DiscardUnknown() {
-	xxx_messageInfo_WriteMsg.DiscardUnknown(m)
+func (m *Entry) XXX_DiscardUnknown() {
+	xxx_messageInfo_Entry.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_WriteMsg proto.InternalMessageInfo
+var xxx_messageInfo_Entry proto.InternalMessageInfo
 
-func (m *WriteMsg) GetKey() string {
+func (m *Entry) GetKey() string {
 	if m != nil {
 		return m.Key
 	}
 	return ""
 }
 
-func (m *WriteMsg) GetValues() []*Fields {
+func (m *Entry) GetValues() []*Field {
 	if m != nil {
 		return m.Values
 	}
@@ -284,9 +284,9 @@ func (m *KeyMsg) GetKey() string {
 
 func init() {
 	proto.RegisterType((*ReadMsg)(nil), "simpledb.ReadMsg")
-	proto.RegisterType((*ValuesMsg)(nil), "simpledb.ValuesMsg")
-	proto.RegisterType((*Fields)(nil), "simpledb.Fields")
-	proto.RegisterType((*WriteMsg)(nil), "simpledb.WriteMsg")
+	proto.RegisterType((*EntriesMsg)(nil), "simpledb.EntriesMsg")
+	proto.RegisterType((*Field)(nil), "simpledb.Field")
+	proto.RegisterType((*Entry)(nil), "simpledb.Entry")
 	proto.RegisterType((*OkMsg)(nil), "simpledb.OkMsg")
 	proto.RegisterType((*KeyMsg)(nil), "simpledb.KeyMsg")
 }
@@ -294,26 +294,26 @@ func init() {
 func init() { proto.RegisterFile("simpledb.proto", fileDescriptor_748391160b9263c4) }
 
 var fileDescriptor_748391160b9263c4 = []byte{
-	// 290 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x52, 0x5f, 0x4b, 0xfb, 0x30,
-	0x14, 0xa5, 0xe9, 0x6f, 0x5d, 0x73, 0x7f, 0x32, 0x67, 0x14, 0x2d, 0x7d, 0x2a, 0x7d, 0xea, 0x53,
-	0xd9, 0x3a, 0xfc, 0x04, 0x8e, 0x81, 0x88, 0x54, 0x32, 0xd4, 0xe7, 0xd4, 0x5e, 0xa5, 0xb4, 0xeb,
-	0x4a, 0x53, 0x85, 0xbd, 0xfb, 0xc1, 0xa5, 0x49, 0x67, 0x04, 0x07, 0xea, 0xdb, 0x3d, 0x37, 0xe7,
-	0x4f, 0x72, 0x08, 0x4c, 0x64, 0xb1, 0x69, 0x2a, 0xcc, 0xb3, 0xb8, 0x69, 0xb7, 0xdd, 0x96, 0xb9,
-	0x7b, 0x1c, 0x2e, 0x60, 0xcc, 0x51, 0xe4, 0xb7, 0xf2, 0x85, 0x4d, 0xc1, 0x2e, 0x71, 0xe7, 0x59,
-	0x81, 0x15, 0x51, 0xde, 0x8f, 0xec, 0x1c, 0x9c, 0xe7, 0x02, 0xab, 0x5c, 0x7a, 0x24, 0xb0, 0x23,
-	0xca, 0x07, 0x14, 0x5e, 0x02, 0x7d, 0x10, 0xd5, 0x2b, 0xca, 0x5e, 0x16, 0x81, 0xf3, 0xa6, 0x80,
-	0x67, 0x05, 0x76, 0xf4, 0x3f, 0x99, 0xc6, 0x9f, 0x61, 0x2b, 0x45, 0xe7, 0xc3, 0x79, 0x98, 0x80,
-	0xa3, 0x37, 0x8c, 0xc1, 0xbf, 0x5a, 0x6c, 0x70, 0xc8, 0x52, 0x33, 0x3b, 0x83, 0x91, 0xe2, 0x79,
-	0x24, 0xb0, 0xa2, 0x23, 0xae, 0x41, 0xb8, 0x02, 0xf7, 0xb1, 0x2d, 0x3a, 0x3c, 0x7c, 0x41, 0x93,
-	0x4d, 0x7e, 0xc8, 0xbe, 0x80, 0x51, 0x5a, 0xf6, 0x26, 0x13, 0x20, 0x69, 0xa9, 0x3c, 0x5c, 0x4e,
-	0xd2, 0x32, 0xf4, 0xc1, 0xb9, 0xc1, 0xdd, 0x41, 0xfb, 0xe4, 0x9d, 0x80, 0xbb, 0x56, 0x86, 0xcb,
-	0x8c, 0xcd, 0x75, 0x53, 0xfc, 0xee, 0x8a, 0x9d, 0x98, 0x98, 0xa1, 0x3c, 0xff, 0xd4, 0xac, 0x4c,
-	0x35, 0x73, 0x18, 0xaf, 0x9f, 0x44, 0xfd, 0x17, 0xc9, 0x0c, 0xe8, 0x7d, 0x93, 0x8b, 0x0e, 0x7b,
-	0x11, 0x33, 0x8c, 0x7d, 0x09, 0xfe, 0xb1, 0xd9, 0xe9, 0x07, 0xcd, 0x80, 0x5e, 0xd7, 0x12, 0xdb,
-	0xee, 0xd7, 0x8a, 0x18, 0xe8, 0x12, 0x2b, 0xd4, 0x19, 0x5f, 0x2a, 0xd3, 0x3d, 0x7c, 0xe3, 0x67,
-	0x8e, 0xfa, 0x34, 0x8b, 0x8f, 0x00, 0x00, 0x00, 0xff, 0xff, 0x10, 0xcf, 0x99, 0xf9, 0x46, 0x02,
-	0x00, 0x00,
+	// 298 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x52, 0x4d, 0x4b, 0xc3, 0x40,
+	0x14, 0x24, 0x89, 0xf9, 0x7a, 0x4a, 0xad, 0x4b, 0xd1, 0xd0, 0x53, 0xd8, 0x8b, 0xf1, 0x90, 0x80,
+	0xe9, 0xc1, 0xbb, 0x56, 0x41, 0x44, 0x22, 0x5b, 0xfc, 0x01, 0x89, 0x79, 0x4a, 0x48, 0x9a, 0x86,
+	0x24, 0x0a, 0xf9, 0xed, 0x5e, 0x64, 0x3f, 0x6a, 0x6d, 0xad, 0xe0, 0x6d, 0x87, 0x37, 0x6f, 0xe6,
+	0xcd, 0xb0, 0x30, 0xea, 0x8a, 0x65, 0x53, 0x61, 0x9e, 0x45, 0x4d, 0xbb, 0xea, 0x57, 0xc4, 0x59,
+	0x63, 0x3a, 0x03, 0x9b, 0x61, 0x9a, 0x3f, 0x76, 0x6f, 0x64, 0x0c, 0x46, 0x89, 0x83, 0xa7, 0xf9,
+	0x5a, 0xe0, 0x32, 0xfe, 0x24, 0xa7, 0x60, 0xbd, 0x16, 0x58, 0xe5, 0x9d, 0xa7, 0xfb, 0x46, 0xe0,
+	0x32, 0x85, 0xe8, 0x15, 0xc0, 0x6d, 0xdd, 0xb7, 0x05, 0x76, 0x7c, 0xef, 0x02, 0x6c, 0x94, 0xc8,
+	0xd3, 0x7c, 0x23, 0x38, 0x8c, 0x8f, 0xa3, 0x6f, 0x3b, 0x4e, 0x1b, 0xd8, 0x7a, 0x4e, 0x2f, 0xc1,
+	0xbc, 0xe3, 0x12, 0x84, 0xc0, 0x41, 0x9d, 0x2e, 0x51, 0x99, 0x89, 0x37, 0x99, 0x80, 0xf9, 0x91,
+	0x56, 0xef, 0xe8, 0xe9, 0xbe, 0x16, 0x1c, 0x31, 0x09, 0xe8, 0x35, 0x98, 0x42, 0x64, 0xcf, 0x79,
+	0xe7, 0x60, 0x09, 0x8e, 0x3c, 0x6f, 0xcb, 0x57, 0xb8, 0x30, 0x35, 0xa6, 0x67, 0x60, 0x26, 0x25,
+	0x3f, 0x75, 0x04, 0x7a, 0x52, 0x0a, 0x09, 0x87, 0xe9, 0x49, 0x49, 0xa7, 0x60, 0x3d, 0xe0, 0xb0,
+	0x37, 0x7c, 0xfc, 0xa9, 0x81, 0xb3, 0x10, 0x7a, 0xf3, 0x8c, 0x84, 0xb2, 0x26, 0xf6, 0x74, 0x43,
+	0x4e, 0x36, 0x2e, 0xaa, 0xb9, 0xe9, 0x6e, 0x60, 0x12, 0x83, 0xbd, 0x78, 0x49, 0xeb, 0x3f, 0xe8,
+	0x93, 0x6d, 0xba, 0xaa, 0x31, 0x04, 0xf7, 0xb9, 0xc9, 0xd3, 0x1e, 0xf9, 0xd6, 0xae, 0xe2, 0x4f,
+	0x0b, 0x19, 0x25, 0x04, 0xf7, 0xbe, 0xee, 0xb0, 0xed, 0xff, 0x47, 0x8f, 0xc0, 0x9d, 0x63, 0x85,
+	0x52, 0x7d, 0xbc, 0x99, 0xca, 0xf8, 0xbf, 0xf8, 0x99, 0x25, 0x3e, 0xca, 0xec, 0x2b, 0x00, 0x00,
+	0xff, 0xff, 0xbe, 0x91, 0xdd, 0x49, 0x3a, 0x02, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -328,10 +328,10 @@ const _ = grpc.SupportPackageIsVersion4
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type SimpleDbClient interface {
-	ReadRPC(ctx context.Context, in *ReadMsg, opts ...grpc.CallOption) (*ValuesMsg, error)
-	ScanRPC(ctx context.Context, in *ReadMsg, opts ...grpc.CallOption) (*ValuesMsg, error)
-	UpdateRPC(ctx context.Context, in *WriteMsg, opts ...grpc.CallOption) (*OkMsg, error)
-	InsertRPC(ctx context.Context, in *WriteMsg, opts ...grpc.CallOption) (*OkMsg, error)
+	ReadRPC(ctx context.Context, in *ReadMsg, opts ...grpc.CallOption) (*Entry, error)
+	ScanRPC(ctx context.Context, in *ReadMsg, opts ...grpc.CallOption) (*EntriesMsg, error)
+	UpdateRPC(ctx context.Context, in *Entry, opts ...grpc.CallOption) (*OkMsg, error)
+	InsertRPC(ctx context.Context, in *Entry, opts ...grpc.CallOption) (*OkMsg, error)
 	DeleteRPC(ctx context.Context, in *KeyMsg, opts ...grpc.CallOption) (*OkMsg, error)
 }
 
@@ -343,8 +343,8 @@ func NewSimpleDbClient(cc *grpc.ClientConn) SimpleDbClient {
 	return &simpleDbClient{cc}
 }
 
-func (c *simpleDbClient) ReadRPC(ctx context.Context, in *ReadMsg, opts ...grpc.CallOption) (*ValuesMsg, error) {
-	out := new(ValuesMsg)
+func (c *simpleDbClient) ReadRPC(ctx context.Context, in *ReadMsg, opts ...grpc.CallOption) (*Entry, error) {
+	out := new(Entry)
 	err := c.cc.Invoke(ctx, "/simpledb.SimpleDb/ReadRPC", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -352,8 +352,8 @@ func (c *simpleDbClient) ReadRPC(ctx context.Context, in *ReadMsg, opts ...grpc.
 	return out, nil
 }
 
-func (c *simpleDbClient) ScanRPC(ctx context.Context, in *ReadMsg, opts ...grpc.CallOption) (*ValuesMsg, error) {
-	out := new(ValuesMsg)
+func (c *simpleDbClient) ScanRPC(ctx context.Context, in *ReadMsg, opts ...grpc.CallOption) (*EntriesMsg, error) {
+	out := new(EntriesMsg)
 	err := c.cc.Invoke(ctx, "/simpledb.SimpleDb/ScanRPC", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -361,7 +361,7 @@ func (c *simpleDbClient) ScanRPC(ctx context.Context, in *ReadMsg, opts ...grpc.
 	return out, nil
 }
 
-func (c *simpleDbClient) UpdateRPC(ctx context.Context, in *WriteMsg, opts ...grpc.CallOption) (*OkMsg, error) {
+func (c *simpleDbClient) UpdateRPC(ctx context.Context, in *Entry, opts ...grpc.CallOption) (*OkMsg, error) {
 	out := new(OkMsg)
 	err := c.cc.Invoke(ctx, "/simpledb.SimpleDb/UpdateRPC", in, out, opts...)
 	if err != nil {
@@ -370,7 +370,7 @@ func (c *simpleDbClient) UpdateRPC(ctx context.Context, in *WriteMsg, opts ...gr
 	return out, nil
 }
 
-func (c *simpleDbClient) InsertRPC(ctx context.Context, in *WriteMsg, opts ...grpc.CallOption) (*OkMsg, error) {
+func (c *simpleDbClient) InsertRPC(ctx context.Context, in *Entry, opts ...grpc.CallOption) (*OkMsg, error) {
 	out := new(OkMsg)
 	err := c.cc.Invoke(ctx, "/simpledb.SimpleDb/InsertRPC", in, out, opts...)
 	if err != nil {
@@ -390,10 +390,10 @@ func (c *simpleDbClient) DeleteRPC(ctx context.Context, in *KeyMsg, opts ...grpc
 
 // SimpleDbServer is the server API for SimpleDb service.
 type SimpleDbServer interface {
-	ReadRPC(context.Context, *ReadMsg) (*ValuesMsg, error)
-	ScanRPC(context.Context, *ReadMsg) (*ValuesMsg, error)
-	UpdateRPC(context.Context, *WriteMsg) (*OkMsg, error)
-	InsertRPC(context.Context, *WriteMsg) (*OkMsg, error)
+	ReadRPC(context.Context, *ReadMsg) (*Entry, error)
+	ScanRPC(context.Context, *ReadMsg) (*EntriesMsg, error)
+	UpdateRPC(context.Context, *Entry) (*OkMsg, error)
+	InsertRPC(context.Context, *Entry) (*OkMsg, error)
 	DeleteRPC(context.Context, *KeyMsg) (*OkMsg, error)
 }
 
@@ -401,16 +401,16 @@ type SimpleDbServer interface {
 type UnimplementedSimpleDbServer struct {
 }
 
-func (*UnimplementedSimpleDbServer) ReadRPC(ctx context.Context, req *ReadMsg) (*ValuesMsg, error) {
+func (*UnimplementedSimpleDbServer) ReadRPC(ctx context.Context, req *ReadMsg) (*Entry, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReadRPC not implemented")
 }
-func (*UnimplementedSimpleDbServer) ScanRPC(ctx context.Context, req *ReadMsg) (*ValuesMsg, error) {
+func (*UnimplementedSimpleDbServer) ScanRPC(ctx context.Context, req *ReadMsg) (*EntriesMsg, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ScanRPC not implemented")
 }
-func (*UnimplementedSimpleDbServer) UpdateRPC(ctx context.Context, req *WriteMsg) (*OkMsg, error) {
+func (*UnimplementedSimpleDbServer) UpdateRPC(ctx context.Context, req *Entry) (*OkMsg, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateRPC not implemented")
 }
-func (*UnimplementedSimpleDbServer) InsertRPC(ctx context.Context, req *WriteMsg) (*OkMsg, error) {
+func (*UnimplementedSimpleDbServer) InsertRPC(ctx context.Context, req *Entry) (*OkMsg, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method InsertRPC not implemented")
 }
 func (*UnimplementedSimpleDbServer) DeleteRPC(ctx context.Context, req *KeyMsg) (*OkMsg, error) {
@@ -458,7 +458,7 @@ func _SimpleDb_ScanRPC_Handler(srv interface{}, ctx context.Context, dec func(in
 }
 
 func _SimpleDb_UpdateRPC_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(WriteMsg)
+	in := new(Entry)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -470,13 +470,13 @@ func _SimpleDb_UpdateRPC_Handler(srv interface{}, ctx context.Context, dec func(
 		FullMethod: "/simpledb.SimpleDb/UpdateRPC",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SimpleDbServer).UpdateRPC(ctx, req.(*WriteMsg))
+		return srv.(SimpleDbServer).UpdateRPC(ctx, req.(*Entry))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _SimpleDb_InsertRPC_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(WriteMsg)
+	in := new(Entry)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -488,7 +488,7 @@ func _SimpleDb_InsertRPC_Handler(srv interface{}, ctx context.Context, dec func(
 		FullMethod: "/simpledb.SimpleDb/InsertRPC",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SimpleDbServer).InsertRPC(ctx, req.(*WriteMsg))
+		return srv.(SimpleDbServer).InsertRPC(ctx, req.(*Entry))
 	}
 	return interceptor(ctx, in, info, handler)
 }

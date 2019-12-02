@@ -12,7 +12,7 @@ import (
 func TestTxnRead(t *testing.T) {
 	err := deleteData()
 	if err != nil {
-		t.Fatalf("Error deleting data: %v\n", err)
+		t.Fatalf("Error deleting Data: %v\n", err)
 	}
 
 	db, err := NewDB("data")
@@ -54,7 +54,7 @@ func TestTxnRead(t *testing.T) {
 func TestTxnAbortRWRW(t *testing.T) {
 	err := deleteData()
 	if err != nil {
-		t.Fatalf("Error deleting data: %v\n", err)
+		t.Fatalf("Error deleting Data: %v\n", err)
 	}
 
 	db, err := NewDB("data")
@@ -63,7 +63,7 @@ func TestTxnAbortRWRW(t *testing.T) {
 	}
 
 	db.UpdateTxn(func(txn *Txn) error {
-		txn.Write("test", map[string]*Value{"value": &Value{dataType: String, data: []byte("test")}})
+		txn.Write("test", map[string]*Value{"value": &Value{DataType: String, Data: []byte("test")}})
 		return nil
 	})
 
@@ -89,7 +89,7 @@ func TestTxnAbortRWRW(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			txn.Write("test", map[string]*Value{"value": &Value{dataType: String, data: []byte(string(entry.fields["value"].data) + " 1")}})
+			txn.Write("test", map[string]*Value{"value": &Value{DataType: String, Data: []byte(string(entry.Fields["value"].Data) + " 1")}})
 			time.Sleep(100 * time.Millisecond)
 			return nil
 		})
@@ -104,7 +104,7 @@ func TestTxnAbortRWRW(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			txn.Write("test", map[string]*Value{"value": &Value{dataType: String, data: []byte(string(entry.fields["value"].data) + " 2")}})
+			txn.Write("test", map[string]*Value{"value": &Value{DataType: String, Data: []byte(string(entry.Fields["value"].Data) + " 2")}})
 			return nil
 		})
 		errChan <- err
@@ -124,15 +124,15 @@ func TestTxnAbortRWRW(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Error reading from DB: %v\n", err)
 	}
-	if !(string(result.fields["value"].data) == "test 1" || string(result.fields["value"].data) == "test 2") {
-		t.Fatalf("Wrong result from read Txn. Got: %v\n", string(result.fields["value"].data))
+	if !(string(result.Fields["value"].Data) == "test 1" || string(result.Fields["value"].Data) == "test 2") {
+		t.Fatalf("Wrong result from read Txn. Got: %v\n", string(result.Fields["value"].Data))
 	}
 }
 
 func TestTxnAbortWRW(t *testing.T) {
 	err := deleteData()
 	if err != nil {
-		t.Fatalf("Error deleting data: %v\n", err)
+		t.Fatalf("Error deleting Data: %v\n", err)
 	}
 
 	db, err := NewDB("data")
@@ -141,7 +141,7 @@ func TestTxnAbortWRW(t *testing.T) {
 	}
 
 	db.UpdateTxn(func(txn *Txn) error {
-		txn.Write("test", map[string]*Value{"value": &Value{dataType: String, data: []byte("test")}})
+		txn.Write("test", map[string]*Value{"value": &Value{DataType: String, Data: []byte("test")}})
 		return nil
 	})
 
@@ -163,7 +163,7 @@ func TestTxnAbortWRW(t *testing.T) {
 
 	go func() {
 		err := db.UpdateTxn(func(txn *Txn) error {
-			txn.Write("test", map[string]*Value{"value": &Value{dataType: String, data: []byte("foo")}})
+			txn.Write("test", map[string]*Value{"value": &Value{DataType: String, Data: []byte("foo")}})
 			fmt.Println("finished W")
 			return nil
 		})
@@ -177,7 +177,7 @@ func TestTxnAbortWRW(t *testing.T) {
 				return err
 			}
 			time.Sleep(800 * time.Millisecond)
-			txn.Write("test", map[string]*Value{"value": &Value{dataType: String, data: []byte(string(entry.fields["value"].data) + " test")}})
+			txn.Write("test", map[string]*Value{"value": &Value{DataType: String, Data: []byte(string(entry.Fields["value"].Data) + " test")}})
 			fmt.Println("finished RW")
 			return nil
 		})
@@ -198,7 +198,7 @@ func TestTxnAbortWRW(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Error reading from DB: %v\n", err)
 	}
-	if !(string(result.fields["value"].data) == "test test" || string(result.fields["value"].data) == "foo") {
-		t.Fatalf("Wrong result from read Txn. Got: %v\n", string(result.fields["value"].data))
+	if !(string(result.Fields["value"].Data) == "test test" || string(result.Fields["value"].Data) == "foo") {
+		t.Fatalf("Wrong result from read Txn. Got: %v\n", string(result.Fields["value"].Data))
 	}
 }

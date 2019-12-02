@@ -5,22 +5,22 @@ import (
 	"math"
 )
 
-// Entry represents a row in the db where a key is mapped to multiple fields
+// Entry represents a row in the db where a key is mapped to multiple Fields
 type Entry struct {
 	ts     uint64
-	key    string
-	fields map[string]*Value
+	Key    string
+	Fields map[string]*Value
 }
 
 // Value combines a slice of bytes with a data type in order to parse data
 type Value struct {
-	dataType uint8
-	data     []byte
+	DataType uint8
+	Data     []byte
 }
 
 func parseValue(value *Value) (interface{}, error) {
-	data := value.data
-	switch value.dataType {
+	data := value.Data
+	switch value.DataType {
 	case Bool:
 		if len(data) != 1 {
 			return nil, newErrParseValue(value)
@@ -57,47 +57,47 @@ type indexEntry struct {
 	block uint32
 }
 
-func createEntry(ts uint64, key string, fields map[string]interface{}) (*Entry, error) {
+func createEntry(ts uint64, key string, Fields map[string]interface{}) (*Entry, error) {
 	if len(key) > KeySize {
 		return nil, newErrExceedMaxKeySize(key)
 	}
-	if len(fields) > MaxFields {
+	if len(Fields) > MaxFields {
 		return nil, newErrExceedMaxFields()
 	}
 	entry := &Entry{
 		ts:     ts,
-		key:    key,
-		fields: make(map[string]*Value),
+		Key:    key,
+		Fields: make(map[string]*Value),
 	}
-	for name, data := range fields {
+	for name, data := range Fields {
 		switch v := data.(type) {
 		case bool:
 			value := []byte{0}
 			if v {
 				value = []byte{1}
 			}
-			entry.fields[name] = &Value{dataType: Bool, data: value}
+			entry.Fields[name] = &Value{DataType: Bool, Data: value}
 		case int64:
 			value := make([]byte, 8)
 			binary.LittleEndian.PutUint64(value, uint64(v))
-			entry.fields[name] = &Value{dataType: Int, data: value}
+			entry.Fields[name] = &Value{DataType: Int, Data: value}
 		case float64:
 			value := make([]byte, 8)
 			binary.LittleEndian.PutUint64(value, math.Float64bits(v))
-			entry.fields[name] = &Value{dataType: Float, data: value}
+			entry.Fields[name] = &Value{DataType: Float, Data: value}
 		case string:
-			entry.fields[name] = &Value{dataType: String, data: []byte(v)}
+			entry.Fields[name] = &Value{DataType: String, Data: []byte(v)}
 		case []byte:
-			entry.fields[name] = &Value{dataType: Bytes, data: v}
+			entry.Fields[name] = &Value{DataType: Bytes, Data: v}
 		case nil:
-			entry.fields[name] = &Value{dataType: Tombstone, data: []byte{}}
+			entry.Fields[name] = &Value{DataType: Tombstone, Data: []byte{}}
 		default:
 			return nil, newErrNoTypeFound()
 		}
 	}
 	totalSize := 0
-	for _, value := range entry.fields {
-		totalSize += len(value.data)
+	for _, value := range entry.Fields {
+		totalSize += len(value.Data)
 		if totalSize > EntrySize {
 			return nil, newErrExceedMaxEntrySize()
 		}
@@ -108,32 +108,32 @@ func createEntry(ts uint64, key string, fields map[string]interface{}) (*Entry, 
 func encodeEntry(entry *Entry) (data []byte) {
 	tsBytes := make([]byte, 8)
 	binary.LittleEndian.PutUint64(tsBytes, entry.ts)
-	keySizeBytes := uint8(len(entry.key))
-	keyBytes := []byte(entry.key)
-	fieldsBytes := []byte{}
+	keySizeBytes := uint8(len(entry.Key))
+	keyBytes := []byte(entry.Key)
+	FieldsBytes := []byte{}
 
-	for name, value := range entry.fields {
+	for name, value := range entry.Fields {
 		nameSizeBytes := uint8(len(name))
 		nameBytes := []byte(name)
-		dataTypeBytes := value.dataType
+		DataTypeBytes := value.DataType
 		dataSizeBytes := make([]byte, 2)
-		binary.LittleEndian.PutUint16(dataSizeBytes, uint16(len(value.data)))
-		dataBytes := value.data
+		binary.LittleEndian.PutUint16(dataSizeBytes, uint16(len(value.Data)))
+		dataBytes := value.Data
 
 		fieldBytes := []byte{}
 		fieldBytes = append(fieldBytes, nameSizeBytes)
 		fieldBytes = append(fieldBytes, nameBytes...)
-		fieldBytes = append(fieldBytes, dataTypeBytes)
+		fieldBytes = append(fieldBytes, DataTypeBytes)
 		fieldBytes = append(fieldBytes, dataSizeBytes...)
 		fieldBytes = append(fieldBytes, dataBytes...)
 
-		fieldsBytes = append(fieldsBytes, fieldBytes...)
+		FieldsBytes = append(FieldsBytes, fieldBytes...)
 	}
 
 	data = append(data, tsBytes...)
 	data = append(data, keySizeBytes)
 	data = append(data, keyBytes...)
-	data = append(data, fieldsBytes...)
+	data = append(data, FieldsBytes...)
 
 	totalSize := uint32(len(data))
 	totalSizeBytes := make([]byte, 4)
@@ -149,11 +149,11 @@ func decodeEntry(data []byte) (*Entry, error) {
 		keyBytes
 		fieldBytes
 	)
-	fields := make(map[string]*Value)
+	Fields := make(map[string]*Value)
 	entry := &Entry{
 		ts:     0,
-		key:    "",
-		fields: nil,
+		Key:    "",
+		Fields: nil,
 	}
 	step := tsBytes
 	i := 0
@@ -172,7 +172,7 @@ func decodeEntry(data []byte) (*Entry, error) {
 			if i+int(keySize) > len(data) {
 				return nil, newErrDecodeEntry()
 			}
-			entry.key = string(data[i : i+int(keySize)])
+			entry.Key = string(data[i : i+int(keySize)])
 			i += int(keySize)
 			step = fieldBytes
 		case fieldBytes:
@@ -194,14 +194,14 @@ func decodeEntry(data []byte) (*Entry, error) {
 				return nil, newErrDecodeEntry()
 			}
 			fieldData := data[i : i+int(fieldDataSize)]
-			fields[fieldName] = &Value{dataType: fieldType, data: fieldData}
+			Fields[fieldName] = &Value{DataType: fieldType, Data: fieldData}
 			i += int(fieldDataSize)
 		default:
 			return nil, newErrDecodeEntry()
 		}
 	}
-	if len(fields) > 0 {
-		entry.fields = fields
+	if len(Fields) > 0 {
+		entry.Fields = Fields
 	}
 	return entry, nil
 }
@@ -235,8 +235,8 @@ func decodeEntries(data []byte) (entries []*Entry, err error) {
 
 func writeEntries(entries []*Entry) (dataBlocks, indexBlock []byte, bloom *bloom, kr *keyRange, err error) {
 	kr = &keyRange{
-		startKey: entries[0].key,
-		endKey:   entries[len(entries)-1].key,
+		startKey: entries[0].Key,
+		endKey:   entries[len(entries)-1].Key,
 	}
 	bloom = newBloom(len(entries))
 	block := make([]byte, BlockSize)
@@ -248,7 +248,7 @@ func writeEntries(entries []*Entry) (dataBlocks, indexBlock []byte, bloom *bloom
 		if i+len(entryBytes) > BlockSize {
 			dataBlocks = append(dataBlocks, block...)
 			indexEntry := encodeIndexEntry(&indexEntry{
-				key:   entries[index-1].key,
+				key:   entries[index-1].Key,
 				block: currBlock,
 			})
 			indexBlock = append(indexBlock, indexEntry...)
@@ -257,12 +257,12 @@ func writeEntries(entries []*Entry) (dataBlocks, indexBlock []byte, bloom *bloom
 			i = 0
 		}
 		i += copy(block[i:], entryBytes)
-		bloom.Insert(entry.key)
+		bloom.Insert(entry.Key)
 		// If last entry, append data block and index entry
 		if index == len(entries)-1 {
 			dataBlocks = append(dataBlocks, block...)
 			indexEntry := encodeIndexEntry(&indexEntry{
-				key:   entry.key,
+				key:   entry.Key,
 				block: currBlock,
 			})
 			indexBlock = append(indexBlock, indexEntry...)
