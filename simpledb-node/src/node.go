@@ -2,7 +2,6 @@ package simpledb
 
 import (
 	"fmt"
-	"log"
 	"net"
 
 	pb "github.com/triplewy/simpledb/grpc"
@@ -13,8 +12,9 @@ import (
 
 // Node represents database node
 type Node struct {
-	listener    net.Listener
-	server      *grpc.Server
+	Listener net.Listener
+	Server   *grpc.Server
+
 	serverCreds credentials.TransportCredentials
 	clientCreds credentials.TransportCredentials
 
@@ -25,12 +25,12 @@ type Node struct {
 func NewNode() (*Node, error) {
 	node := new(Node)
 
-	db, err := db.NewDB("/data/simpledb")
+	db, err := db.NewDB("data")
 	if err != nil {
 		return nil, err
 	}
 
-	addr := fmt.Sprintf("localhost:%d", RPCPort)
+	addr := fmt.Sprintf("127.0.0.1:%d", RPCPort)
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
@@ -45,18 +45,11 @@ func NewNode() (*Node, error) {
 		return nil, err
 	}
 
-	server := grpc.NewServer(grpc.Creds(node.serverCreds))
+	server := grpc.NewServer(grpc.Creds(serverCreds))
 	pb.RegisterSimpleDbServer(server, node)
 
-	go func() {
-		err := server.Serve(listener)
-		if err != nil {
-			log.Fatalf("failed to serve: %v", err)
-		}
-	}()
-
-	node.listener = listener
-	node.server = server
+	node.Listener = listener
+	node.Server = server
 	node.serverCreds = serverCreds
 	node.clientCreds = clientCreds
 	node.db = db
