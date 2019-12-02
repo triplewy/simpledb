@@ -12,14 +12,9 @@ import (
 )
 
 func TestDBPutOnly(t *testing.T) {
-	err := deleteData()
+	db, err := setupDB("data")
 	if err != nil {
-		t.Fatalf("Error deleting data: %v\n", err)
-	}
-
-	db, err := NewDB("data")
-	if err != nil {
-		t.Fatalf("Error creating LSM: %v\n", err)
+		t.Fatalf("Error setting up DB: %v\n", err)
 	}
 
 	numItems := 100000
@@ -50,14 +45,9 @@ func TestDBPutOnly(t *testing.T) {
 }
 
 func TestDBOverlapPut(t *testing.T) {
-	err := deleteData()
+	db, err := setupDB("data")
 	if err != nil {
-		t.Fatalf("Error deleting data: %v\n", err)
-	}
-
-	db, err := NewDB("data")
-	if err != nil {
-		t.Fatalf("Error creating LSM: %v\n", err)
+		t.Fatalf("Error setting up DB: %v\n", err)
 	}
 
 	numItems := 50000
@@ -100,14 +90,9 @@ func TestDBOverlapPut(t *testing.T) {
 }
 
 func TestDBDelete(t *testing.T) {
-	err := deleteData()
+	db, err := setupDB("data")
 	if err != nil {
-		t.Fatalf("Error deleting data: %v\n", err)
-	}
-
-	db, err := NewDB("data")
-	if err != nil {
-		t.Fatalf("Error creating LSM: %v\n", err)
+		t.Fatalf("Error setting up DB: %v\n", err)
 	}
 
 	numItems := 50000
@@ -150,14 +135,9 @@ func TestDBDelete(t *testing.T) {
 }
 
 func TestDBTinyBenchmark(t *testing.T) {
-	err := deleteData()
+	db, err := setupDB("data")
 	if err != nil {
-		t.Fatalf("Error deleting data: %v\n", err)
-	}
-
-	db, err := NewDB("data")
-	if err != nil {
-		t.Fatalf("Error creating LSM: %v\n", err)
+		t.Fatalf("Error setting up DB: %v\n", err)
 	}
 
 	numItems := 100000
@@ -213,14 +193,9 @@ func TestDBTinyBenchmark(t *testing.T) {
 }
 
 func TestDBRange(t *testing.T) {
-	err := deleteData()
+	db, err := setupDB("data")
 	if err != nil {
-		t.Fatalf("Error deleting data: %v\n", err)
-	}
-
-	db, err := NewDB("data")
-	if err != nil {
-		t.Fatalf("Error creating LSM: %v\n", err)
+		t.Fatalf("Error setting up DB: %v\n", err)
 	}
 
 	numItems := 30000
@@ -289,14 +264,9 @@ func TestDBRange(t *testing.T) {
 }
 
 func TestDBRandom(t *testing.T) {
-	err := deleteData()
+	db, err := setupDB("data")
 	if err != nil {
-		t.Fatalf("Error deleting data: %v\n", err)
-	}
-
-	db, err := NewDB("data")
-	if err != nil {
-		t.Fatalf("Error creating LSM: %v\n", err)
+		t.Fatalf("Error setting up DB: %v\n", err)
 	}
 
 	numItems := 10000

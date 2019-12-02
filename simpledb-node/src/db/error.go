@@ -210,3 +210,15 @@ func newErrParseValue(value *Value) *ErrParseValue {
 func (e *ErrParseValue) Error() string {
 	return fmt.Sprintf("Error parsing value in entry: %v", e.value)
 }
+
+type ErrKeyAlreadyExists struct {
+	key string
+}
+
+func newErrKeyAlreadyExists(key string) *ErrKeyAlreadyExists {
+	return &ErrKeyAlreadyExists{key: key}
+}
+
+func (e *ErrKeyAlreadyExists) Error() string {
+	return fmt.Sprintf("Key: %v already exists in the DB", e.key)
+}

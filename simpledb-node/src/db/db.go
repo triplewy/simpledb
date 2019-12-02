@@ -3,6 +3,7 @@ package db
 import (
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"sort"
 )
@@ -181,6 +182,19 @@ func (db *DB) scan(startKey, endKey string, ts uint64) ([]*Entry, error) {
 		return result[i].key < result[j].key
 	})
 	return result, nil
+}
+
+func (db *DB) checkPrimaryKey(key string) (bool, error) {
+	_, err := db.read(key, math.MaxUint64)
+	if err != nil {
+		switch err.(type) {
+		case *ErrKeyNotFound:
+			return false, nil
+		default:
+			return false, err
+		}
+	}
+	return true, nil
 }
 
 // Flush takes all entries from the in-memory table and sends them to lsm

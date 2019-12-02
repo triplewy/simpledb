@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+func setupDB(directory string) (*DB, error) {
+	err := deleteData()
+	if err != nil {
+		return nil, err
+	}
+	db, err := NewDB(directory)
+	if err != nil {
+		return nil, err
+	}
+	return db, nil
+}
+
 func simpleEntry(ts uint64, key, value string) *Entry {
 	return &Entry{
 		ts:     ts,

@@ -60,7 +60,7 @@ func (lsm *lsm) Write(blocks, index []byte, bloom *bloom, keyRange *keyRange) er
 // If no result is found, Find throws a KeyNotFound error
 func (lsm *lsm) Read(key string, ts uint64) (*Entry, error) {
 	for _, level := range lsm.levels {
-		entry, err := level.find(key, ts)
+		entry, err := level.Find(key, ts)
 		if err != nil {
 			switch err.(type) {
 			case *ErrKeyNotFound:
@@ -119,71 +119,6 @@ func (lsm *lsm) Scan(keyRange *keyRange, ts uint64) ([]*Entry, error) {
 	}
 	return result, nil
 }
-
-// CheckPrimaryKey traverses through LSM and checks if key exists
-// func (lsm *lsm) CheckPrimaryKey(key string, levelNum int) (bool, error) {
-// 	if levelNum > 6 {
-// 		return false, nil
-// 	}
-
-// 	level := lsm.levels[levelNum]
-
-// 	filenames := level.FindSSTFile(key)
-// 	if len(filenames) == 0 {
-// 		return lsm.CheckPrimaryKey(key, levelNum+1)
-// 	}
-
-// 	replyChan := make(chan *Entry)
-// 	errChan := make(chan error)
-
-// 	replies := []*Entry{}
-
-// 	var wg sync.WaitGroup
-// 	var errs []error
-
-// 	wg.Add(len(filenames))
-// 	for _, filename := range filenames {
-// 		go func(filename string) {
-// 			entry, err := lsm.fm.Find(filename, key,)
-// 			if err != nil {
-// 				errChan <- err
-// 			} else {
-// 				replyChan <- entry
-// 			}
-// 		}(filename)
-// 	}
-
-// 	go func() {
-// 		for {
-// 			select {
-// 			case reply := <-replyChan:
-// 				replies = append(replies, reply)
-// 				wg.Done()
-// 			case err := <-errChan:
-// 				errs = append(errs, err)
-// 				wg.Done()
-// 			}
-// 		}
-// 	}()
-
-// 	wg.Wait()
-
-// 	if len(replies) > 0 {
-// 		return true, nil
-// 	}
-
-// 	for _, err := range errs {
-// 		if _, ok := err.(*ErrKeyNotFound); ok {
-// 			continue
-// 		} else if strings.HasSuffix(err.Error(), "no such file or directory") {
-// 			fmt.Println(key, err)
-// 		} else {
-// 			return true, err
-// 		}
-// 	}
-
-// 	return lsm.CheckPrimaryKey(key, levelNum+1)
-// }
 
 // Close closes all levels in the LSM
 func (lsm *lsm) Close() {

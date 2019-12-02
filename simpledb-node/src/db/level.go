@@ -105,7 +105,7 @@ func newLevel(numLevel int, directory string, fm *fileManager) (*level, error) {
 	return lvl, nil
 }
 
-func (level *level) find(key string, ts uint64) (*Entry, error) {
+func (level *level) Find(key string, ts uint64) (*Entry, error) {
 	filenames := level.FindSSTFile(key)
 	if len(filenames) == 0 {
 		return nil, newErrKeyNotFound()
@@ -160,7 +160,7 @@ func (level *level) find(key string, ts uint64) (*Entry, error) {
 			if err != nil {
 				fmt.Println(err)
 			}
-			return level.find(key, ts)
+			return level.Find(key, ts)
 		default:
 			return nil, err
 		}
