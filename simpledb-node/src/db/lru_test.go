@@ -8,7 +8,7 @@ import (
 func TestLRU(t *testing.T) {
 	lru := newLRU(5)
 	keys := []string{"1", "2", "3", "4", "5", "5", "2", "6"}
-	values := []uint64{1, 2, 3, 4, 6, 7, 8}
+	values := []uint64{1, 2, 3, 4, 5, 6, 7, 8}
 
 	for i := range keys {
 		lru.Insert(keys[i], values[i])

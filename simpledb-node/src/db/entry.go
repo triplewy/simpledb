@@ -149,10 +149,11 @@ func decodeEntry(data []byte) (*Entry, error) {
 		keyBytes
 		fieldBytes
 	)
+	fields := make(map[string]*Value)
 	entry := &Entry{
 		ts:     0,
 		key:    "",
-		fields: make(map[string]*Value),
+		fields: nil,
 	}
 	step := tsBytes
 	i := 0
@@ -193,11 +194,14 @@ func decodeEntry(data []byte) (*Entry, error) {
 				return nil, newErrDecodeEntry()
 			}
 			fieldData := data[i : i+int(fieldDataSize)]
-			entry.fields[fieldName] = &Value{dataType: fieldType, data: fieldData}
+			fields[fieldName] = &Value{dataType: fieldType, data: fieldData}
 			i += int(fieldDataSize)
 		default:
 			return nil, newErrDecodeEntry()
 		}
+	}
+	if len(fields) > 0 {
+		entry.fields = fields
 	}
 	return entry, nil
 }

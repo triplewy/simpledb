@@ -73,6 +73,7 @@ func (oracle *oracle) run() {
 			commitTs := oracle.next()
 			for key, entry := range req.writeSet {
 				oracle.commitedTxns.Insert(key, commitTs)
+				entry.ts = commitTs
 				entries = append(entries, entry)
 			}
 			req.replyChan <- oracle.db.write(entries)

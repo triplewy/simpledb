@@ -136,7 +136,7 @@ func asyncViewTxns(db *DB, keys []string, memorykv map[string]string) error {
 				entry, err := txn.Read(key)
 				if err != nil {
 					if err.Error() == "Key not found" && !(value == "__delete__" || value == "") {
-						// fmt.Printf("Key: %v, Expected: %v, Got: %v\n", key, value, "Key not found")
+						fmt.Printf("Key: %v, Expected: %v, Got: %v\n", key, value, "Key not found")
 						return err
 					}
 					return nil

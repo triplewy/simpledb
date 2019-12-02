@@ -1,6 +1,7 @@
 package db
 
 import (
+	"encoding/binary"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -89,9 +90,26 @@ func (mt *memTable) RecoverWAL() (maxCommitTs uint64, err error) {
 		return 0, err
 	}
 	mt.size = len(data)
-	entries, err := decodeEntries(data)
-	if err != nil {
-		return 0, err
+	entries := []*Entry{}
+	i := 0
+	for i < len(data) {
+		if i+4 > len(data) {
+			break
+		}
+		entrySize := binary.LittleEndian.Uint32(data[i : i+4])
+		i += 4
+		if i+int(entrySize) > len(data) {
+			return 0, newErrBadFormattedSST()
+		}
+		if entrySize == 0 {
+			break
+		}
+		entry, err := decodeEntry(data[i : i+int(entrySize)])
+		if err != nil {
+			return 0, err
+		}
+		i += int(entrySize)
+		entries = append(entries, entry)
 	}
 	for _, entry := range entries {
 		mt.table.Put(entry)

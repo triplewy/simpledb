@@ -34,6 +34,7 @@ func TestFileGet(t *testing.T) {
 		t.Fatalf("Error writing to file: %v\n", err)
 	}
 
+	fm := newFileManager()
 	var wg sync.WaitGroup
 	replyChan := make(chan *Entry)
 	errChan := make(chan error)
@@ -66,7 +67,7 @@ func TestFileGet(t *testing.T) {
 		wg.Add(1)
 		key := strconv.Itoa(i)
 		go func(key string) {
-			entry, err := fileFind("data/L0/test.sst", key, uint64(10001))
+			entry, err := fm.Find("data/L0/test.sst", key, uint64(10001))
 			if err != nil {
 				errChan <- err
 			} else {

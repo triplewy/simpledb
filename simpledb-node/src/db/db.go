@@ -116,13 +116,26 @@ func (db *DB) read(key string, ts uint64) (*Entry, error) {
 	}
 	entry := db.mutable.table.Find(key, ts)
 	if entry != nil {
+		if entry.fields == nil {
+			return nil, newErrKeyNotFound()
+		}
 		return entry, nil
 	}
 	entry = db.immutable.table.Find(key, ts)
 	if entry != nil {
+		if entry.fields == nil {
+			return nil, newErrKeyNotFound()
+		}
 		return entry, nil
 	}
-	return db.lsm.Read(key, ts)
+	entry, err := db.lsm.Read(key, ts)
+	if err != nil {
+		return nil, err
+	}
+	if entry.fields == nil {
+		return nil, newErrKeyNotFound()
+	}
+	return entry, nil
 }
 
 // range finds all key, value pairs within the given range of keys

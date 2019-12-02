@@ -104,7 +104,6 @@ func TestTxnAbortRWRW(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			fmt.Println("Read:", entry)
 			txn.Write("test", map[string]*Value{"value": &Value{dataType: String, data: []byte(string(entry.fields["value"].data) + " 2")}})
 			return nil
 		})
@@ -126,9 +125,8 @@ func TestTxnAbortRWRW(t *testing.T) {
 		t.Fatalf("Error reading from DB: %v\n", err)
 	}
 	if !(string(result.fields["value"].data) == "test 1" || string(result.fields["value"].data) == "test 2") {
-		t.Fatalf("Wrong result from read Txn. Got: %v\n", result)
+		t.Fatalf("Wrong result from read Txn. Got: %v\n", string(result.fields["value"].data))
 	}
-	fmt.Println(result)
 }
 
 func TestTxnAbortWRW(t *testing.T) {
@@ -201,7 +199,6 @@ func TestTxnAbortWRW(t *testing.T) {
 		t.Fatalf("Error reading from DB: %v\n", err)
 	}
 	if !(string(result.fields["value"].data) == "test test" || string(result.fields["value"].data) == "foo") {
-		t.Fatalf("Wrong result from read Txn. Got: %v\n", result)
+		t.Fatalf("Wrong result from read Txn. Got: %v\n", string(result.fields["value"].data))
 	}
-	fmt.Println(result)
 }
