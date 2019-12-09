@@ -64,7 +64,7 @@ func NewDB(directory string) (*DB, error) {
 		close: make(chan struct{}, 1),
 	}
 
-	oracle := newOracle(maxCommitTs, db)
+	oracle := newOracle(maxCommitTs+1, db)
 	db.oracle = oracle
 
 	go db.run()

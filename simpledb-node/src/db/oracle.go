@@ -2,7 +2,7 @@ package db
 
 // oracle is struct that is responsible for Optimistic Concurrency Control for ACID Txns
 type oracle struct {
-	timestamp    uint64
+	ts           uint64
 	reqChan      chan chan uint64
 	commitChan   chan *commitReq
 	commitedTxns *lru
@@ -16,9 +16,9 @@ type commitReq struct {
 }
 
 // newOracle creates a new oracle that keeps track of current and committed Txns
-func newOracle(timestamp uint64, db *DB) *oracle {
+func newOracle(ts uint64, db *DB) *oracle {
 	oracle := &oracle{
-		timestamp:    timestamp,
+		ts:           ts,
 		reqChan:      make(chan chan uint64),
 		commitChan:   make(chan *commitReq),
 		commitedTxns: newLRU(oracleSize),
@@ -29,8 +29,8 @@ func newOracle(timestamp uint64, db *DB) *oracle {
 }
 
 func (oracle *oracle) next() uint64 {
-	result := oracle.timestamp
-	oracle.timestamp++
+	result := oracle.ts
+	oracle.ts++
 	return result
 }
 

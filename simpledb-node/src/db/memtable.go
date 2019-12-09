@@ -2,6 +2,7 @@ package db
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -116,6 +117,9 @@ func (mt *memTable) RecoverWAL() (maxCommitTs uint64, err error) {
 		if entry.ts > maxCommitTs {
 			maxCommitTs = entry.ts
 		}
+	}
+	for _, entry := range mt.table.Inorder() {
+		fmt.Println(entry)
 	}
 	return maxCommitTs, nil
 }

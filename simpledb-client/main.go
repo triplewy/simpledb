@@ -6,14 +6,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 	"time"
 
 	pb "github.com/triplewy/simpledb/grpc"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 
 	"gopkg.in/abiosoft/ishell.v1"
 )
@@ -41,7 +38,8 @@ func printHelp(shell *ishell.Shell) {
 
 func main() {
 	flag.Parse()
-	c := connect(addr)
+	client := NewClient(addr)
+	c := client.client
 
 	shell := ishell.New()
 	printHelp(shell)
@@ -159,16 +157,4 @@ func main() {
 	})
 
 	shell.Start()
-}
-
-func connect(addr string) pb.SimpleDbClient {
-	creds, err := credentials.NewClientTLSFromFile("../ssl/cert.pem", "")
-	if err != nil {
-		log.Fatalf("could not create credentials: %v", err)
-	}
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(creds), grpc.WithBlock(), grpc.WithTimeout(3*time.Second))
-	if err != nil {
-		log.Fatalf("did not connect: %v", err)
-	}
-	return pb.NewSimpleDbClient(conn)
 }
