@@ -10,14 +10,9 @@ import (
 )
 
 func TestTxnRead(t *testing.T) {
-	err := deleteData()
+	db, err := setupDB("data")
 	if err != nil {
-		t.Fatalf("Error deleting Data: %v\n", err)
-	}
-
-	db, err := NewDB("data")
-	if err != nil {
-		t.Fatalf("Error creating LSM: %v\n", err)
+		t.Fatalf("Error setting up DB: %v\n", err)
 	}
 
 	numItems := 100000
@@ -52,14 +47,9 @@ func TestTxnRead(t *testing.T) {
 }
 
 func TestTxnAbortRWRW(t *testing.T) {
-	err := deleteData()
+	db, err := setupDB("data")
 	if err != nil {
-		t.Fatalf("Error deleting Data: %v\n", err)
-	}
-
-	db, err := NewDB("data")
-	if err != nil {
-		t.Fatalf("Error creating LSM: %v\n", err)
+		t.Fatalf("Error setting up DB: %v\n", err)
 	}
 
 	db.UpdateTxn(func(txn *Txn) error {
@@ -130,14 +120,9 @@ func TestTxnAbortRWRW(t *testing.T) {
 }
 
 func TestTxnAbortWRW(t *testing.T) {
-	err := deleteData()
+	db, err := setupDB("data")
 	if err != nil {
-		t.Fatalf("Error deleting Data: %v\n", err)
-	}
-
-	db, err := NewDB("data")
-	if err != nil {
-		t.Fatalf("Error creating LSM: %v\n", err)
+		t.Fatalf("Error setting up DB: %v\n", err)
 	}
 
 	db.UpdateTxn(func(txn *Txn) error {

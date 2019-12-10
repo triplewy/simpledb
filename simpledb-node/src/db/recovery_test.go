@@ -9,14 +9,9 @@ import (
 )
 
 func TestRecoverLevels(t *testing.T) {
-	err := deleteData()
+	db, err := setupDB("data")
 	if err != nil {
-		t.Fatalf("Error deleting data: %v\n", err)
-	}
-
-	db, err := NewDB("data")
-	if err != nil {
-		t.Fatalf("Error creating DB: %v\n", err)
+		t.Fatalf("Error setting up DB: %v\n", err)
 	}
 
 	numItems := 100000
@@ -65,14 +60,9 @@ func TestRecoverLevels(t *testing.T) {
 }
 
 func TestRecoverUnexpected(t *testing.T) {
-	err := deleteData()
+	db, err := setupDB("data")
 	if err != nil {
-		t.Fatalf("Error deleting data: %v\n", err)
-	}
-
-	db, err := NewDB("data")
-	if err != nil {
-		t.Fatalf("Error creating DB: %v\n", err)
+		t.Fatalf("Error setting up DB: %v\n", err)
 	}
 
 	numItems := 50000

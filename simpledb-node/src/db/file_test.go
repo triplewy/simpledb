@@ -9,7 +9,7 @@ import (
 )
 
 func TestFileGet(t *testing.T) {
-	err := deleteData()
+	err := deleteData("data")
 	if err != nil {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
@@ -84,7 +84,7 @@ func TestFileGet(t *testing.T) {
 	}
 }
 func TestFileRange(t *testing.T) {
-	err := deleteData()
+	err := deleteData("data")
 	if err != nil {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}
@@ -102,7 +102,7 @@ func TestFileRange(t *testing.T) {
 		t.Fatalf("Error writing data entries: %v\n", err)
 	}
 
-	f, err := os.OpenFile("data/L0/test.sst", os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, 0644)
+	f, err := os.OpenFile("data/L0/test.sst", os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_WRONLY, filePerm)
 	if err != nil {
 		f.Close()
 		t.Fatalf("Error opening file: %v\n", err)

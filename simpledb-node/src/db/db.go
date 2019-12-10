@@ -28,7 +28,7 @@ type writeRequest struct {
 
 // NewDB creates a new database by instantiating the lsm and Value Log
 func NewDB(directory string) (*DB, error) {
-	err := os.MkdirAll(directory, os.ModePerm)
+	err := os.MkdirAll(directory, dirPerm)
 	if err != nil {
 		return nil, err
 	}

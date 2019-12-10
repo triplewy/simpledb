@@ -9,7 +9,7 @@ import (
 )
 
 func TestMergeMMap(t *testing.T) {
-	err := deleteData()
+	err := deleteData("data")
 	if err != nil {
 		t.Fatalf("Error deleting data: %v\n", err)
 	}

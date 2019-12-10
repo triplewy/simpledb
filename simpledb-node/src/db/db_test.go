@@ -17,7 +17,7 @@ func TestDBPutOnly(t *testing.T) {
 		t.Fatalf("Error setting up DB: %v\n", err)
 	}
 
-	numItems := 100000
+	numItems := 10000
 	memorykv := make(map[string]string)
 	entries := []*Entry{}
 
@@ -33,7 +33,7 @@ func TestDBPutOnly(t *testing.T) {
 	}
 
 	keys := []string{}
-	for i := 0; i < 50000; i++ {
+	for i := 0; i < 5000; i++ {
 		key := strconv.Itoa(1000000000000000000 + rand.Intn(numItems))
 		keys = append(keys, key)
 	}
@@ -50,7 +50,7 @@ func TestDBOverlapPut(t *testing.T) {
 		t.Fatalf("Error setting up DB: %v\n", err)
 	}
 
-	numItems := 50000
+	numItems := 5000
 	memorykv := make(map[string]string)
 	entries := []*Entry{}
 
@@ -95,7 +95,7 @@ func TestDBDelete(t *testing.T) {
 		t.Fatalf("Error setting up DB: %v\n", err)
 	}
 
-	numItems := 50000
+	numItems := 20000
 	memorykv := make(map[string]string)
 	entries := []*Entry{}
 
@@ -140,7 +140,7 @@ func TestDBTinyBenchmark(t *testing.T) {
 		t.Fatalf("Error setting up DB: %v\n", err)
 	}
 
-	numItems := 100000
+	numItems := 20000
 	memorykv := make(map[string]string)
 	entries := []*Entry{}
 
@@ -198,7 +198,7 @@ func TestDBRange(t *testing.T) {
 		t.Fatalf("Error setting up DB: %v\n", err)
 	}
 
-	numItems := 30000
+	numItems := 20000
 	memorykv := make(map[string]string)
 	entries := []*Entry{}
 

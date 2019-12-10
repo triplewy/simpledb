@@ -6,7 +6,7 @@ import (
 )
 
 func writeNewFile(filename string, data []byte) error {
-	f, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, filePerm)
 	defer f.Close()
 	if err != nil {
 		return err
@@ -26,7 +26,7 @@ func writeNewFile(filename string, data []byte) error {
 }
 
 func mmap(filename string) (entries []*Entry, err error) {
-	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
+	f, err := os.OpenFile(filename, os.O_RDONLY, filePerm)
 	defer f.Close()
 	if err != nil {
 		return nil, err
@@ -48,7 +48,7 @@ func mmap(filename string) (entries []*Entry, err error) {
 
 // recoverFile reads a file and returns key range, bloom filter, and total size of the file
 func recoverFile(filename string) (keyRange *keyRange, bloom *bloom, size int, err error) {
-	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
+	f, err := os.OpenFile(filename, os.O_RDONLY, filePerm)
 	defer f.Close()
 	if err != nil {
 		return nil, nil, 0, err
@@ -73,7 +73,7 @@ func recoverFile(filename string) (keyRange *keyRange, bloom *bloom, size int, e
 }
 
 func fileFind(filename, key string, ts uint64) (entry *Entry, err error) {
-	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
+	f, err := os.OpenFile(filename, os.O_RDONLY, filePerm)
 	defer f.Close()
 	if err != nil {
 		return nil, err
@@ -106,7 +106,7 @@ func fileFind(filename, key string, ts uint64) (entry *Entry, err error) {
 }
 
 func fileRange(filename string, keyRange *keyRange, ts uint64) (entries []*Entry, err error) {
-	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
+	f, err := os.OpenFile(filename, os.O_RDONLY, filePerm)
 	defer f.Close()
 	if err != nil {
 		return nil, err

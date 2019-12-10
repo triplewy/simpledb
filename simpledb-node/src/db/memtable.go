@@ -18,7 +18,7 @@ type memTable struct {
 
 // newMemTable creates a file for the WAL and a new Memtable
 func newMemTable(directory string, id string) (mt *memTable, maxCommitTs uint64, err error) {
-	err = os.MkdirAll(filepath.Join(directory, "memtables"), os.ModePerm)
+	err = os.MkdirAll(filepath.Join(directory, "memtables"), dirPerm)
 	if err != nil {
 		return nil, 0, err
 	}

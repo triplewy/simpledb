@@ -60,7 +60,7 @@ type level struct {
 
 // newLevel creates a new level in the lsm tree
 func newLevel(numLevel int, directory string, fm *fileManager) (*level, error) {
-	err := os.MkdirAll(filepath.Join(directory, "L"+strconv.Itoa(numLevel)), os.ModePerm)
+	err := os.MkdirAll(filepath.Join(directory, "L"+strconv.Itoa(numLevel)), dirPerm)
 	if err != nil {
 		return nil, err
 	}

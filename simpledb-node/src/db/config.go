@@ -34,6 +34,9 @@ const numWorkers = 50
 
 const oracleSize = 10000
 
+const dirPerm = 0700
+const filePerm = 0600
+
 // Supported value types
 const (
 	Bool uint8 = iota

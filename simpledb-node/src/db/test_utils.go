@@ -8,7 +8,7 @@ import (
 )
 
 func setupDB(directory string) (*DB, error) {
-	err := deleteData()
+	err := deleteData(directory)
 	if err != nil {
 		return nil, err
 	}
