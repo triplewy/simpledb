@@ -2,12 +2,10 @@ package main
 
 import (
 	"log"
-
-	simpledb "github.com/triplewy/simpledb/simpledb-node/src"
 )
 
 func main() {
-	node, err := simpledb.NewNode()
+	node, err := NewNode()
 	if err != nil {
 		log.Fatalf(err.Error())
 	}

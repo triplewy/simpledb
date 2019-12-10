@@ -1,13 +1,20 @@
-package simpledb
+package main
 
 import (
 	"fmt"
 	"net"
+	"time"
 
+	"github.com/hashicorp/raft"
+	db "github.com/triplewy/simpledb-embedded"
 	pb "github.com/triplewy/simpledb/grpc"
-	db "github.com/triplewy/simpledb/simpledb-node/src/db"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+)
+
+const (
+	retainSnapshotCount = 2
+	raftTimeout         = 10 * time.Second
 )
 
 // Node represents database node
@@ -19,6 +26,10 @@ type Node struct {
 	clientCreds credentials.TransportCredentials
 
 	db *db.DB
+
+	RaftDir  string
+	RaftBind string
+	raft     *raft.Raft // The consensus mechanism
 }
 
 // NewNode creates a node with a gRPC server and database

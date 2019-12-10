@@ -1,10 +1,10 @@
-package simpledb
+package main
 
 import (
 	"context"
 
+	simpledb "github.com/triplewy/simpledb-embedded"
 	pb "github.com/triplewy/simpledb/grpc"
-	simpledb "github.com/triplewy/simpledb/simpledb-node/src/db"
 )
 
 // ReadRPC calls node's DB Read API
