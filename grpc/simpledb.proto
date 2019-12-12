@@ -12,19 +12,28 @@ service SimpleDb {
 
 message ReadMsg {
     string key = 1;
-    repeated string fields = 2;
+    repeated string attributes = 2;
 }
 
 message EntriesMsg { repeated Entry entries = 1; }
 
-message Field {
+message Attribute {
     string name = 1;
-    bytes value = 2;
+    enum Type {
+        BOOL = 0;
+        INT = 1;
+        UINT = 2;
+        FLOAT = 3;
+        STRING = 4;
+        BYTES = 5;
+    }
+    Type type = 2;
+    bytes value = 3;
 }
 
 message Entry {
     string key = 1;
-    repeated Field values = 2;
+    repeated Attribute attributes = 2;
 }
 
 message OkMsg { bool Ok = 1; }

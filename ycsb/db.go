@@ -1,4 +1,4 @@
-package simpledb
+package ycsb
 
 import (
 	"context"
