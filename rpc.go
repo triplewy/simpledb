@@ -11,56 +11,28 @@ import (
 
 // ReadRPC calls node's DB Read API
 func (node *Node) ReadRPC(ctx context.Context, msg *pb.ReadMsg) (*pb.Entry, error) {
-	c := &command{
-		Op:             Read,
-		Key:            msg.Key,
-		ReadAttributes: msg.Attributes,
-		WriteValues:    nil,
-	}
-	buf, err := encodeMsgPack(c)
+	entry, err := node.store.db.Read(msg.Key, msg.Attributes)
 	if err != nil {
 		return nil, err
 	}
-	f := node.raft.Apply(buf.Bytes(), applyTimeout)
-	if e := f.(raft.Future); e.Error() != nil {
-		return nil, e.Error()
-	}
-	resp := f.Response().(*fsmReadResponse)
-	if resp.err != nil {
-		return nil, resp.err
-	}
-	attributes, err := valuesToAttributes(resp.entry.Attributes)
+	attributes, err := valuesToAttributes(entry.Attributes)
 	if err != nil {
 		return nil, err
 	}
 	return &pb.Entry{
-		Key:        resp.entry.Key,
+		Key:        entry.Key,
 		Attributes: attributes,
 	}, nil
 }
 
 // ScanRPC calls node's DB Scan API
 func (node *Node) ScanRPC(ctx context.Context, msg *pb.ReadMsg) (*pb.EntriesMsg, error) {
-	c := &command{
-		Op:             Scan,
-		Key:            msg.Key,
-		ReadAttributes: msg.Attributes,
-		WriteValues:    nil,
-	}
-	buf, err := encodeMsgPack(c)
+	entries, err := node.store.db.Scan(msg.Key, msg.Attributes)
 	if err != nil {
 		return nil, err
 	}
-	f := node.raft.Apply(buf.Bytes(), applyTimeout)
-	if e := f.(raft.Future); e.Error() != nil {
-		return nil, e.Error()
-	}
-	resp := f.Response().(*fsmScanResponse)
-	if resp.err != nil {
-		return nil, resp.err
-	}
 	result := []*pb.Entry{}
-	for _, entry := range resp.entries {
+	for _, entry := range entries {
 		attributes, err := valuesToAttributes(entry.Attributes)
 		if err != nil {
 			return nil, err
@@ -81,11 +53,10 @@ func (node *Node) UpdateRPC(ctx context.Context, msg *pb.Entry) (*pb.OkMsg, erro
 	if err != nil {
 		return nil, err
 	}
-	c := &command{
-		Op:             Update,
-		Key:            msg.Key,
-		ReadAttributes: nil,
-		WriteValues:    values,
+	c := &Command{
+		Op:     Write,
+		Key:    msg.Key,
+		Values: values,
 	}
 	buf, err := encodeMsgPack(c)
 	if err != nil {
@@ -95,7 +66,7 @@ func (node *Node) UpdateRPC(ctx context.Context, msg *pb.Entry) (*pb.OkMsg, erro
 	if e := f.(raft.Future); e.Error() != nil {
 		return nil, e.Error()
 	}
-	resp := f.Response().(*fsmGenericResponse)
+	resp := f.Response().(*fsmResponse)
 	if resp.err != nil {
 		return nil, resp.err
 	}
@@ -108,11 +79,10 @@ func (node *Node) InsertRPC(ctx context.Context, msg *pb.Entry) (*pb.OkMsg, erro
 	if err != nil {
 		return nil, err
 	}
-	c := &command{
-		Op:             Insert,
-		Key:            msg.Key,
-		ReadAttributes: nil,
-		WriteValues:    values,
+	c := &Command{
+		Op:     Write,
+		Key:    msg.Key,
+		Values: values,
 	}
 	buf, err := encodeMsgPack(c)
 	if err != nil {
@@ -122,7 +92,7 @@ func (node *Node) InsertRPC(ctx context.Context, msg *pb.Entry) (*pb.OkMsg, erro
 	if e := f.(raft.Future); e.Error() != nil {
 		return nil, e.Error()
 	}
-	resp := f.Response().(*fsmGenericResponse)
+	resp := f.Response().(*fsmResponse)
 	if resp.err != nil {
 		return nil, resp.err
 	}
@@ -131,11 +101,10 @@ func (node *Node) InsertRPC(ctx context.Context, msg *pb.Entry) (*pb.OkMsg, erro
 
 // DeleteRPC calls node's DB Delete API
 func (node *Node) DeleteRPC(ctx context.Context, msg *pb.KeyMsg) (*pb.OkMsg, error) {
-	c := &command{
-		Op:             Delete,
-		Key:            msg.Key,
-		ReadAttributes: nil,
-		WriteValues:    nil,
+	c := &Command{
+		Op:     Delete,
+		Key:    msg.Key,
+		Values: nil,
 	}
 	buf, err := encodeMsgPack(c)
 	if err != nil {
@@ -145,7 +114,7 @@ func (node *Node) DeleteRPC(ctx context.Context, msg *pb.KeyMsg) (*pb.OkMsg, err
 	if e := f.(raft.Future); e.Error() != nil {
 		return nil, e.Error()
 	}
-	resp := f.Response().(*fsmGenericResponse)
+	resp := f.Response().(*fsmResponse)
 	if resp.err != nil {
 		return nil, resp.err
 	}

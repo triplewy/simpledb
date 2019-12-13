@@ -37,15 +37,14 @@ func NewNode(directory string, rpcPort, raftPort int) (*Node, error) {
 	node := new(Node)
 	node.dir = directory
 
-	store, err := newStore(node.dir)
+	err := node.newStore(node.dir)
 	if err != nil {
 		return nil, err
 	}
-	node.store = store
-	// err = node.setupRPC(rpcPort)
-	// if err != nil {
-	// 	return nil, err
-	// }
+	err = node.setupRPC(rpcPort)
+	if err != nil {
+		return nil, err
+	}
 	err = node.setupRaft(raftPort)
 	if err != nil {
 		return nil, err
@@ -59,11 +58,11 @@ func (node *Node) setupRPC(port int) error {
 	if err != nil {
 		return err
 	}
-	serverCreds, err := credentials.NewServerTLSFromFile("../ssl/cert.pem", "../ssl/key.pem")
+	serverCreds, err := credentials.NewServerTLSFromFile("ssl/cert.pem", "ssl/key.pem")
 	if err != nil {
 		return err
 	}
-	clientCreds, err := credentials.NewClientTLSFromFile("../ssl/cert.pem", "")
+	clientCreds, err := credentials.NewClientTLSFromFile("ssl/cert.pem", "")
 	if err != nil {
 		return err
 	}
@@ -108,7 +107,7 @@ func (node *Node) setupRaft(port int) error {
 		return fmt.Errorf("file snapshot store: %s", err)
 	}
 	// Create raft node
-	ra, err := raft.NewRaft(config, (*fsm)(node.store), node.store, node.store, snapshots, transport)
+	ra, err := raft.NewRaft(config, node.store, node.store, node.store, snapshots, transport)
 	if err != nil {
 		return fmt.Errorf("new raft: %s", err)
 	}

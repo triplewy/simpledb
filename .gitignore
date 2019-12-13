@@ -1,10 +1,2 @@
 ssl
-.env
-*.log
-*.sst
-manifest*
-simpledb-node/src/db/data
-simpledb-node/data
-!manifest.go
-!manifest_test.go
-coverage.out
+bin
