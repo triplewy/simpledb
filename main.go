@@ -7,19 +7,27 @@ import (
 	"os/signal"
 )
 
-var dir string
+var dataDir string
+var sslDir string
 var rpcPort int
 var raftPort int
 
 func init() {
-	flag.StringVar(&dir, "d", "/tmp/simpledb", "data directory for simpleDB")
+	flag.StringVar(&dataDir, "data", "/tmp/simpledb", "data directory for simpleDB")
+	flag.StringVar(&sslDir, "ssl", "", "ssl directory for simpleDB")
 	flag.IntVar(&rpcPort, "rpc", 30000, "rpc port for node")
 	flag.IntVar(&raftPort, "raft", 30001, "raft port for node")
 }
 func main() {
 	flag.Parse()
 
-	_, err := NewNode(dir, rpcPort, raftPort)
+	config := &Config{
+		dataDir:  dataDir,
+		sslDir:   sslDir,
+		rpcPort:  rpcPort,
+		raftPort: raftPort,
+	}
+	_, err := NewNode(config)
 	if err != nil {
 		log.Fatalf(err.Error())
 	}

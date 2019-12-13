@@ -17,9 +17,9 @@ type store struct {
 	db  *db.DB
 }
 
-func (node *Node) newStore(dir string) error {
+func (node *Node) newStore() error {
 	store := &store{
-		dir: dir,
+		dir: node.Config.dataDir,
 		db:  nil,
 	}
 	err := store.initialize()

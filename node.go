@@ -27,42 +27,42 @@ type Node struct {
 	serverCreds credentials.TransportCredentials
 	clientCreds credentials.TransportCredentials
 
-	dir   string
-	store *store
-	raft  *raft.Raft
+	Config *Config
+	store  *store
+	raft   *raft.Raft
 }
 
 // NewNode creates a node with a gRPC server and database
-func NewNode(directory string, rpcPort, raftPort int) (*Node, error) {
+func NewNode(config *Config) (*Node, error) {
 	node := new(Node)
-	node.dir = directory
+	node.Config = config
 
-	err := node.newStore(node.dir)
+	err := node.newStore()
 	if err != nil {
 		return nil, err
 	}
-	err = node.setupRPC(rpcPort)
+	err = node.setupRPC()
 	if err != nil {
 		return nil, err
 	}
-	err = node.setupRaft(raftPort)
+	err = node.setupRaft()
 	if err != nil {
 		return nil, err
 	}
 	return node, nil
 }
 
-func (node *Node) setupRPC(port int) error {
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
+func (node *Node) setupRPC() error {
+	addr := fmt.Sprintf("127.0.0.1:%d", node.Config.rpcPort)
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
 	}
-	serverCreds, err := credentials.NewServerTLSFromFile("ssl/cert.pem", "ssl/key.pem")
+	serverCreds, err := credentials.NewServerTLSFromFile(filepath.Join(node.Config.sslDir, "cert.pem"), filepath.Join(node.Config.sslDir, "key.pem"))
 	if err != nil {
 		return err
 	}
-	clientCreds, err := credentials.NewClientTLSFromFile("ssl/cert.pem", "")
+	clientCreds, err := credentials.NewClientTLSFromFile(filepath.Join(node.Config.sslDir, "cert.pem"), "")
 	if err != nil {
 		return err
 	}
@@ -82,7 +82,7 @@ func (node *Node) setupRPC(port int) error {
 	return nil
 }
 
-func (node *Node) setupRaft(port int) error {
+func (node *Node) setupRaft() error {
 	// Get node outbound ip
 	id, err := getOutboundIP()
 	if err != nil {
@@ -93,16 +93,16 @@ func (node *Node) setupRaft(port int) error {
 	config.LocalID = raft.ServerID(id.String())
 
 	// Setup Raft communication.
-	addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("localhost:%d", port))
+	addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("localhost:%d", node.Config.raftPort))
 	if err != nil {
 		return err
 	}
-	transport, err := raft.NewTCPTransport(fmt.Sprintf("localhost:%d", port), addr, 3, 10*time.Second, os.Stderr)
+	transport, err := raft.NewTCPTransport(fmt.Sprintf("localhost:%d", node.Config.raftPort), addr, 3, 10*time.Second, os.Stderr)
 	if err != nil {
 		return err
 	}
 	// Create the snapshot store. This allows the Raft to truncate the log.
-	snapshots, err := raft.NewFileSnapshotStore(filepath.Join(node.dir, "snapshots"), retainSnapshotCount, os.Stderr)
+	snapshots, err := raft.NewFileSnapshotStore(filepath.Join(node.Config.dataDir, "snapshots"), retainSnapshotCount, os.Stderr)
 	if err != nil {
 		return fmt.Errorf("file snapshot store: %s", err)
 	}
