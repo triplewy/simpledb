@@ -10,7 +10,8 @@ import (
 
 // Types of Ops
 const (
-	Write uint8 = iota
+	Insert uint8 = iota
+	Update
 	Delete
 )
 
@@ -36,11 +37,34 @@ func (store *store) Apply(log *raft.Log) interface{} {
 		panic(fmt.Sprintf("failed to decode command: %v", err))
 	}
 	switch c.Op {
-	case Write:
-		err := store.db.Insert(c.Key, c.Values)
+	case Insert:
+		txn := store.db.StartTxn()
+		exists, err := txn.Exists(c.Key)
+		if err != nil {
+			return &fsmResponse{err: err}
+		}
+		if exists {
+			return &fsmResponse{err: fmt.Errorf("key: %v already exists", c.Key)}
+		}
+		txn.Write(c.Key, c.Values)
+		err = txn.Commit()
+		return &fsmResponse{err: err}
+	case Update:
+		txn := store.db.StartTxn()
+		entry, err := txn.Read(c.Key)
+		if err != nil {
+			return &fsmResponse{err: err}
+		}
+		for name, value := range c.Values {
+			entry.Attributes[name] = value
+		}
+		txn.Write(c.Key, entry.Attributes)
+		err = txn.Commit()
 		return &fsmResponse{err: err}
 	case Delete:
-		err := store.db.Delete(c.Key)
+		txn := store.db.StartTxn()
+		txn.Delete(c.Key)
+		err := txn.Commit()
 		return &fsmResponse{err: err}
 	default:
 		return &fsmResponse{err: fmt.Errorf("unknown command: %v", c.Op)}
@@ -87,13 +111,38 @@ func (store *store) Restore(rc io.ReadCloser) error {
 			return err
 		}
 		switch c.Op {
-		case Write:
-			err := store.db.Insert(c.Key, c.Values)
+		case Insert:
+			txn := store.db.StartTxn()
+			exists, err := txn.Exists(c.Key)
+			if err != nil {
+				return err
+			}
+			if exists {
+				return fmt.Errorf("key: %v already exists", c.Key)
+			}
+			txn.Write(c.Key, c.Values)
+			err = txn.Commit()
+			if err != nil {
+				return err
+			}
+		case Update:
+			txn := store.db.StartTxn()
+			entry, err := txn.Read(c.Key)
+			if err != nil {
+				return err
+			}
+			for name, value := range c.Values {
+				entry.Attributes[name] = value
+			}
+			txn.Write(c.Key, entry.Attributes)
+			err = txn.Commit()
 			if err != nil {
 				return err
 			}
 		case Delete:
-			err := store.db.Delete(c.Key)
+			txn := store.db.StartTxn()
+			txn.Delete(c.Key)
+			err := txn.Commit()
 			if err != nil {
 				return err
 			}
@@ -105,7 +154,7 @@ func (store *store) Restore(rc io.ReadCloser) error {
 	return nil
 }
 
-// Persist should dump all necessary state to the WriteCloser 'sink',
+// Persist should dump all necessary state to the InsertCloser 'sink',
 // and call sink.Close() when finished or call sink.Cancel() on error.
 func (f *fsmSnapshot) Persist(sink raft.SnapshotSink) error {
 	err := func() error {

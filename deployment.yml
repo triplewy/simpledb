@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: simpledb
+spec:
+  selector:
+    app: simpledb
+  ports:
+    - protocol: TCP
+      port: 30000
+      name: rpc
+    - protocol: TCP
+      port: 30001
+      name: raft
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simpledb
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: simpledb
+  template:
+    metadata:
+      labels:
+        app: simpledb
+    spec:
+      containers:
+        - name: simpledb
+          image: 0a3469ff7067
+          ports:
+            - containerPort: 30000
+              name: rpc
+            - containerPort: 30001
+              name: raft

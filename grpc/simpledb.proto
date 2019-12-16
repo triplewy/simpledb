@@ -4,7 +4,7 @@ package simpledb;
 
 service SimpleDb {
     rpc ReadRPC(ReadMsg) returns (Entry);
-    rpc ScanRPC(ReadMsg) returns (EntriesMsg);
+    rpc ScanRPC(ScanMsg) returns (EntriesMsg);
     rpc UpdateRPC(Entry) returns (OkMsg);
     rpc InsertRPC(Entry) returns (OkMsg);
     rpc DeleteRPC(KeyMsg) returns (OkMsg);
@@ -13,6 +13,12 @@ service SimpleDb {
 message ReadMsg {
     string key = 1;
     repeated string attributes = 2;
+}
+
+message ScanMsg {
+    string startKey = 1;
+    string endKey = 2;
+    repeated string attributes = 3;
 }
 
 message EntriesMsg { repeated Entry entries = 1; }

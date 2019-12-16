@@ -53,7 +53,7 @@ func NewNode(config *Config) (*Node, error) {
 }
 
 func (node *Node) setupRPC() error {
-	addr := fmt.Sprintf("127.0.0.1:%d", node.Config.rpcPort)
+	addr := fmt.Sprintf(":%d", node.Config.rpcPort)
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
@@ -66,7 +66,8 @@ func (node *Node) setupRPC() error {
 	if err != nil {
 		return err
 	}
-	server := grpc.NewServer(grpc.Creds(serverCreds))
+	// server := grpc.NewServer(grpc.Creds(serverCreds))
+	server := grpc.NewServer()
 	pb.RegisterSimpleDbServer(server, node)
 
 	node.Listener = listener
@@ -93,11 +94,11 @@ func (node *Node) setupRaft() error {
 	config.LocalID = raft.ServerID(id.String())
 
 	// Setup Raft communication.
-	addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("localhost:%d", node.Config.raftPort))
+	addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf(":%d", node.Config.raftPort))
 	if err != nil {
 		return err
 	}
-	transport, err := raft.NewTCPTransport(fmt.Sprintf("localhost:%d", node.Config.raftPort), addr, 3, 10*time.Second, os.Stderr)
+	transport, err := raft.NewTCPTransport(fmt.Sprintf(":%d", node.Config.raftPort), addr, 3, 10*time.Second, os.Stderr)
 	if err != nil {
 		return err
 	}

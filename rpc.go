@@ -11,11 +11,18 @@ import (
 
 // ReadRPC calls node's DB Read API
 func (node *Node) ReadRPC(ctx context.Context, msg *pb.ReadMsg) (*pb.Entry, error) {
-	entry, err := node.store.db.Read(msg.Key, msg.Attributes)
+	txn := node.store.db.StartTxn()
+	entry, err := txn.Read(msg.Key)
 	if err != nil {
 		return nil, err
 	}
-	attributes, err := valuesToAttributes(entry.Attributes)
+	values := make(map[string]*simpledb.Value)
+	for _, name := range msg.Attributes {
+		if value, ok := entry.Attributes[name]; ok {
+			values[name] = value
+		}
+	}
+	attributes, err := valuesToAttributes(values)
 	if err != nil {
 		return nil, err
 	}
@@ -26,8 +33,9 @@ func (node *Node) ReadRPC(ctx context.Context, msg *pb.ReadMsg) (*pb.Entry, erro
 }
 
 // ScanRPC calls node's DB Scan API
-func (node *Node) ScanRPC(ctx context.Context, msg *pb.ReadMsg) (*pb.EntriesMsg, error) {
-	entries, err := node.store.db.Scan(msg.Key, msg.Attributes)
+func (node *Node) ScanRPC(ctx context.Context, msg *pb.ScanMsg) (*pb.EntriesMsg, error) {
+	txn := node.store.db.StartTxn()
+	entries, err := txn.Scan(msg.StartKey, msg.EndKey)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +62,7 @@ func (node *Node) UpdateRPC(ctx context.Context, msg *pb.Entry) (*pb.OkMsg, erro
 		return nil, err
 	}
 	c := &Command{
-		Op:     Write,
+		Op:     Update,
 		Key:    msg.Key,
 		Values: values,
 	}
@@ -80,7 +88,7 @@ func (node *Node) InsertRPC(ctx context.Context, msg *pb.Entry) (*pb.OkMsg, erro
 		return nil, err
 	}
 	c := &Command{
-		Op:     Write,
+		Op:     Insert,
 		Key:    msg.Key,
 		Values: values,
 	}
