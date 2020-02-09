@@ -11,7 +11,6 @@ import (
 	"github.com/hashicorp/raft"
 	pb "github.com/triplewy/simpledb/grpc"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 const (
@@ -21,13 +20,8 @@ const (
 
 // Node represents database node
 type Node struct {
-	Listener net.Listener
-	Server   *grpc.Server
-
-	serverCreds credentials.TransportCredentials
-	clientCreds credentials.TransportCredentials
-
 	Config *Config
+	Server *grpc.Server
 	store  *store
 	raft   *raft.Raft
 }
@@ -58,25 +52,12 @@ func (node *Node) setupRPC() error {
 	if err != nil {
 		return err
 	}
-	serverCreds, err := credentials.NewServerTLSFromFile(filepath.Join(node.Config.sslDir, "cert.pem"), filepath.Join(node.Config.sslDir, "key.pem"))
-	if err != nil {
-		return err
-	}
-	clientCreds, err := credentials.NewClientTLSFromFile(filepath.Join(node.Config.sslDir, "cert.pem"), "")
-	if err != nil {
-		return err
-	}
-	// server := grpc.NewServer(grpc.Creds(serverCreds))
-	server := grpc.NewServer()
-	pb.RegisterSimpleDbServer(server, node)
 
-	node.Listener = listener
-	node.Server = server
-	node.serverCreds = serverCreds
-	node.clientCreds = clientCreds
+	node.Server = grpc.NewServer()
+	pb.RegisterSimpleDbServer(node.Server, node)
 
 	go func() {
-		if err := node.Server.Serve(node.Listener); err != nil {
+		if err := node.Server.Serve(listener); err != nil {
 			log.Fatalf("failed to serve: %v", err)
 		}
 	}()
@@ -114,7 +95,6 @@ func (node *Node) setupRaft() error {
 	}
 	node.raft = ra
 
-	// Do discovery here
 	// if enableSingle {
 	configuration := raft.Configuration{
 		Servers: []raft.Server{
@@ -124,7 +104,7 @@ func (node *Node) setupRaft() error {
 			},
 		},
 	}
-	ra.BootstrapCluster(configuration)
+	node.raft.BootstrapCluster(configuration)
 	// }
 
 	return nil

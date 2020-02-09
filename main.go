@@ -8,13 +8,11 @@ import (
 )
 
 var dataDir string
-var sslDir string
 var rpcPort int
 var raftPort int
 
 func init() {
 	flag.StringVar(&dataDir, "data", "/tmp/simpledb", "data directory for simpleDB")
-	flag.StringVar(&sslDir, "ssl", "", "ssl directory for simpleDB")
 	flag.IntVar(&rpcPort, "rpc", 30000, "rpc port for node")
 	flag.IntVar(&raftPort, "raft", 30001, "raft port for node")
 }
@@ -23,7 +21,6 @@ func main() {
 
 	config := &Config{
 		dataDir:  dataDir,
-		sslDir:   sslDir,
 		rpcPort:  rpcPort,
 		raftPort: raftPort,
 	}

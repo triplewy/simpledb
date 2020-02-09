@@ -8,13 +8,12 @@ import (
 	"path/filepath"
 
 	"github.com/hashicorp/raft"
-	db "github.com/triplewy/simpledb-embedded"
 	simpledb "github.com/triplewy/simpledb-embedded"
 )
 
 type store struct {
 	dir string
-	db  *db.DB
+	db  *simpledb.DB
 }
 
 func (node *Node) newStore() error {
@@ -39,7 +38,7 @@ func (store *store) initialize() error {
 	if err != nil {
 		return err
 	}
-	db, err := db.NewDB(filepath.Join(store.dir, "data"))
+	db, err := simpledb.NewDB(filepath.Join(store.dir, "data"))
 	if err != nil {
 		return err
 	}

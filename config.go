@@ -9,7 +9,6 @@ const applyTimeout = 10 * time.Second
 // Config is configuration for db
 type Config struct {
 	dataDir  string
-	sslDir   string
 	rpcPort  int
 	raftPort int
 }
